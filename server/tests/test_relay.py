@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 from aiohttp import WSMsgType, WSServerHandshakeError, web
 
-from server.relay import Connection, MAX_MESSAGE_BYTES, Relay
+from server.relay import Connection, MAX_MESSAGE_BYTES, Relay, Room
 
 ORIGIN = "https://play.piea.uk"
 
@@ -134,7 +134,7 @@ async def test_create_list_join_and_private_code(aiohttp_client) -> None:
     assert re.fullmatch(r"[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{6}", code)
 
     await guest.send_json({"type": "list"})
-    assert await guest.receive_json(timeout=1) == {"type": "rooms", "rooms": []}
+    assert await guest.receive_json(timeout=1) == {"type": "rooms", "rooms": [], "total": 0}
 
     await guest.send_json({"type": "join", "roomId": joined["room"]["id"]})
     assert await guest.receive_json(timeout=1) == {"type": "error", "code": "room_not_found"}
@@ -225,7 +225,7 @@ async def test_game_isolation_for_lists_and_joins(aiohttp_client) -> None:
     room_id = (await game_a.receive_json(timeout=1))["room"]["id"]
 
     await game_b.send_json({"type": "list"})
-    assert await game_b.receive_json(timeout=1) == {"type": "rooms", "rooms": []}
+    assert await game_b.receive_json(timeout=1) == {"type": "rooms", "rooms": [], "total": 0}
     await game_b.send_json({"type": "join", "roomId": room_id})
     assert await game_b.receive_json(timeout=1) == {"type": "error", "code": "room_not_found"}
 
@@ -237,17 +237,39 @@ async def test_message_size_and_rate_limits(aiohttp_client) -> None:
         max_message_bytes=256,
         max_messages_per_second=2,
     )
+    oversized = await connect_and_auth(client, "oversized")
+    # max_msg_size 是 max_message_bytes + 1，所以超量訊息在協定層就被擋掉。
+    await oversized.send_str(json.dumps({"type": "send", "data": "x" * 300}))
+    for _ in range(3):
+        message = await oversized.receive(timeout=1)
+        if message.type in {WSMsgType.CLOSE, WSMsgType.CLOSING, WSMsgType.CLOSED}:
+            break
+    else:
+        pytest.fail("oversized frame did not close the WebSocket")
+
     ws = await connect_and_auth(client, "alice")
+    await ws.send_json({"type": "create", "private": False})
+    assert (await ws.receive_json(timeout=1))["type"] == "joined"
 
-    await ws.send_str(json.dumps({"type": "send", "data": "x" * 300}))
-    assert await ws.receive_json(timeout=1) == {"type": "error", "code": "message_too_large"}
+    # 剛好等於上限的訊息仍然合法（應用層用 `>` 判斷）。
+    envelope = json.dumps({"type": "send", "data": ""}, separators=(",", ":"))
+    payload = "x" * (256 - len(envelope))
+    exact = json.dumps({"type": "send", "data": payload}, separators=(",", ":"))
+    assert len(exact.encode("utf-8")) == 256
+    await ws.send_str(exact)
+    assert await ws.receive_json(timeout=1) == {
+        "type": "message",
+        "from": "alice",
+        "data": payload,
+    }
 
-    await ws.send_json({"type": "list"})
-    await ws.send_json({"type": "list"})
-    await ws.send_json({"type": "list"})
-    assert (await ws.receive_json(timeout=1))["type"] == "rooms"
-    assert (await ws.receive_json(timeout=1))["type"] == "rooms"
-    assert await ws.receive_json(timeout=1) == {"type": "error", "code": "rate_limited"}
+    chatty = await connect_and_auth(client, "chatty")
+    await chatty.send_json({"type": "list"})
+    await chatty.send_json({"type": "list"})
+    await chatty.send_json({"type": "list"})
+    assert (await chatty.receive_json(timeout=1))["type"] == "rooms"
+    assert (await chatty.receive_json(timeout=1))["type"] == "rooms"
+    assert await chatty.receive_json(timeout=1) == {"type": "error", "code": "rate_limited"}
     assert MAX_MESSAGE_BYTES == 16 * 1024
 
 
@@ -305,6 +327,88 @@ async def test_concurrent_user_connection_limit_is_atomic(aiohttp_client) -> Non
     assert len(relay.connections_by_user["same-user"]) == 3
 
     await asyncio.gather(*(socket.close() for socket in sockets))
+
+
+@pytest.mark.asyncio
+async def test_global_connection_limit_survives_concurrent_handshakes(aiohttp_client) -> None:
+    client, relay = await make_relay_client(aiohttp_client, max_connections=2)
+    results = await asyncio.gather(
+        *(client.ws_connect("/mp", headers={"Origin": ORIGIN}) for _ in range(8)),
+        return_exceptions=True,
+    )
+    accepted = [item for item in results if not isinstance(item, BaseException)]
+    rejected = [item for item in results if isinstance(item, WSServerHandshakeError)]
+
+    assert len(accepted) == 2
+    assert len(rejected) == 6
+    assert {item.status for item in rejected} == {503}
+    assert relay._pending_connections == 2
+
+    await asyncio.gather(*(socket.close() for socket in accepted))
+
+
+@pytest.mark.asyncio
+async def test_room_name_length_is_capped(aiohttp_client) -> None:
+    client, _ = await make_relay_client(aiohttp_client)
+    ws = await connect_and_auth(client, "alice")
+
+    await ws.send_json({"type": "create", "private": False, "name": "名" * 41})
+    assert await ws.receive_json(timeout=1) == {"type": "error", "code": "bad_message"}
+
+    await ws.send_json({"type": "create", "private": False, "name": "名" * 40})
+    joined = await ws.receive_json(timeout=1)
+    assert joined["type"] == "joined"
+    assert joined["room"]["name"] == "名" * 40
+
+
+@pytest.mark.asyncio
+async def test_list_returns_at_most_fifty_rooms_with_total(aiohttp_client) -> None:
+    client, relay = await make_relay_client(aiohttp_client)
+    ws = await connect_and_auth(client, "alice")
+    for index in range(60):
+        relay.rooms[f"room-{index:02d}"] = Room(
+            id=f"room-{index:02d}",
+            game_id="game-a",
+            max_players=4,
+            private=False,
+            name=f"房 {index}",
+            code=None,
+            created_at=float(index),
+        )
+    # 人多的排前面，其餘依建立時間。
+    relay.rooms["room-59"].players.append(next(iter(relay.connections)))
+
+    await ws.send_json({"type": "list"})
+    listing = await ws.receive_json(timeout=1)
+
+    assert listing["total"] == 60
+    assert len(listing["rooms"]) == 50
+    assert listing["rooms"][0]["id"] == "room-59"
+    assert [room["id"] for room in listing["rooms"][1:4]] == ["room-00", "room-01", "room-02"]
+
+
+@pytest.mark.asyncio
+async def test_set_state_limits(aiohttp_client) -> None:
+    client, relay = await make_relay_client(aiohttp_client)
+    ws = await connect_and_auth(client, "alice")
+    await ws.send_json({"type": "create", "private": False})
+    room_id = (await ws.receive_json(timeout=1))["room"]["id"]
+
+    await ws.send_json({"type": "setState", "key": "k" * 65, "value": 1})
+    assert await ws.receive_json(timeout=1) == {"type": "error", "code": "state_too_large"}
+
+    room = relay.rooms[room_id]
+    room.state = {f"key-{index}": index for index in range(64)}
+    await ws.send_json({"type": "setState", "key": "overflow", "value": 1})
+    assert await ws.receive_json(timeout=1) == {"type": "error", "code": "state_too_large"}
+
+    # 已存在的 key 可以覆寫，不算新增。
+    await ws.send_json({"type": "setState", "key": "key-0", "value": 7})
+    assert await ws.receive_json(timeout=1) == {"type": "state", "key": "key-0", "value": 7}
+
+    room.state = {"blob": "x" * (64 * 1024 - 32)}
+    await ws.send_json({"type": "setState", "key": "tail", "value": "y" * 1024})
+    assert await ws.receive_json(timeout=1) == {"type": "error", "code": "state_too_large"}
 
 
 @pytest.mark.asyncio

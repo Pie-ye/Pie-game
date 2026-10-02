@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import gzip
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 from yarl import URL
 
-from server import app as app_module
+from server import __version__
+from server import relay as relay_module
 from server.app import Settings, create_content_app, create_shell_app
 from server.relay import Relay
 
@@ -214,6 +216,122 @@ async def test_precompressed_gzip_and_brotli_headers(aiohttp_client, service_set
     assert brotli_response.headers["Content-Type"] == "application/wasm"
 
 
+@pytest.mark.asyncio
+async def test_identity_only_accept_encoding_skips_precompressed(
+    aiohttp_client,
+    service_settings,
+) -> None:
+    community = service_settings.content_dir / "games" / "community"
+    source = b"console.log('plain');"
+    (community / "bundle.js").write_bytes(source)
+    (community / "bundle.js.gz").write_bytes(gzip.compress(b"compressed"))
+    relay = Relay(service_settings.content_origin, redeem=_unused_redeem)
+    client = await aiohttp_client(create_content_app(service_settings, relay=relay))
+
+    refused = await client.get(
+        "/games/community/bundle.js",
+        headers={"Accept-Encoding": "gzip;q=0, br;q=0"},
+        auto_decompress=False,
+    )
+    assert refused.status == 200
+    assert "Content-Encoding" not in refused.headers
+    assert await refused.read() == source
+
+
+@pytest.mark.asyncio
+async def test_unsatisfiable_range_advertises_accept_ranges(
+    aiohttp_client,
+    service_settings,
+) -> None:
+    community = service_settings.content_dir / "games" / "community"
+    (community / "asset.bin").write_bytes(b"0123456789")
+    relay = Relay(service_settings.content_origin, redeem=_unused_redeem)
+    client = await aiohttp_client(create_content_app(service_settings, relay=relay))
+
+    response = await client.get(
+        "/games/community/asset.bin",
+        headers={"Range": "bytes=20-30", "Accept-Encoding": "identity"},
+    )
+    assert response.status == 416
+    assert response.headers["Accept-Ranges"] == "bytes"
+    assert response.headers["Content-Range"] == "bytes */10"
+
+
+def _release(root: Path, sha: str, body: str) -> None:
+    community = root / "releases" / sha / "site" / "games" / "community"
+    community.mkdir(parents=True)
+    (community / "index.json").write_text(body, encoding="utf-8")
+
+
+def _link_live(root: Path, sha: str) -> None:
+    pending = root / ".live.new"
+    pending.symlink_to(Path("releases") / sha)
+    pending.replace(root / "live")
+
+
+@pytest.mark.asyncio
+async def test_live_symlink_switch_is_visible_to_the_next_request(
+    aiohttp_client,
+    service_settings,
+    tmp_path,
+) -> None:
+    root = tmp_path / "pie-game-content"
+    root.mkdir()
+    _release(root, "aaa", '{"games":["first"]}')
+    _release(root, "bbb", '{"games":["second"]}')
+    _link_live(root, "aaa")
+    settings = replace(service_settings, content_dir=root / "live" / "site")
+    relay = Relay(settings.content_origin, redeem=_unused_redeem)
+    client = await aiohttp_client(create_content_app(settings, relay=relay))
+
+    first = await client.get("/games/community/index.json")
+    assert first.status == 200
+    assert await first.text() == '{"games":["first"]}'
+
+    _link_live(root, "bbb")
+
+    second = await client.get("/games/community/index.json")
+    assert second.status == 200
+    assert await second.text() == '{"games":["second"]}'
+
+    health = await client.get("/healthz")
+    assert health.status == 200
+    assert await health.json() == {"ok": True, "version": __version__, "content": True}
+
+
+@pytest.mark.asyncio
+async def test_missing_live_tree_returns_503_and_healthz_stays_up(
+    aiohttp_client,
+    service_settings,
+    tmp_path,
+) -> None:
+    root = tmp_path / "pie-game-content"
+    (root / "releases").mkdir(parents=True)
+    settings = replace(service_settings, content_dir=root / "live" / "site")
+    relay = Relay(settings.content_origin, redeem=_unused_redeem)
+    client = await aiohttp_client(create_content_app(settings, relay=relay))
+
+    missing = await client.get("/games/community/index.json")
+    assert missing.status == 503
+    assert await missing.json() == {"error": "content_unavailable"}
+
+    sdk = await client.get("/sdk/pie-game-sdk.js")
+    assert sdk.status == 503
+
+    health = await client.get("/healthz")
+    assert health.status == 200
+    assert await health.json() == {"ok": True, "version": __version__, "content": False}
+
+
+def test_production_settings_mount_the_whole_content_tree(monkeypatch) -> None:
+    for name in ("PG_CONTENT_DIR", "PG_SITE_DIR"):
+        monkeypatch.delenv(name, raising=False)
+
+    settings = Settings.from_env()
+
+    assert settings.content_dir == Path("/srv/pie-content/live/site")
+
+
 def test_dev_settings_use_repository_and_local_origins(monkeypatch) -> None:
     for name in (
         "PG_SHELL_PORT",
@@ -254,7 +372,7 @@ async def test_content_app_passes_configured_retire_base(
             "gameId": "maze",
         }
 
-    monkeypatch.setattr(app_module.retire_client, "redeem", fake_redeem)
+    monkeypatch.setattr(relay_module.retire_client, "redeem", fake_redeem)
     client = await aiohttp_client(create_content_app(service_settings))
     ws = await client.ws_connect(
         "/mp",

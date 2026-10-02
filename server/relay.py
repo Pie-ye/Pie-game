@@ -22,6 +22,11 @@ MAX_ROOMS_PER_GAME = 200
 MAX_PLAYERS_PER_ROOM = 16
 MAX_CONNECTIONS_PER_USER = 3
 MAX_CONNECTIONS = 2_000
+MAX_ROOM_NAME_CHARS = 40
+MAX_ROOMS_PER_LIST = 50
+MAX_STATE_KEYS = 64
+MAX_STATE_KEY_CHARS = 64
+MAX_STATE_BYTES = 64 * 1024
 AUTH_TIMEOUT_SECONDS = 5
 EMPTY_ROOM_TTL_SECONDS = 60
 PING_INTERVAL_SECONDS = 25
@@ -62,6 +67,7 @@ class Room:
     private: bool
     name: str | None
     code: str | None
+    created_at: float = 0.0
     players: list[Connection] = field(default_factory=list)
     host: Connection | None = None
     state: dict[str, Any] = field(default_factory=dict)
@@ -88,6 +94,7 @@ class Relay:
         content_origin: str,
         *,
         redeem: RedeemCallable | None = None,
+        retire_base: str | None = None,
         clock: ClockCallable = time.monotonic,
         auth_timeout: float = AUTH_TIMEOUT_SECONDS,
         empty_room_ttl: float = EMPTY_ROOM_TTL_SECONDS,
@@ -102,6 +109,7 @@ class Relay:
     ) -> None:
         self.content_origin = content_origin.rstrip("/")
         self._redeem = redeem
+        self.retire_base = retire_base
         self.clock = clock
         self.auth_timeout = auth_timeout
         self.empty_room_ttl = empty_room_ttl
@@ -143,20 +151,23 @@ class Relay:
     async def websocket_handler(self, request: web.Request) -> web.StreamResponse:
         if request.headers.get("Origin") != self.content_origin:
             raise web.HTTPForbidden(text="invalid Origin")
-        if len(self.connections) + self._pending_connections >= self.max_connections:
+        # 名額一定要在任何 await 之前同步保留：先握手再加計數的話，同時湧入的
+        # 握手全都會通過檢查而超額。失敗或斷線時在 finally 釋放。
+        if not self._reserve_global_slot():
             raise web.HTTPServiceUnavailable(text="connection limit reached")
 
-        ws = web.WebSocketResponse(autoping=True, max_msg_size=MAX_MESSAGE_BYTES)
-        await ws.prepare(request)
-        self._pending_connections += 1
+        # max_msg_size 比應用層上限多 1 byte，讓剛好等於上限的訊息（預設 16384）
+        # 走到應用層的 `>` 判斷，而不是在協定層就被砍掉。
+        ws = web.WebSocketResponse(autoping=True, max_msg_size=self.max_message_bytes + 1)
         connection: Connection | None = None
 
         try:
+            await ws.prepare(request)
             connection = await self._authenticate(ws)
             if connection is None:
                 return ws
 
-            self._pending_connections -= 1
+            self._release_global_slot()
             self.connections.add(connection)
             await ws.send_json({"type": "welcome", "you": connection.player})
             connection.heartbeat_task = asyncio.create_task(self._heartbeat(connection))
@@ -171,7 +182,7 @@ class Relay:
                     break
         finally:
             if connection is None:
-                self._pending_connections = max(0, self._pending_connections - 1)
+                self._release_global_slot()
             else:
                 if connection.heartbeat_task is not None:
                     connection.heartbeat_task.cancel()
@@ -223,8 +234,10 @@ class Relay:
             return None
 
         try:
-            redeem_callable = self._redeem or retire_client.redeem
-            redeemed = redeem_callable(ticket)
+            if self._redeem is not None:
+                redeemed: Any = self._redeem(ticket)
+            else:
+                redeemed = retire_client.redeem(ticket, base=self.retire_base)
             if inspect.isawaitable(redeemed):
                 redeemed = await redeemed
         except Exception:
@@ -307,12 +320,20 @@ class Relay:
         await handler(connection, payload)
 
     async def _list_rooms(self, connection: Connection, _: dict[str, Any]) -> None:
-        rooms = [
-            room.snapshot()
+        # 只回前 50 間（人多的、先開的優先），並附上總數，避免 list 變成放大攻擊。
+        visible = [
+            room
             for room in self.rooms.values()
             if room.game_id == connection.game_id and not room.private
         ]
-        await connection.ws.send_json({"type": "rooms", "rooms": rooms})
+        visible.sort(key=lambda room: (-len(room.players), room.created_at))
+        await connection.ws.send_json(
+            {
+                "type": "rooms",
+                "rooms": [room.snapshot() for room in visible[:MAX_ROOMS_PER_LIST]],
+                "total": len(visible),
+            }
+        )
 
     async def _create_room(self, connection: Connection, payload: dict[str, Any]) -> None:
         if connection.room_id is not None:
@@ -332,6 +353,9 @@ class Relay:
         if not isinstance(private, bool) or (name is not None and not isinstance(name, str)):
             await self._send_error(connection, "bad_message")
             return
+        if name is not None and len(name) > MAX_ROOM_NAME_CHARS:
+            await self._send_error(connection, "bad_message")
+            return
         game_room_count = sum(room.game_id == connection.game_id for room in self.rooms.values())
         if game_room_count >= self.max_rooms_per_game:
             await self._send_error(connection, "room_limit")
@@ -346,6 +370,7 @@ class Relay:
             private=private,
             name=name,
             code=code,
+            created_at=self.clock(),
             players=[connection],
             host=connection,
         )
@@ -475,8 +500,25 @@ class Relay:
         if not isinstance(key, str) or not key or "value" not in payload:
             await self._send_error(connection, "bad_message")
             return
+        if len(key) > MAX_STATE_KEY_CHARS:
+            await self._send_error(connection, "state_too_large")
+            return
+        if key not in room.state and len(room.state) >= MAX_STATE_KEYS:
+            await self._send_error(connection, "state_too_large")
+            return
 
-        room.state[key] = payload["value"]
+        candidate = dict(room.state)
+        candidate[key] = payload["value"]
+        try:
+            encoded = json.dumps(candidate, ensure_ascii=False, separators=(",", ":"))
+        except (TypeError, ValueError):
+            await self._send_error(connection, "bad_message")
+            return
+        if len(encoded.encode("utf-8")) > MAX_STATE_BYTES:
+            await self._send_error(connection, "state_too_large")
+            return
+
+        room.state = candidate
         await self._broadcast(
             room.players,
             {"type": "state", "key": key, "value": payload["value"]},
@@ -544,6 +586,16 @@ class Relay:
         if connection.room_id is None:
             return None
         return self.rooms.get(connection.room_id)
+
+    def _reserve_global_slot(self) -> bool:
+        """同步地「檢查並保留」一個全服名額（呼叫端不得在中間 await）。"""
+        if len(self.connections) + self._pending_connections >= self.max_connections:
+            return False
+        self._pending_connections += 1
+        return True
+
+    def _release_global_slot(self) -> None:
+        self._pending_connections = max(0, self._pending_connections - 1)
 
     def _reserve_user_slot(self, connection: Connection) -> bool:
         user_connections = self.connections_by_user[connection.user_id]
