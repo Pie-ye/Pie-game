@@ -3,7 +3,9 @@
  * 同時掛 window.PieGame 並 export default，script 與 ES module 都能用。
  */
 export const SDK = {
-  initTimeoutMs: 2000,
+  // 外框要等登入狀態回來才回 pg:init；慢網路下 2 秒太短，會讓遊戲誤判成獨立模式（user=null）。
+  // 不在 iframe 裡時不會等，直接獨立模式。
+  initTimeoutMs: 8000,
   ticketTimeoutMs: 5000,
   requestTimeoutMs: 10000,
   reconnectMinMs: 400,

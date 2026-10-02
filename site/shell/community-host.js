@@ -52,7 +52,9 @@ export function allowedBets(spec) {
 }
 
 async function sendInit(id) {
-  if (!isLive(id) || !current.ready) return;
+  // ready＝iframe 送了 pg:ready；activated＝外框已經知道登入狀態（與金幣規格）。兩個都到才回 pg:init。
+  if (!isLive(id) || !current.ready || !current.activated || current.initSent) return;
+  current.initSent = true;
   const { game, toast } = current;
   const payload = {
     type: 'pg:init',
@@ -234,29 +236,38 @@ export function unmountCommunity() {
   current = null;
 }
 
-export function mountCommunity(root, { game, spec, toast, refreshHistory, onBalance }) {
+/** 投稿遊戲的網址。有 release 時走 /r/<sha>/…：內容不會變，瀏覽器與 Cloudflare 都能永久快取。 */
+export function communityGameUrl(game, release) {
+  const prefix = release ? `/r/${encodeURIComponent(release)}` : '';
+  return `${CONTENT_ORIGIN}${prefix}/games/community/${encodeURIComponent(game.id)}/${game.entry || 'index.html'}`;
+}
+
+/**
+ * 先把 iframe 掛上去開始下載，登入狀態還不用知道。
+ * 外框確定登入狀態（金幣遊戲還要有規格）之後呼叫 activateCommunity()，
+ * 才畫下注列、回 pg:init；在那之前遊戲送來的 pg:ready 會先記著。
+ */
+export function mountCommunity(root, { game, release, toast, refreshHistory, onBalance }) {
   unmountCommunity();
   const id = generation;
   abort = new AbortController();
   current = {
     mountId: id,
+    root,
     game,
-    spec,
+    spec: null,
     toast,
+    refreshHistory,
+    onBalance,
     ready: false,
     readyHandled: false,
+    activated: false,
+    initSent: false,
     lastTicketAt: 0,
     choice: '',
     bet: null,
     playing: false,
   };
-
-  if (game.multiplayer && !getUser()) {
-    const banner = document.createElement('p');
-    banner.className = 'mp-banner';
-    banner.textContent = '登入後才能加入多人房間';
-    root.appendChild(banner);
-  }
 
   const toolbar = document.createElement('div');
   toolbar.className = 'frame-toolbar';
@@ -279,12 +290,28 @@ export function mountCommunity(root, { game, spec, toast, refreshHistory, onBala
   iframe.setAttribute('allow', 'fullscreen; gamepad; autoplay');
   iframe.setAttribute('referrerpolicy', 'no-referrer');
   iframe.title = game.name || game.id;
-  iframe.src = `${CONTENT_ORIGIN}/games/community/${encodeURIComponent(game.id)}/${game.entry || 'index.html'}`;
+  iframe.src = communityGameUrl(game, release);
   wrap.appendChild(iframe);
   root.appendChild(wrap);
 
   listener = (event) => onMessage(event, id);
   window.addEventListener('message', listener);
+}
+
+export function activateCommunity({ spec } = {}) {
+  if (!current || current.activated) return;
+  const id = current.mountId;
+  if (!isLive(id)) return;
+  const { root, game, toast, refreshHistory, onBalance } = current;
+  current.spec = spec || null;
+  current.activated = true;
+
+  if (game.multiplayer && !getUser()) {
+    const banner = document.createElement('p');
+    banner.className = 'mp-banner';
+    banner.textContent = '登入後才能加入多人房間';
+    root.insertBefore(banner, root.firstChild);
+  }
 
   if (game.kind === 'coin') {
     renderBetBar(root, {
@@ -330,6 +357,8 @@ export function mountCommunity(root, { game, spec, toast, refreshHistory, onBala
       },
     });
   }
+
+  sendInit(id);
 }
 
 export function notifyTheme(theme) {

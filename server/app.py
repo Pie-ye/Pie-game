@@ -16,6 +16,7 @@ from urllib.parse import unquote, urlsplit, urlunsplit
 from aiohttp import web
 
 from . import __version__
+from . import boot
 from .relay import Relay
 
 DEFAULT_SHELL_PORT = 54460
@@ -37,6 +38,7 @@ class Settings:
     retire_base: str
     site_dir: Path
     content_dir: Path
+    dev: bool = False
 
     @classmethod
     def from_env(cls, *, dev: bool = False) -> "Settings":
@@ -67,6 +69,7 @@ class Settings:
             retire_base=os.environ.get("PG_RETIRE_BASE", "http://127.0.0.1:54432").rstrip("/"),
             site_dir=site_dir,
             content_dir=content_dir,
+            dev=dev,
         )
 
 
@@ -131,20 +134,93 @@ def _healthz_payload(settings: Settings) -> dict[str, Any]:
     }
 
 
-def create_shell_app(settings: Settings) -> web.Application:
+_IMMUTABLE = "public, max-age=31536000, immutable"
+# 開機就要打的跨站 API：首頁直接 preload，瀏覽器解析 HTML 時就發出去，跟模組載入同時跑。
+_BOOT_API_PATHS = ("/api/casino/session",)
+
+
+def create_shell_app(
+    settings: Settings,
+    *,
+    casino_fetch: boot.Fetcher | None = None,
+) -> web.Application:
     app = web.Application()
     _add_security_headers(app, shell_csp(settings))
     shell_root = settings.site_dir / "shell"
+    catalog_cache = boot.CatalogCache(always_reload=settings.dev)
+    casino_cache = boot.CasinoListCache(casino_fetch or boot.retire_community_fetcher(settings.retire_base))
+    # 正式環境 shell 目錄是映像裡的唯讀檔，啟動時算一次；開發模式每次首頁重算，改檔立即生效。
+    frozen: dict[str, Any] = {}
+
+    def shell_build() -> tuple[str, list[str]]:
+        if settings.dev or not frozen:
+            frozen["build"] = boot.build_id(shell_root) if shell_root.is_dir() else "0" * 12
+            frozen["modules"] = boot.preload_modules(shell_root) if shell_root.is_dir() else []
+        return frozen["build"], frozen["modules"]
 
     async def healthz(_: web.Request) -> web.Response:
         return web.json_response(_healthz_payload(settings))
 
+    async def index(request: web.Request) -> web.StreamResponse:
+        try:
+            template = (shell_root / "index.html").read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            raise web.HTTPNotFound() from None
+        build, modules = shell_build()
+        root = content_root(settings)
+        boot_data: dict[str, Any] = {
+            "build": build,
+            "release": boot.release_token(root),
+            "games": catalog_cache.get(root),
+            "casino": await casino_cache.get(),
+        }
+        preconnect = [settings.content_origin]
+        preload_fetch: list[str] = []
+        if not settings.dev:
+            # 開發模式的 API origin 可能被 ?api= 改掉，不預載免得打錯地方。
+            preconnect.insert(0, settings.api_origin)
+            preload_fetch = [f"{settings.api_origin}{path}" for path in _BOOT_API_PATHS]
+        body = boot.render_index(
+            template,
+            build=build,
+            modules=modules,
+            preconnect=preconnect,
+            preload_fetch=preload_fetch,
+            boot=boot_data,
+        )
+        return web.Response(
+            text=body,
+            content_type="text/html",
+            charset="utf-8",
+            headers={"Cache-Control": "no-store"},
+        )
+
+    async def versioned(request: web.Request) -> web.StreamResponse:
+        requested_build = request.match_info["build"]
+        relative = request.match_info.get("path", "")
+        # 首頁只能從 / 拿（要即時組開機資料），版本前綴下不給原始樣板。
+        if relative in ("", "index.html") or relative.endswith("/"):
+            raise web.HTTPNotFound()
+        response = await _static_response(request, shell_root, relative)
+        current, _ = shell_build()
+        # 舊 HTML 指到已經換掉的 build 時照樣給現在的檔案（同一個前綴下彼此一致），但不能快取。
+        response.headers["Cache-Control"] = _IMMUTABLE if requested_build == current else "no-store"
+        return response
+
     async def static(request: web.Request) -> web.StreamResponse:
-        relative = request.match_info.get("path", "") or "index.html"
+        relative = request.match_info.get("path", "")
+        if relative in ("", "index.html"):
+            return await index(request)
         return await _static_response(request, shell_root, relative)
 
+    async def casino_context(_: web.Application):
+        yield
+        await casino_cache.close()
+
+    app.cleanup_ctx.append(casino_context)
     app.router.add_get("/healthz", healthz)
-    app.router.add_get("/", static)
+    app.router.add_get("/", index)
+    app.router.add_get(r"/s/{build:[0-9a-f]{12}}/{path:.*}", versioned)
     app.router.add_get("/{path:.*}", static)
     return app
 
@@ -170,8 +246,24 @@ def create_content_app(settings: Settings, *, relay: Relay | None = None) -> web
             _require_content_root(settings) / "games" / "community",
             relative,
         )
-        if request.method == "GET" and relative.lower().endswith(".json"):
-            response.headers["Access-Control-Allow-Origin"] = settings.shell_origin
+        _allow_json_cors(request, response, relative, settings)
+        return response
+
+    async def release_static(request: web.Request) -> web.StreamResponse:
+        """`/r/<sha>/sdk/…`、`/r/<sha>/games/community/…`：同一個 release 的內容永遠不變，可以永久快取。
+
+        外框的 iframe 指到這裡，遊戲裡的相對路徑（main.js、../../../sdk/…）自動帶著同一個前綴。
+        """
+        token = request.match_info["release"]
+        area = request.match_info["area"]
+        relative = request.match_info.get("path", "")
+        current = _require_content_root(settings)
+        root, cacheable = _release_root(current, token)
+        base = root / "sdk" if area == "sdk" else root / "games" / "community"
+        response = await _static_response(request, base, relative)
+        if area == "games/community":
+            _allow_json_cors(request, response, relative, settings)
+        response.headers["Cache-Control"] = _IMMUTABLE if cacheable else "no-store"
         return response
 
     async def relay_context(_: web.Application):
@@ -186,7 +278,42 @@ def create_content_app(settings: Settings, *, relay: Relay | None = None) -> web
     app.router.add_get("/mp", relay_service.websocket_handler)
     app.router.add_get("/sdk/{path:.*}", sdk_static)
     app.router.add_get("/games/community/{path:.*}", community_static)
+    app.router.add_get(
+        r"/r/{release:[0-9a-f]{7,64}}/{area:sdk|games/community}/{path:.*}",
+        release_static,
+    )
     return app
+
+
+def _allow_json_cors(
+    request: web.Request,
+    response: web.StreamResponse,
+    relative: str,
+    settings: Settings,
+) -> None:
+    if request.method == "GET" and relative.lower().endswith(".json"):
+        response.headers["Access-Control-Allow-Origin"] = settings.shell_origin
+
+
+def _release_root(current: Path, token: str) -> tuple[Path, bool]:
+    """回傳 (內容根目錄, 能不能永久快取)。
+
+    token 是現在的 live：用現在的根目錄。token 是還留著的舊 release（保留 5 版）：用那一版，
+    開著舊頁面的玩家不會載到新舊混合的檔案。已經被清掉的舊 release 退回現在的內容但不快取。
+    """
+    if boot.release_token(current) == token:
+        return current, True
+    releases = current.parent.parent
+    if boot.release_token(current) is not None:
+        candidate = releases / token / "site"
+        try:
+            resolved = candidate.resolve(strict=True)
+            resolved.relative_to(releases.resolve())
+        except (OSError, RuntimeError, ValueError):
+            return current, False
+        if resolved.is_dir():
+            return resolved, True
+    return current, False
 
 
 RELAY_KEY: web.AppKey[Relay] = web.AppKey("relay", Relay)
@@ -241,7 +368,7 @@ async def _static_response(request: web.Request, root: Path, relative: str) -> w
     if logical_path.suffix.lower() in {".html", ".htm"}:
         headers["Cache-Control"] = "no-store"
     elif "v" in request.query:
-        headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        headers["Cache-Control"] = _IMMUTABLE
     elif logical_path.suffix.lower() in _CODE_SUFFIXES:
         # 沒帶版本號的程式與設定（外框的 ES module、投稿遊戲的 js/json）：新舊混用會壞，一律不快取。
         # 不能用 no-cache：Cloudflare 的 Browser Cache TTL 會把它改寫成 max-age=14400，

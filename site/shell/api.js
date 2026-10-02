@@ -56,6 +56,108 @@ function notifyUnauthorized() {
   if (typeof unauthorizedHandler === 'function') unauthorizedHandler();
 }
 
+// 跨站 API 最久等多久：網路卡住時要能回報錯誤，不能讓畫面永遠停在「載入中」。
+const REQUEST_TIMEOUT_MS = 15000;
+// GET 遇到網路錯誤（不是 HTTP 錯誤）重試一次：手機換網路、tunnel 重連時常見的瞬斷。
+const GET_RETRY_DELAY_MS = 300;
+// 預取的結果只給接下來這一次同路徑的 GET 用，放太久就作廢。
+const PREFETCH_TTL_MS = 10000;
+
+const prefetched = new Map();
+
+function failure(aborted, timedOut = false) {
+  let error = '連線失敗，請檢查網路後重試';
+  if (aborted) error = '請求已取消';
+  else if (timedOut) error = '連線逾時，請稍後重試';
+  return {
+    response: { ok: false, status: 0, aborted },
+    payload: { error },
+  };
+}
+
+function delay(ms, signal) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    if (signal) signal.addEventListener('abort', () => { clearTimeout(timer); resolve(); }, { once: true });
+  });
+}
+
+/** 真正打 fetch：處理逾時、網路錯誤重試，回傳 { response, payload }，不做任何登入狀態副作用。 */
+async function send(path, { method, headers, body, signal }) {
+  const attempts = method === 'GET' ? 2 : 1;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    if (signal && signal.aborted) return failure(true);
+    const controller = new AbortController();
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, REQUEST_TIMEOUT_MS);
+    const forwardAbort = () => controller.abort();
+    if (signal) signal.addEventListener('abort', forwardAbort, { once: true });
+    let response;
+    try {
+      response = await fetch(`${API_ORIGIN}${path}`, {
+        method,
+        headers,
+        credentials: 'include',
+        body: method === 'GET' ? undefined : JSON.stringify(body),
+        signal: controller.signal,
+      });
+      let payload = {};
+      try {
+        payload = await response.json();
+      } catch (_) {
+        payload = {};
+      }
+      return { response, payload };
+    } catch (_) {
+      if (signal && signal.aborted) return failure(true);
+      if (timedOut || attempt + 1 >= attempts) return failure(false, timedOut);
+    } finally {
+      clearTimeout(timer);
+      if (signal) signal.removeEventListener('abort', forwardAbort);
+    }
+    await delay(GET_RETRY_DELAY_MS, signal);
+  }
+  return failure(false);
+}
+
+/**
+ * 先發出一個之後一定會打的 GET（例如官方遊戲掛載後第一個設定請求），
+ * 讓它跟模組下載同時跑。接下來第一次同路徑的 api() GET 會直接拿這個結果。
+ */
+export function prefetch(path) {
+  if (USE_MOCK) return;
+  const existing = prefetched.get(path);
+  if (existing && Date.now() - existing.at < PREFETCH_TTL_MS) return;
+  prefetched.set(path, {
+    at: Date.now(),
+    promise: send(path, { method: 'GET', headers: {}, body: undefined, signal: undefined }),
+  });
+}
+
+function takePrefetched(path) {
+  const entry = prefetched.get(path);
+  if (!entry) return null;
+  prefetched.delete(path);
+  if (Date.now() - entry.at >= PREFETCH_TTL_MS) return null;
+  return entry.promise;
+}
+
+function waitWithSignal(promise, signal) {
+  if (!signal) return promise;
+  if (signal.aborted) return Promise.resolve(failure(true));
+  return new Promise((resolve) => {
+    const onAbort = () => resolve(failure(true));
+    signal.addEventListener('abort', onAbort, { once: true });
+    promise.then((result) => {
+      signal.removeEventListener('abort', onAbort);
+      resolve(result);
+    });
+  });
+}
+
 export async function api(path, opts = {}) {
   const method = (opts.method || 'GET').toUpperCase();
   let body = opts.body;
@@ -68,11 +170,7 @@ export async function api(path, opts = {}) {
     try {
       result = await mockRequest(path, { method, body, signal: opts.signal });
     } catch (err) {
-      const aborted = Boolean(err && err.name === 'AbortError');
-      return {
-        response: { ok: false, status: 0, aborted },
-        payload: { error: aborted ? '請求已取消' : '連線失敗，請檢查網路後重試' },
-      };
+      return failure(Boolean(err && err.name === 'AbortError'));
     }
     if (result.response.status === 401 && !skipAuthClear) {
       if (!silent401) notifyUnauthorized();
@@ -89,29 +187,12 @@ export async function api(path, opts = {}) {
     headers['X-CSRF-Token'] = csrfToken;
   }
 
-  let response;
-  try {
-    response = await fetch(`${API_ORIGIN}${path}`, {
-      method,
-      headers,
-      credentials: 'include',
-      body: method === 'GET' ? undefined : JSON.stringify(body),
-      signal: opts.signal,
-    });
-  } catch (err) {
-    const aborted = Boolean(err && err.name === 'AbortError');
-    return {
-      response: { ok: false, status: 0, aborted },
-      payload: { error: aborted ? '請求已取消' : '連線失敗，請檢查網路後重試' },
-    };
-  }
-
-  let payload = {};
-  try {
-    payload = await response.json();
-  } catch (_) {
-    payload = {};
-  }
+  const early = method === 'GET' && !opts.headers ? takePrefetched(path) : null;
+  const result = early
+    ? await waitWithSignal(early, opts.signal)
+    : await send(path, { method, headers, body, signal: opts.signal });
+  const { response, payload } = result;
+  if (!response.ok && response.status === 0) return result;
 
   if (payload && payload.csrfToken) csrfToken = payload.csrfToken;
 

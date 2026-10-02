@@ -11,24 +11,26 @@ import {
   getUser,
   login as apiLogin,
   logout as apiLogout,
+  prefetch,
   setBalance,
   setUnauthorizedHandler,
 } from './api.js';
 import { createOfficialSdk } from './official-sdk.js';
 import { escapeHtml, formatCoins } from './util.js';
 import { renderHistory } from './history.js';
-import { mountCommunity, unmountCommunity, notifyTheme } from './community-host.js';
+import { activateCommunity, mountCommunity, unmountCommunity, notifyTheme } from './community-host.js';
 
 const THEMES = ['playful', 'studio', 'classic'];
 const THEME_KEY = 'pg_theme';
 
+// firstGet：遊戲掛上後第一個打的 GET。點進遊戲時先預取，跟下載遊戲模組同時跑。
 export const OFFICIAL_GAMES = [
-  { id: 'slots', name: '拉霸', description: '三輪拉霸', historyGame: 'slots' },
-  { id: 'blackjack', name: '21 點', description: '對莊家比點', historyGame: 'blackjack' },
-  { id: 'poker', name: '德州撲克', description: '多人牌桌', historyGame: 'poker' },
-  { id: 'dragon', name: '射龍門', description: '門柱比大小', historyGame: 'dragon_gate' },
-  { id: 'niuniu', name: '妞妞', description: '五張比牌型', historyGame: 'niu_niu' },
-  { id: 'baccarat', name: '百家樂', description: '閒莊和', historyGame: 'baccarat' },
+  { id: 'slots', name: '拉霸', description: '三輪拉霸', historyGame: 'slots', firstGet: '/api/casino/slots/config' },
+  { id: 'blackjack', name: '21 點', description: '對莊家比點', historyGame: 'blackjack', firstGet: '/api/casino/blackjack' },
+  { id: 'poker', name: '德州撲克', description: '多人牌桌', historyGame: 'poker', firstGet: '/api/casino/poker/tables' },
+  { id: 'dragon', name: '射龍門', description: '門柱比大小', historyGame: 'dragon_gate', firstGet: '/api/casino/dragon' },
+  { id: 'niuniu', name: '妞妞', description: '五張比牌型', historyGame: 'niu_niu', firstGet: '/api/casino/niuniu/config' },
+  { id: 'baccarat', name: '百家樂', description: '閒莊和', historyGame: 'baccarat', firstGet: '/api/casino/baccarat/config' },
 ];
 
 const OFFICIAL_BY_ID = Object.fromEntries(OFFICIAL_GAMES.map((g) => [g.id, g]));
@@ -36,8 +38,28 @@ const OFFICIAL_BY_ID = Object.fromEntries(OFFICIAL_GAMES.map((g) => [g.id, g]));
 const catalog = {
   submissions: [],
   casinoById: new Map(),
+  release: null,
   loaded: false,
+  casinoLoaded: false,
 };
+
+// 伺服器內嵌在首頁的開機資料（投稿目錄、金幣遊戲清單、內容 release）。
+// 直接用靜態伺服器打開 index.html 時沒有這份，就退回瀏覽器自己抓。
+function readBootData() {
+  const el = document.getElementById('pg-boot');
+  if (!el) return null;
+  try {
+    const data = JSON.parse(el.textContent || 'null');
+    return data && typeof data === 'object' ? data : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+let sessionSettled = false;
+let sessionPromise = null;
+let catalogPromise = null;
+let casinoPromise = null;
 
 let toastTimer = null;
 let currentOfficial = null;
@@ -110,6 +132,11 @@ function renderChrome() {
   const slot = document.getElementById('authSlot');
   if (!slot) return;
   slot.className = 'auth-slot';
+  if (!user && !sessionSettled) {
+    // 還不知道有沒有登入：先留白，免得已登入的人看到「登入」按鈕閃一下。
+    slot.innerHTML = '';
+    return;
+  }
   if (user) {
     const name = user.displayName || user.username;
     slot.innerHTML = `<div class="user-menu" id="userMenu">
@@ -164,18 +191,28 @@ function parseRoute() {
   return { name: 'lobby' };
 }
 
-async function loadCatalog() {
-  const [casinoRes, indexJson] = await Promise.all([
-    fetchCommunity().catch(() => ({ response: { ok: false }, payload: {} })),
-    fetch(`${CONTENT_ORIGIN}/games/community/index.json`, { credentials: 'omit' })
-      .then((r) => (r.ok ? r.json() : { games: [] }))
-      .catch(() => ({ games: [] })),
-  ]);
+function applyCasinoList(payload) {
+  const games = payload && Array.isArray(payload.games) ? payload.games : [];
+  catalog.casinoById = new Map(games.map((g) => [g.id, g]));
+  catalog.casinoLoaded = true;
+}
 
-  const casinoGames = (casinoRes.response.ok && Array.isArray(casinoRes.payload.games))
-    ? casinoRes.payload.games
-    : [];
-  catalog.casinoById = new Map(casinoGames.map((g) => [g.id, g]));
+function ensureCasinoList() {
+  if (catalog.casinoLoaded) return Promise.resolve();
+  if (!casinoPromise) {
+    casinoPromise = fetchCommunity()
+      .catch(() => ({ response: { ok: false }, payload: {} }))
+      .then((res) => {
+        applyCasinoList(res.response.ok ? res.payload : null);
+      });
+  }
+  return casinoPromise;
+}
+
+async function fetchSubmissions() {
+  const indexJson = await fetch(`${CONTENT_ORIGIN}/games/community/index.json`, { credentials: 'omit' })
+    .then((r) => (r.ok ? r.json() : { games: [] }))
+    .catch(() => ({ games: [] }));
 
   const ids = [];
   for (const item of indexJson.games || []) {
@@ -197,8 +234,37 @@ async function loadCatalog() {
       return null;
     }
   }));
-  catalog.submissions = results.filter(Boolean);
-  catalog.loaded = true;
+  return results.filter(Boolean);
+}
+
+function ensureCatalog() {
+  if (catalog.loaded) return Promise.resolve();
+  if (!catalogPromise) {
+    catalogPromise = fetchSubmissions().then((games) => {
+      catalog.submissions = games;
+      catalog.loaded = true;
+    });
+  }
+  return catalogPromise;
+}
+
+function applyBootData(data) {
+  if (!data) return;
+  if (typeof data.release === 'string' && data.release) catalog.release = data.release;
+  if (Array.isArray(data.games)) {
+    catalog.submissions = data.games.filter((g) => g && typeof g.id === 'string');
+    catalog.loaded = true;
+  }
+  if (data.casino && Array.isArray(data.casino.games)) applyCasinoList(data.casino);
+}
+
+function ensureSession() {
+  if (!sessionPromise) {
+    sessionPromise = fetchSession().finally(() => {
+      sessionSettled = true;
+    });
+  }
+  return sessionPromise;
 }
 
 function cardHtml(game, extraTags = []) {
@@ -243,9 +309,12 @@ function renderLobby(view) {
     description: g.description,
     tags: ['官方'],
   })).join('');
-  const coinCards = coin.length
-    ? coin.map((g) => cardHtml(g, ['金幣'])).join('')
-    : '<p class="empty-hint">目前沒有通過驗證的金幣遊戲。</p>';
+  let coinCards = '<p class="empty-hint">載入金幣遊戲中…</p>';
+  if (catalog.casinoLoaded) {
+    coinCards = coin.length
+      ? coin.map((g) => cardHtml(g, ['金幣'])).join('')
+      : '<p class="empty-hint">目前沒有通過驗證的金幣遊戲。</p>';
+  }
   const freeCards = free.length
     ? free.map((g) => cardHtml(g)).join('')
     : '<p class="empty-hint">目前沒有一般遊戲。</p>';
@@ -395,20 +464,48 @@ function unmountGame() {
   currentOfficial = null;
 }
 
+function officialModuleUrl(id) {
+  return new URL(`./official/${id}/game.js`, import.meta.url).href;
+}
+
+/** 點進官方遊戲的第一時間：模組、CSS、第一個 API 一起出發，不要等前一個做完。 */
+function warmOfficial(meta) {
+  const cssHref = new URL(`./official/${meta.id}/game.css`, import.meta.url).href;
+  if (!document.querySelector(`link[rel="preload"][href="${cssHref}"]`)
+    && !document.querySelector(`link[data-pg-official-style="${cssHref}"]`)) {
+    const link = document.createElement('link');
+    link.rel = 'preload';
+    link.as = 'style';
+    link.href = cssHref;
+    document.head.appendChild(link);
+  }
+  if (meta.firstGet) prefetch(meta.firstGet);
+  return import(officialModuleUrl(meta.id));
+}
+
 async function renderOfficialGame(view, meta) {
   view.innerHTML = `
     <div class="game-page-head">
       <h1>${escapeHtml(meta.name)}</h1>
       <a class="outlined-button" href="#/">回大廳</a>
     </div>
-    <div id="officialRoot"></div>
+    <div id="officialRoot"><p class="empty-hint">載入中…</p></div>
     <div id="historyRoot"></div>
   `;
   const root = view.querySelector('#officialRoot');
   const historyRoot = view.querySelector('#historyRoot');
-  const mod = await import(`./official/${meta.id}/game.js`);
+  let mod;
+  try {
+    [mod] = await Promise.all([warmOfficial(meta), ensureSession()]);
+  } catch (_) {
+    if (root.isConnected) {
+      root.innerHTML = '<p class="empty-hint">遊戲載入失敗，請重新整理再試一次。</p>';
+    }
+    return;
+  }
   const activeRoute = parseRoute();
   if (!root.isConnected || activeRoute.name !== 'game' || activeRoute.id !== meta.id) return;
+  root.replaceChildren();
   const sdk = createOfficialSdk({
     api,
     getBalance,
@@ -427,18 +524,21 @@ async function renderOfficialGame(view, meta) {
   await refreshGameHistory(historyRoot, meta.historyGame);
 }
 
-async function renderCommunityGame(view, game) {
-  const spec = game.kind === 'coin' ? catalog.casinoById.get(game.id) : null;
-  const showHistory = game.kind === 'coin';
-  if (game.kind === 'coin' && !spec) {
-    // 伺服器沒有通過驗證的規格就不能下注，直接開網址時要說清楚，不要給一條空下注列。
-    view.innerHTML = `
-      <div class="game-page-head">
-        <h1>${escapeHtml(game.name || game.id)}</h1>
-        <a class="outlined-button" href="#/">回大廳</a>
-      </div>
-      <p class="empty-hint">這個遊戲目前不能玩：伺服器還沒有通過驗證的金幣規格。</p>
-    `;
+function renderCoinUnavailable(view, game) {
+  // 伺服器沒有通過驗證的規格就不能下注，直接開網址時要說清楚，不要給一條空下注列。
+  view.innerHTML = `
+    <div class="game-page-head">
+      <h1>${escapeHtml(game.name || game.id)}</h1>
+      <a class="outlined-button" href="#/">回大廳</a>
+    </div>
+    <p class="empty-hint">這個遊戲目前不能玩：伺服器還沒有通過驗證的金幣規格。</p>
+  `;
+}
+
+async function renderCommunityGame(view, game, seq) {
+  const isCoin = game.kind === 'coin';
+  if (isCoin && catalog.casinoLoaded && !catalog.casinoById.get(game.id)) {
+    renderCoinUnavailable(view, game);
     return;
   }
   view.innerHTML = `
@@ -451,17 +551,27 @@ async function renderCommunityGame(view, game) {
   `;
   const root = view.querySelector('#communityRoot');
   const historyRoot = view.querySelector('#historyRoot');
-  const refresh = showHistory
+  const refresh = isCoin
     ? () => refreshGameHistory(historyRoot, 'community', game.id)
     : null;
+  // iframe 先開始下載；登入狀態與規格回來之後才回 pg:init、畫下注列。
   mountCommunity(root, {
     game,
-    spec,
+    release: catalog.release,
     toast,
     refreshHistory: refresh,
     onBalance: () => renderChrome(),
   });
-  if (showHistory) await refresh();
+  await Promise.all([ensureSession(), isCoin ? ensureCasinoList() : null]);
+  if (seq !== routeSeq) return;
+  const spec = isCoin ? catalog.casinoById.get(game.id) : null;
+  if (isCoin && !spec) {
+    unmountCommunity();
+    renderCoinUnavailable(view, game);
+    return;
+  }
+  activateCommunity({ spec });
+  if (refresh) await refresh();
 }
 
 async function route() {
@@ -475,44 +585,52 @@ async function route() {
     renderLogin(view);
     return;
   }
+  if (r.name === 'game' && OFFICIAL_BY_ID[r.id]) {
+    // 官方遊戲不需要投稿目錄。
+    await renderOfficialGame(view, OFFICIAL_BY_ID[r.id]);
+    return;
+  }
   if (!catalog.loaded) {
     view.innerHTML = '<p class="empty-hint">載入大廳中…</p>';
-    await loadCatalog();
+    await ensureCatalog();
     if (seq !== routeSeq) return;
   }
   if (r.name === 'lobby') {
     renderLobby(view);
+    if (!catalog.casinoLoaded) {
+      await ensureCasinoList();
+      if (seq === routeSeq && parseRoute().name === 'lobby') renderLobby(view);
+    }
     return;
   }
   if (r.name === 'game') {
-    const official = OFFICIAL_BY_ID[r.id];
-    if (official) {
-      await renderOfficialGame(view, official);
-      return;
-    }
     const game = catalog.submissions.find((g) => g.id === r.id);
     if (game) {
-      await renderCommunityGame(view, game);
+      await renderCommunityGame(view, game, seq);
       return;
     }
     view.innerHTML = `<p class="empty-hint">找不到遊戲。</p><p><a href="#/">回大廳</a></p>`;
   }
 }
 
-async function boot() {
+function boot() {
+  applyBootData(readBootData());
   bootTheme();
   setUnauthorizedHandler(showLoginFrom401);
   const themeSelect = document.getElementById('themeSelect');
   if (themeSelect) {
     themeSelect.addEventListener('change', () => applyTheme(themeSelect.value));
   }
-  await fetchSession();
+  // 登入狀態、投稿目錄、金幣清單同時出發；畫面不必等登入狀態就先畫出來。
+  ensureSession().then(() => renderChrome());
+  if (!catalog.loaded) void ensureCatalog();
+  if (!catalog.casinoLoaded) void ensureCasinoList();
   renderChrome();
   window.addEventListener('hashchange', () => {
     renderChrome();
     route();
   });
-  await route();
+  void route();
 }
 
 boot();

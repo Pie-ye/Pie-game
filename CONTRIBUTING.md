@@ -123,7 +123,7 @@ site/games/community/
 
 | API | 說明 |
 | --- | --- |
-| `PieGame.ready()` | `Promise<{gameId, user, theme}>`。送 `pg:ready`、等 `pg:init`。不在 iframe 或 2 秒沒回應 → 獨立模式（`user=null`） |
+| `PieGame.ready()` | `Promise<{gameId, user, theme}>`。送 `pg:ready`、等 `pg:init`。不在 iframe 或 8 秒沒回應 → 獨立模式（`user=null`） |
 | `PieGame.onTheme(cb)` | 主題變更（`playful`／`studio`／`classic`） |
 | `PieGame.setHeight(px)` | 告訴外框 iframe 高度 |
 | `PieGame.coin.onResult(cb)` | 金幣開獎。`cb({choice, outcome, display, bet, payout, net})` |
