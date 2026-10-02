@@ -1,0 +1,300 @@
+.pg-official-baccarat {
+  color: var(--ink);
+}
+
+.pg-official-baccarat .official-balance {
+  margin-bottom: var(--s3);
+  color: var(--ink-soft);
+  font-size: var(--fs-caption);
+  text-align: right;
+}
+
+.pg-official-baccarat .official-balance strong {
+  color: var(--ink);
+  font-size: var(--fs-lead);
+}
+
+.pg-official-baccarat .bc-wrapper {
+  display: grid;
+  gap: var(--s4);
+}
+
+.pg-official-baccarat .bc-rules-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s3) var(--s4);
+  color: var(--ink-soft);
+  background: var(--primary-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-caption);
+}
+
+.pg-official-baccarat .inline-icon {
+  display: inline-grid;
+  width: var(--s5);
+  height: var(--s5);
+}
+
+.pg-official-baccarat .inline-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.pg-official-baccarat .bc-table,
+.pg-official-baccarat .bc-rules-card {
+  padding: var(--s4);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--elev-1);
+}
+
+.pg-official-baccarat .bc-hands-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(calc(var(--control-h) * 3), auto) minmax(0, 1fr);
+  gap: var(--s3);
+  align-items: center;
+  min-height: calc(var(--control-h) * 5);
+  padding: var(--s4);
+  background: var(--inset);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-overlay);
+}
+
+.pg-official-baccarat .bc-side-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  margin-bottom: var(--s3);
+}
+
+.pg-official-baccarat .eyebrow {
+  color: var(--ink-faint);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: var(--ls-micro);
+  text-transform: uppercase;
+}
+
+.pg-official-baccarat .bc-points-badge,
+.pg-official-baccarat .bc-choice-pill {
+  padding: var(--s1) var(--s2);
+  color: var(--ink-soft);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-caption);
+}
+
+.pg-official-baccarat .bc-cards {
+  display: flex;
+  justify-content: center;
+  gap: var(--s1);
+  min-height: calc(var(--control-h) * 2.3);
+}
+
+.pg-official-baccarat .bc-card-third {
+  animation: bcThirdCard var(--dur-2) var(--ease-out) both;
+}
+
+@keyframes bcThirdCard {
+  from {
+    transform: translateY(calc(var(--s3) * -1));
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.pg-official-baccarat .bc-empty-hint {
+  align-self: center;
+  margin: 0;
+  color: var(--ink-faint);
+  font-size: var(--fs-caption);
+}
+
+.pg-official-baccarat .bc-vs-col {
+  text-align: center;
+}
+
+.pg-official-baccarat .bc-vs-text {
+  color: var(--ink-faint);
+  font-size: var(--fs-h2);
+  font-weight: 700;
+}
+
+.pg-official-baccarat .bc-result-banner {
+  display: grid;
+  gap: var(--s1);
+  padding: var(--s3);
+  background: var(--sheet);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+}
+
+.pg-official-baccarat .bc-result-title {
+  font-size: var(--fs-h3);
+  font-weight: 700;
+}
+
+.pg-official-baccarat .bc-result-net {
+  color: var(--ink-soft);
+  font-size: var(--fs-caption);
+}
+
+.pg-official-baccarat .bc-result-net.is-gain {
+  color: var(--gain);
+}
+
+.pg-official-baccarat .bc-result-net.is-loss {
+  color: var(--loss);
+}
+
+.pg-official-baccarat .bc-bet-choices {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--s2);
+  margin-top: var(--s4);
+}
+
+.pg-official-baccarat .bc-side-btn {
+  display: grid;
+  gap: var(--s1);
+  min-height: calc(var(--control-h) * 1.8);
+  padding: var(--s2);
+  color: var(--ink);
+  background: var(--sheet);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+}
+
+.pg-official-baccarat .bc-side-btn.is-selected {
+  color: var(--on-brass);
+  background: var(--brand);
+  border-color: var(--brand);
+}
+
+.pg-official-baccarat .bc-side-main {
+  font-size: var(--fs-body);
+  font-weight: 700;
+}
+
+.pg-official-baccarat .bc-side-desc {
+  font-size: var(--fs-micro);
+}
+
+.pg-official-baccarat .bc-bet-row,
+.pg-official-baccarat .bc-bet-chips,
+.pg-official-baccarat .bc-custom-bet,
+.pg-official-baccarat .bc-actions,
+.pg-official-baccarat .bc-action-info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.pg-official-baccarat .bc-bet-row {
+  justify-content: space-between;
+  margin-top: var(--s4);
+}
+
+.pg-official-baccarat .chip-btn {
+  min-width: var(--control-h);
+  min-height: var(--control-h);
+  padding: 0 var(--s3);
+  color: var(--ink-soft);
+  background: var(--card);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  font-size: var(--fs-caption);
+}
+
+.pg-official-baccarat .chip-btn.is-active {
+  color: var(--on-brass);
+  background: var(--brand);
+  border-color: var(--brand);
+}
+
+.pg-official-baccarat .bc-bet-input {
+  width: calc(var(--control-h) * 2.4);
+  height: var(--control-h);
+  padding: 0 var(--s2);
+  color: var(--ink);
+  background: var(--sheet);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+}
+
+.pg-official-baccarat .unit {
+  color: var(--ink-soft);
+  font-size: var(--fs-caption);
+}
+
+.pg-official-baccarat .bc-actions {
+  justify-content: space-between;
+}
+
+.pg-official-baccarat .section-heading h3 {
+  margin: var(--s1) 0 var(--s3);
+  font-size: var(--fs-h3);
+}
+
+.pg-official-baccarat .bc-rules-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s4);
+}
+
+.pg-official-baccarat .bc-rule-item {
+  padding: var(--s3);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.pg-official-baccarat .bc-rule-item ul {
+  margin: var(--s2) 0 0;
+  padding-left: var(--s4);
+  color: var(--ink-soft);
+  font-size: var(--fs-caption);
+  line-height: var(--lh-caption);
+}
+
+@media (max-width: 767px) {
+  .pg-official-baccarat .bc-table,
+  .pg-official-baccarat .bc-rules-card {
+    padding: var(--s3);
+  }
+
+  .pg-official-baccarat .bc-hands-row {
+    grid-template-columns: 1fr;
+    padding: var(--s3);
+  }
+
+  .pg-official-baccarat .bc-vs-col {
+    order: 3;
+  }
+
+  .pg-official-baccarat .bc-cards .pcard {
+    width: calc(var(--control-h) * 1.2);
+    height: calc(var(--control-h) * 1.8);
+  }
+
+  .pg-official-baccarat .bc-bet-choices {
+    grid-template-columns: 1fr;
+  }
+
+  .pg-official-baccarat .bc-rules-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pg-official-baccarat .bc-actions {
+    align-items: stretch;
+  }
+}

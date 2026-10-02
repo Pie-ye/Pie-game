@@ -309,6 +309,8 @@ async function renderOfficialGame(view, meta) {
   const root = view.querySelector('#officialRoot');
   const historyRoot = view.querySelector('#historyRoot');
   const mod = await import(`./official/${meta.id}/game.js`);
+  const activeRoute = parseRoute();
+  if (!root.isConnected || activeRoute.name !== 'game' || activeRoute.id !== meta.id) return;
   const sdk = createOfficialSdk({
     api,
     getBalance,

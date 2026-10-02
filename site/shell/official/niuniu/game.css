@@ -1,0 +1,212 @@
+.pg-official-niuniu {
+  color: var(--ink);
+}
+
+.pg-official-niuniu .official-balance {
+  margin-bottom: var(--s3);
+  color: var(--ink-soft);
+  font-size: var(--fs-caption);
+  text-align: right;
+}
+
+.pg-official-niuniu .official-balance strong {
+  color: var(--ink);
+  font-size: var(--fs-lead);
+}
+
+.pg-official-niuniu .nn-layout {
+  display: grid;
+  gap: var(--s4);
+}
+
+.pg-official-niuniu .nn-hands {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s4);
+}
+
+.pg-official-niuniu .nn-hand,
+.pg-official-niuniu .nn-waiting,
+.pg-official-niuniu .nn-rules {
+  padding: var(--s4);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--elev-1);
+}
+
+.pg-official-niuniu .nn-hand-title,
+.pg-official-niuniu .nn-hand-name {
+  text-align: center;
+}
+
+.pg-official-niuniu .eyebrow {
+  color: var(--ink-faint);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: var(--ls-micro);
+  text-transform: uppercase;
+}
+
+.pg-official-niuniu .nn-cards,
+.pg-official-niuniu .nn-card-group {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s1);
+}
+
+.pg-official-niuniu .nn-cards {
+  min-height: calc(var(--control-h) * 2.5);
+  margin: var(--s3) 0;
+}
+
+.pg-official-niuniu .nn-cards.has-split {
+  gap: var(--s4);
+}
+
+.pg-official-niuniu .nn-cards.has-split .nn-card-group + .nn-card-group {
+  padding-left: var(--s4);
+  border-left: 1px solid var(--line-strong);
+}
+
+.pg-official-niuniu .nn-cards .pcard {
+  width: calc(var(--control-h) * 1.15);
+  height: calc(var(--control-h) * 1.7);
+}
+
+.pg-official-niuniu .nn-cards .pcard-center {
+  display: none;
+}
+
+.pg-official-niuniu .nn-hand-name {
+  color: var(--brand);
+  font-size: var(--fs-h3);
+  font-weight: 700;
+}
+
+.pg-official-niuniu .nn-waiting {
+  min-height: calc(var(--control-h) * 5);
+  display: grid;
+  place-content: center;
+  background: var(--inset);
+  text-align: center;
+}
+
+.pg-official-niuniu .nn-waiting p {
+  margin: var(--s2) 0 0;
+  color: var(--ink-soft);
+}
+
+.pg-official-niuniu .nn-result {
+  padding: var(--s3) var(--s4);
+  background: var(--primary-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-lead);
+  font-weight: 700;
+  text-align: center;
+}
+
+.pg-official-niuniu .nn-result.is-win {
+  color: var(--gain);
+}
+
+.pg-official-niuniu .nn-result.is-loss {
+  color: var(--loss);
+}
+
+.pg-official-niuniu .nn-rules {
+  display: grid;
+  grid-template-columns: minmax(calc(var(--control-h) * 4), 1fr) 2fr;
+  gap: var(--s4);
+}
+
+.pg-official-niuniu .nn-rule-copy h3,
+.pg-official-niuniu .nn-rule-copy p,
+.pg-official-niuniu .nn-warning {
+  margin: 0;
+}
+
+.pg-official-niuniu .nn-rule-copy h3 {
+  font-size: var(--fs-h3);
+}
+
+.pg-official-niuniu .nn-rule-copy p,
+.pg-official-niuniu .nn-warning {
+  color: var(--ink-soft);
+  font-size: var(--fs-caption);
+}
+
+.pg-official-niuniu .nn-paytable {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--s2);
+}
+
+.pg-official-niuniu .nn-paytable span {
+  padding: var(--s2);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-caption);
+}
+
+.pg-official-niuniu .nn-warning {
+  grid-column: 1 / -1;
+  color: var(--loss);
+}
+
+.pg-official-niuniu .nn-actions,
+.pg-official-niuniu .nn-bets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+}
+
+.pg-official-niuniu .filter-tab {
+  min-width: var(--control-h);
+  min-height: var(--control-h);
+  padding: 0 var(--s3);
+  color: var(--ink-soft);
+  background: var(--card);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-caption);
+}
+
+.pg-official-niuniu .filter-tab.is-active {
+  color: var(--on-brass);
+  background: var(--brand);
+  border-color: var(--brand);
+}
+
+@media (max-width: 767px) {
+  .pg-official-niuniu .nn-hands,
+  .pg-official-niuniu .nn-rules {
+    grid-template-columns: 1fr;
+  }
+
+  .pg-official-niuniu .nn-hand {
+    padding: var(--s3);
+  }
+
+  .pg-official-niuniu .nn-cards .pcard {
+    width: calc(var(--control-h) * 0.95);
+    height: calc(var(--control-h) * 1.45);
+  }
+
+  .pg-official-niuniu .nn-cards.has-split {
+    gap: var(--s2);
+  }
+
+  .pg-official-niuniu .nn-cards.has-split .nn-card-group + .nn-card-group {
+    padding-left: var(--s2);
+  }
+
+  .pg-official-niuniu .nn-actions {
+    align-items: stretch;
+  }
+}

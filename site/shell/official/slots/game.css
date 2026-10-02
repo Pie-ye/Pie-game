@@ -1,0 +1,231 @@
+.pg-official-slots {
+  display: block;
+  color: var(--ink);
+}
+
+.pg-official-slots .official-balance {
+  margin-bottom: var(--s3);
+  color: var(--ink-soft);
+  font-size: var(--fs-caption);
+  text-align: right;
+}
+
+.pg-official-slots .official-balance strong {
+  color: var(--ink);
+  font-size: var(--fs-lead);
+}
+
+.pg-official-slots .slot-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(calc(var(--control-h) * 5), 1fr);
+  gap: var(--s5);
+  align-items: start;
+}
+
+.pg-official-slots .slot-main,
+.pg-official-slots .slot-paytable-wrap {
+  padding: var(--s4);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--elev-1);
+}
+
+.pg-official-slots .slot-machine {
+  padding: var(--s3);
+  background: var(--inset);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.pg-official-slots .slot-window {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s2);
+  height: calc(var(--control-h) * 4.8);
+  overflow: hidden;
+}
+
+.pg-official-slots .slot-reel {
+  overflow: hidden;
+  background: var(--sheet);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.pg-official-slots .slot-strip {
+  display: flex;
+  flex-direction: column;
+}
+
+.pg-official-slots .slot-cell {
+  display: grid;
+  place-items: center;
+  flex: 0 0 calc(var(--control-h) * 1.6);
+  color: var(--ink-soft);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.pg-official-slots .slot-cell.is-hit {
+  color: var(--gain);
+  background: var(--primary-soft);
+}
+
+.pg-official-slots .slot-cell.is-jackpot {
+  color: var(--brand);
+}
+
+.pg-official-slots .inline-icon {
+  display: inline-grid;
+  place-items: center;
+  width: calc(var(--control-h) * 0.9);
+  height: calc(var(--control-h) * 0.9);
+  vertical-align: middle;
+}
+
+.pg-official-slots .inline-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.pg-official-slots .slot-payline {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  left: 0;
+  height: 1px;
+  background: var(--brand);
+  pointer-events: none;
+}
+
+.pg-official-slots .slot-controls,
+.pg-official-slots .slot-bets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.pg-official-slots .slot-controls {
+  justify-content: space-between;
+}
+
+.pg-official-slots .filter-tab {
+  min-width: var(--control-h);
+  min-height: var(--control-h);
+  padding: 0 var(--s3);
+  color: var(--ink-soft);
+  background: var(--card);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-caption);
+}
+
+.pg-official-slots .filter-tab.is-active {
+  color: var(--on-brass);
+  background: var(--brand);
+  border-color: var(--brand);
+}
+
+.pg-official-slots .slot-result {
+  min-height: var(--control-h);
+  margin-top: var(--s3);
+  padding: var(--s3);
+  border-top: 1px solid var(--line);
+  text-align: center;
+}
+
+.pg-official-slots .slot-result-empty,
+.pg-official-slots .slot-rtp {
+  margin: 0;
+  color: var(--ink-faint);
+  font-size: var(--fs-caption);
+}
+
+.pg-official-slots .slot-result-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+}
+
+.pg-official-slots .slot-result-line .inline-icon {
+  width: var(--control-h);
+  height: var(--control-h);
+}
+
+.pg-official-slots .slot-win {
+  color: var(--gain);
+}
+
+.pg-official-slots .slot-miss {
+  color: var(--ink-soft);
+}
+
+.pg-official-slots .eyebrow {
+  margin: 0 0 var(--s2);
+  color: var(--ink-faint);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: var(--ls-micro);
+  text-transform: uppercase;
+}
+
+.pg-official-slots .slot-paytable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-caption);
+}
+
+.pg-official-slots .slot-paytable th,
+.pg-official-slots .slot-paytable td {
+  padding: var(--s2);
+  border-bottom: 1px solid var(--hairline);
+  text-align: left;
+}
+
+.pg-official-slots .slot-paytable .num {
+  text-align: right;
+}
+
+.pg-official-slots .slot-paytable .inline-icon {
+  width: calc(var(--control-h) * 0.55);
+  height: calc(var(--control-h) * 0.55);
+}
+
+.pg-official-slots .slot-paytable .is-jackpot {
+  color: var(--brand);
+}
+
+.pg-official-slots .slot-rtp {
+  margin-top: var(--s3);
+}
+
+@media (max-width: 767px) {
+  .pg-official-slots .slot-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .pg-official-slots .slot-paytable-wrap {
+    order: 2;
+  }
+
+  .pg-official-slots .slot-window {
+    height: calc(var(--control-h) * 4.2);
+  }
+
+  .pg-official-slots .slot-cell {
+    flex-basis: calc(var(--control-h) * 1.4);
+  }
+
+  .pg-official-slots .slot-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pg-official-slots .slot-bets {
+    justify-content: center;
+  }
+}
