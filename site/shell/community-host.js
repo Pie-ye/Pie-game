@@ -250,16 +250,17 @@ export function communityGameUrl(game, release) {
 // sandbox 只給 allow-same-origin、不給 allow-scripts：投稿程式碼一行都不會執行
 // （DevTools 會印「Blocked script execution … sandboxed」，那就是它在擋，正常）。
 const WARM_LIMIT = 8;
+const WARM_PARALLEL = 3;
 const WARM_TIMEOUT_MS = 10000;
 const warmed = new Set();
 let warmQueue = [];
-let warming = false;
+let warming = 0;
 
 function warmNext() {
-  if (warming) return;
+  if (warming >= WARM_PARALLEL) return;
   const url = warmQueue.shift();
   if (!url) return;
-  warming = true;
+  warming += 1;
   const frame = document.createElement('iframe');
   frame.setAttribute('sandbox', 'allow-same-origin');
   frame.setAttribute('allow', "autoplay 'none'; fullscreen 'none'; gamepad 'none'");
@@ -274,7 +275,7 @@ function warmNext() {
     done = true;
     clearTimeout(timer);
     frame.remove();
-    warming = false;
+    warming -= 1;
     warmNext();
   };
   const timer = setTimeout(finish, WARM_TIMEOUT_MS);
@@ -282,6 +283,7 @@ function warmNext() {
   frame.addEventListener('error', finish, { once: true });
   frame.src = url;
   document.body.appendChild(frame);
+  warmNext();
 }
 
 /**
