@@ -24,9 +24,10 @@ async def test_redeem_posts_ticket_and_returns_identity(aiohttp_server, monkeypa
     app = web.Application()
     app.router.add_post("/api/casino/play-ticket/redeem", handler)
     server = await aiohttp_server(app)
-    monkeypatch.setenv("PG_RETIRE_BASE", str(server.make_url("/")).rstrip("/"))
+    base = str(server.make_url("/")).rstrip("/")
+    monkeypatch.setenv("PG_RETIRE_BASE", "http://127.0.0.1:1")
 
-    result = await redeem("one-use-ticket")
+    result = await redeem("one-use-ticket", base=base)
 
     assert seen == [{"ticket": "one-use-ticket"}]
     assert result == {

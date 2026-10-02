@@ -8,10 +8,15 @@ from typing import Any
 import aiohttp
 
 
-async def redeem(ticket: str) -> dict[str, Any]:
+async def redeem(ticket: str, *, base: str | None = None) -> dict[str, Any]:
     """Redeem *ticket* with the local Retire-count service."""
 
-    base_url = os.environ.get("PG_RETIRE_BASE", "http://127.0.0.1:54432").rstrip("/")
+    configured_base = (
+        base
+        if base is not None
+        else os.environ.get("PG_RETIRE_BASE", "http://127.0.0.1:54432")
+    )
+    base_url = configured_base.rstrip("/")
     timeout = aiohttp.ClientTimeout(total=3)
     async with aiohttp.ClientSession(timeout=timeout) as session:
         async with session.post(

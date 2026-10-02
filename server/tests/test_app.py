@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 from yarl import URL
 
+from server import app as app_module
 from server.app import Settings, create_content_app, create_shell_app
 from server.relay import Relay
 
@@ -32,7 +33,7 @@ async def test_shell_headers_cache_and_health(aiohttp_client, service_settings) 
         "script-src 'self'",
         "style-src 'self' 'unsafe-inline'",
         "img-src 'self' data:",
-        "connect-src 'self' https://coinpilet.win",
+        "connect-src 'self' https://coinpilet.win http://127.0.0.1:54471",
         "frame-src http://127.0.0.1:54471",
         "frame-ancestors 'none'",
         "base-uri 'self'",
@@ -160,6 +161,34 @@ async def test_range_requests(aiohttp_client, service_settings) -> None:
 
 
 @pytest.mark.asyncio
+async def test_large_file_streaming_and_range(aiohttp_client, service_settings) -> None:
+    community = service_settings.content_dir / "games" / "community"
+    size = 2 * 1024 * 1024
+    (community / "large.data").write_bytes(b"x" * size + b"TAIL")
+    relay = Relay(service_settings.content_origin, redeem=_unused_redeem)
+    client = await aiohttp_client(create_content_app(service_settings, relay=relay))
+
+    full = await client.get(
+        "/games/community/large.data",
+        headers={"Accept-Encoding": "identity"},
+    )
+    assert full.status == 200
+    assert full.headers["Content-Length"] == str(size + 4)
+    received = 0
+    async for chunk in full.content.iter_chunked(64 * 1024):
+        received += len(chunk)
+    assert received == size + 4
+
+    tail = await client.get(
+        "/games/community/large.data",
+        headers={"Range": f"bytes={size}-", "Accept-Encoding": "identity"},
+    )
+    assert tail.status == 206
+    assert tail.headers["Content-Range"] == f"bytes {size}-{size + 3}/{size + 4}"
+    assert await tail.read() == b"TAIL"
+
+
+@pytest.mark.asyncio
 async def test_precompressed_gzip_and_brotli_headers(aiohttp_client, service_settings) -> None:
     community = service_settings.content_dir / "games" / "community"
     source = b"console.log('compressed');"
@@ -206,3 +235,33 @@ def test_dev_settings_use_repository_and_local_origins(monkeypatch) -> None:
     assert settings.api_origin == "http://127.0.0.1:59999"
     assert settings.site_dir == Path(__file__).resolve().parents[2] / "site"
     assert settings.content_dir == settings.site_dir
+
+
+@pytest.mark.asyncio
+async def test_content_app_passes_configured_retire_base(
+    aiohttp_client,
+    service_settings,
+    monkeypatch,
+) -> None:
+    calls: list[tuple[str, str | None]] = []
+
+    async def fake_redeem(ticket: str, *, base: str | None = None) -> dict:
+        calls.append((ticket, base))
+        return {
+            "userId": "alice",
+            "username": "alice",
+            "displayName": "Alice",
+            "gameId": "maze",
+        }
+
+    monkeypatch.setattr(app_module.retire_client, "redeem", fake_redeem)
+    client = await aiohttp_client(create_content_app(service_settings))
+    ws = await client.ws_connect(
+        "/mp",
+        headers={"Origin": service_settings.content_origin},
+    )
+    await ws.send_json({"type": "auth", "ticket": "ticket", "gameId": "maze"})
+
+    assert (await ws.receive_json(timeout=1))["type"] == "welcome"
+    assert calls == [("ticket", service_settings.retire_base)]
+    await ws.close()

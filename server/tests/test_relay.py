@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 from aiohttp import WSMsgType, WSServerHandshakeError, web
 
-from server.relay import MAX_MESSAGE_BYTES, Relay
+from server.relay import Connection, MAX_MESSAGE_BYTES, Relay
 
 ORIGIN = "https://play.piea.uk"
 
@@ -100,6 +100,23 @@ async def test_auth_success_timeout_bad_ticket_and_game_mismatch(aiohttp_client)
     mismatch = await client.ws_connect("/mp", headers={"Origin": ORIGIN})
     await mismatch.send_json({"type": "auth", "ticket": "bob:game-b", "gameId": "game-a"})
     assert await mismatch.receive_json(timeout=1) == {"type": "error", "code": "game_mismatch"}
+
+
+@pytest.mark.asyncio
+async def test_oversized_unauthenticated_frame_closes_only_that_connection(aiohttp_client) -> None:
+    client, _ = await make_relay_client(aiohttp_client)
+    oversized = await client.ws_connect("/mp", headers={"Origin": ORIGIN})
+
+    await oversized.send_str("x" * (1024 * 1024))
+    for _ in range(3):
+        message = await oversized.receive(timeout=1)
+        if message.type in {WSMsgType.CLOSE, WSMsgType.CLOSING, WSMsgType.CLOSED}:
+            break
+    else:
+        pytest.fail("oversized unauthenticated WebSocket was not closed")
+
+    healthy = await connect_and_auth(client, "healthy")
+    assert not healthy.closed
 
 
 @pytest.mark.asyncio
@@ -265,6 +282,32 @@ async def test_room_player_user_and_global_connection_limits(aiohttp_client) -> 
 
 
 @pytest.mark.asyncio
+async def test_concurrent_user_connection_limit_is_atomic(aiohttp_client) -> None:
+    client, relay = await make_relay_client(aiohttp_client)
+    sockets = await asyncio.gather(
+        *(client.ws_connect("/mp", headers={"Origin": ORIGIN}) for _ in range(5))
+    )
+    await asyncio.gather(
+        *(
+            socket.send_json(
+                {"type": "auth", "ticket": "same-user:game-a", "gameId": "game-a"}
+            )
+            for socket in sockets
+        )
+    )
+    responses = await asyncio.gather(*(socket.receive_json(timeout=1) for socket in sockets))
+
+    assert sum(response["type"] == "welcome" for response in responses) == 3
+    assert sum(
+        response == {"type": "error", "code": "too_many_connections"}
+        for response in responses
+    ) == 2
+    assert len(relay.connections_by_user["same-user"]) == 3
+
+    await asyncio.gather(*(socket.close() for socket in sockets))
+
+
+@pytest.mark.asyncio
 async def test_ping_pong_and_idle_disconnect(aiohttp_client) -> None:
     clock = FakeClock()
     client, relay = await make_relay_client(
@@ -300,3 +343,38 @@ async def test_client_ping_gets_pong(aiohttp_client) -> None:
     ws = await connect_and_auth(client, "alice")
     await ws.send_json({"type": "ping"})
     assert await ws.receive_json(timeout=1) == {"type": "pong"}
+
+
+@pytest.mark.asyncio
+async def test_heartbeat_send_failure_closes_connection() -> None:
+    class FailingWebSocket:
+        def __init__(self) -> None:
+            self.closed = False
+
+        async def send_json(self, _: dict) -> None:
+            raise ConnectionResetError("peer disappeared")
+
+        async def close(self, *, code: int, message: bytes) -> None:
+            assert code == 1001
+            assert message == b"heartbeat failed"
+            self.closed = True
+
+    socket = FailingWebSocket()
+    connection = Connection(
+        ws=socket,  # type: ignore[arg-type]
+        user_id="alice",
+        username="alice",
+        display_name="Alice",
+        game_id="game-a",
+        last_seen=0,
+    )
+    relay = Relay(
+        ORIGIN,
+        redeem=ticket_redeemer(),
+        clock=FakeClock(),
+        ping_interval=0,
+    )
+
+    await asyncio.wait_for(relay._heartbeat(connection), timeout=1)
+
+    assert socket.closed

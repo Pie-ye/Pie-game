@@ -146,7 +146,7 @@ class Relay:
         if len(self.connections) + self._pending_connections >= self.max_connections:
             raise web.HTTPServiceUnavailable(text="connection limit reached")
 
-        ws = web.WebSocketResponse(autoping=True, max_msg_size=0)
+        ws = web.WebSocketResponse(autoping=True, max_msg_size=MAX_MESSAGE_BYTES)
         await ws.prepare(request)
         self._pending_connections += 1
         connection: Connection | None = None
@@ -158,7 +158,6 @@ class Relay:
 
             self._pending_connections -= 1
             self.connections.add(connection)
-            self.connections_by_user[connection.user_id].add(connection)
             await ws.send_json({"type": "welcome", "you": connection.player})
             connection.heartbeat_task = asyncio.create_task(self._heartbeat(connection))
 
@@ -251,12 +250,7 @@ class Relay:
             await ws.close(code=1008, message=b"invalid authentication response")
             return None
 
-        if len(self.connections_by_user.get(user_id, ())) >= self.max_connections_per_user:
-            await self._send_ws_error(ws, "too_many_connections")
-            await ws.close(code=1008, message=b"connection limit reached")
-            return None
-
-        return Connection(
+        connection = Connection(
             ws=ws,
             user_id=user_id,
             username=username,
@@ -264,6 +258,12 @@ class Relay:
             game_id=game_id,
             last_seen=self.clock(),
         )
+        if not self._reserve_user_slot(connection):
+            await self._send_ws_error(ws, "too_many_connections")
+            await ws.close(code=1008, message=b"connection limit reached")
+            return None
+
+        return connection
 
     async def _handle_text(self, connection: Connection, raw_message: str) -> None:
         if len(raw_message.encode("utf-8")) > self.max_message_bytes:
@@ -545,6 +545,13 @@ class Relay:
             return None
         return self.rooms.get(connection.room_id)
 
+    def _reserve_user_slot(self, connection: Connection) -> bool:
+        user_connections = self.connections_by_user[connection.user_id]
+        if len(user_connections) >= self.max_connections_per_user:
+            return False
+        user_connections.add(connection)
+        return True
+
     def _new_room_id(self) -> str:
         while True:
             room_id = secrets.token_urlsafe(9)
@@ -581,4 +588,11 @@ class Relay:
             if self.clock() - connection.last_seen >= self.idle_timeout:
                 await connection.ws.close(code=1001, message=b"idle timeout")
                 return
-            await connection.ws.send_json({"type": "ping"})
+            try:
+                await connection.ws.send_json({"type": "ping"})
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                with contextlib.suppress(Exception):
+                    await connection.ws.close(code=1001, message=b"heartbeat failed")
+                return

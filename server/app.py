@@ -8,11 +8,12 @@ import mimetypes
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 from urllib.parse import unquote, urlsplit, urlunsplit
 
 from aiohttp import web
 
-from . import __version__
+from . import __version__, retire_client
 from .relay import Relay
 
 DEFAULT_SHELL_PORT = 54460
@@ -72,7 +73,7 @@ def shell_csp(settings: Settings) -> str:
             "script-src 'self'",
             "style-src 'self' 'unsafe-inline'",
             "img-src 'self' data:",
-            f"connect-src 'self' {settings.api_origin}",
+            f"connect-src 'self' {settings.api_origin} {settings.content_origin}",
             f"frame-src {settings.content_origin}",
             "frame-ancestors 'none'",
             "base-uri 'self'",
@@ -116,7 +117,11 @@ def create_shell_app(settings: Settings) -> web.Application:
 def create_content_app(settings: Settings, *, relay: Relay | None = None) -> web.Application:
     app = web.Application()
     _add_security_headers(app, content_csp(settings))
-    relay_service = relay or Relay(settings.content_origin)
+
+    async def redeem_ticket(ticket: str) -> dict[str, Any]:
+        return await retire_client.redeem(ticket, base=settings.retire_base)
+
+    relay_service = relay or Relay(settings.content_origin, redeem=redeem_ticket)
     app[RELAY_KEY] = relay_service
 
     async def healthz(_: web.Request) -> web.Response:
@@ -164,43 +169,16 @@ def _add_security_headers(app: web.Application, csp: str) -> None:
     app.on_response_prepare.append(set_headers)
 
 
-async def _static_response(request: web.Request, root: Path, relative: str) -> web.Response:
+async def _static_response(request: web.Request, root: Path, relative: str) -> web.FileResponse:
     requested = _resolve_file(root, relative, request.raw_path)
     representation, logical_path, encoding, negotiated = _select_representation(
         root,
         requested,
         request.headers.get("Accept-Encoding", ""),
     )
-    size = representation.stat().st_size
-    status = 200
-    start = 0
-    end = size - 1
-    range_header = request.headers.get("Range")
-    if range_header is not None:
-        parsed = _parse_range(range_header, size)
-        if parsed is None:
-            return web.Response(
-                status=416,
-                headers={
-                    "Accept-Ranges": "bytes",
-                    "Content-Range": f"bytes */{size}",
-                },
-            )
-        start, end = parsed
-        status = 206
-
-    length = max(0, end - start + 1)
-    with representation.open("rb") as source:
-        source.seek(start)
-        body = source.read(length)
-
     headers = {
         "Content-Type": _content_type(logical_path),
-        "Accept-Ranges": "bytes",
-        "Content-Length": str(length),
     }
-    if status == 206:
-        headers["Content-Range"] = f"bytes {start}-{end}/{size}"
     if encoding is not None:
         headers["Content-Encoding"] = encoding
     if negotiated:
@@ -210,7 +188,7 @@ async def _static_response(request: web.Request, root: Path, relative: str) -> w
     elif "v" in request.query:
         headers["Cache-Control"] = "public, max-age=31536000, immutable"
 
-    return web.Response(status=status, body=body, headers=headers)
+    return web.FileResponse(representation, headers=headers)
 
 
 def _resolve_file(root: Path, relative: str, raw_path: str) -> Path:
@@ -283,30 +261,6 @@ def _accepted_encodings(header: str) -> set[str]:
         for encoding in ("br", "gzip")
         if quality.get(encoding, wildcard if wildcard is not None else 0.0) > 0
     }
-
-
-def _parse_range(value: str, size: int) -> tuple[int, int] | None:
-    if size <= 0 or not value.startswith("bytes=") or "," in value:
-        return None
-    bounds = value[6:].strip()
-    if "-" not in bounds:
-        return None
-    start_text, end_text = bounds.split("-", 1)
-    try:
-        if not start_text:
-            suffix_length = int(end_text)
-            if suffix_length <= 0:
-                return None
-            start = max(0, size - suffix_length)
-            end = size - 1
-        else:
-            start = int(start_text)
-            end = size - 1 if not end_text else min(int(end_text), size - 1)
-            if start < 0 or start >= size or end < start:
-                return None
-    except ValueError:
-        return None
-    return start, end
 
 
 def _content_type(path: Path) -> str:
