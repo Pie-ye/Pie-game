@@ -1,97 +1,20 @@
-import { escapeHtml, mountStylesheet, motionEnabled, renderIfChanged } from '../../util.js';
-import { mountIcons as mountIconNodes } from '../../icons.js';
+import { renderPcard } from '../../cards.js';
+import { escapeHtml, renderIfChanged } from '../../util.js';
+import { createBridge } from '../_bridge.js';
 
-let root = null;
-let sdk = null;
-let controller = null;
-let releaseStyles = null;
-let bodyAddon = null;
-let generation = 0;
-const documentListeners = [];
-const windowListeners = [];
-const state = { user: null, casino: null };
-
-function registerDocumentListener(type, handler, options) { documentListeners.push({ type, handler, options }); }
-function registerWindowListener(type, handler, options) { windowListeners.push({ type, handler, options }); }
-function $(selector) {
-  if (root) {
-    const found = root.querySelector(selector);
-    if (found) return found;
-  }
-  if (bodyAddon) {
-    if (bodyAddon.matches(selector)) return bodyAddon;
-    return bodyAddon.querySelector(selector);
-  }
-  return null;
-}
-function $$(selector) {
-  const found = root ? Array.from(root.querySelectorAll(selector)) : [];
-  if (bodyAddon) {
-    if (bodyAddon.matches(selector)) found.push(bodyAddon);
-    found.push(...bodyAddon.querySelectorAll(selector));
-  }
-  return found;
-}
-function currentCasinoUserId() { return state.user && state.user.id; }
-function ensureCasinoState() {
-  if (!state.casino) {
-    state.casino = {
-      userId: currentCasinoUserId(),
-      tab: 'poker',
-      balance: Number(sdk && sdk.getBalance()) || 0,
-      slots: { config: null, spinning: false, last: null, bet: 5 },
-    };
-  }
-  return state.casino;
-}
-function mountIcons() {
-  if (root) mountIconNodes(root);
-  if (bodyAddon) mountIconNodes(bodyAddon);
-}
-function toast(message) { if (sdk) sdk.toast(message); }
-function casinoRoundId() { return sdk ? sdk.roundId() : ''; }
-function refreshCasinoHistory() { if (sdk) sdk.refreshHistory(); }
-function setCasinoBalance(value) {
-  const balance = Number(value) || 0;
-  if (state.casino) state.casino.balance = balance;
-  if (sdk) sdk.setBalance(balance);
-  const output = $('.pg-balance-value');
-  if (output) output.textContent = balance.toLocaleString('zh-TW');
-}
-function isAbortedResponse(response) { return Boolean(response && response.aborted); }
-function currentView() { return root ? 'casino' : ''; }
-async function api(path, options = {}) {
-  const activeSdk = sdk;
-  const activeGeneration = generation;
-  if (!activeSdk || !controller) return { response: { ok: false, status: 0, aborted: true }, payload: {} };
-  const next = { ...options, signal: controller.signal };
-  if (typeof next.body === 'string') {
-    try { next.body = JSON.parse(next.body); } catch (_) { /* keep a non-JSON body */ }
-  }
-  let result;
-  try {
-    result = await activeSdk.api(path, next);
-  } catch (_) {
-    result = { response: { ok: false, status: 0 }, payload: { error: '連線失敗，請檢查網路後重試' } };
-  }
-  if (activeGeneration !== generation || activeSdk !== sdk) {
-    return { response: { ok: false, status: 0, aborted: true }, payload: {} };
-  }
-  return result;
-}
-async function refreshCasinoBalance() {
-  const { response, payload } = await api('/api/casino/slots/config');
-  if (!isAbortedResponse(response) && response.ok && payload && payload.balance != null) setCasinoBalance(payload.balance);
-}
-function renderPcard(card, options) { return sdk ? sdk.renderPcard(card, options) : ''; }
+const bridge = createBridge('poker');
+const {
+  state, $, api, currentCasinoUserId, ensureCasinoState, isAbortedResponse,
+  mountIcons, onDocument: registerDocumentListener, refreshBalance,
+  refreshCasinoHistory, setCasinoBalance, toast,
+} = bridge;
 
 /* 賭場：德州撲克。
-   .pcard 牌面元件：直接呼叫 casino-blackjack.js 匯出的全域 renderPcard(card)，跟 21 點
-   共用同一份 HTML 結構／class 與 rank 對照表（T→10 等），不會各寫各的兩套牌面邏輯。
+   .pcard 牌面由 cards.js 統一渲染，與 21 點共用 HTML 結構、class 與 rank 對照表。
    德撲牌桌要塞進橢圓座位圈、一手最多同時攤 5 張公牌 + 多位玩家底牌，21 點那組尺寸
    （走 --control-h）直接套用會爆版，所以額外用 `.pk-board .pcard` / `.pk-cards .pcard`
    （比裸 .pcard 多一層祖先、特異度較高）把卡片縮小、收掉中央大花色浮水印，只留
-   .pcard-corner 的 rank+suit；casino.css 有對應的 .pk- 覆寫規則。 */
+   .pcard-corner 的 rank+suit；game.css 有對應的 .pk- 覆寫規則。 */
 
 const POKER_POLL_TABLE_MS = 2000;
 const POKER_POLL_LOBBY_MS = 5000;
@@ -122,13 +45,13 @@ function ensurePokerState() {
 /* ============================== DOM 骨架 ============================== */
 
 function ensurePokerDom() {
-  const root = $('#casinoPoker');
-  if (!root) return null;
-  if (root.querySelector('.pk-content')) return root;
-  root.innerHTML = `
+  const panel = $('#casinoPoker');
+  if (!panel) return null;
+  if (panel.querySelector('.pk-content')) return panel;
+  panel.innerHTML = `
     <div class="pk-content"></div>`;
   mountIcons();
-  return root;
+  return panel;
 }
 
 /* ============================== 牌面 ============================== */
@@ -166,15 +89,13 @@ async function fetchPokerTables(pk) {
 /* pending 離桌（leave 回 {pending:true}）之後，這手繼續打，本人座位在後端於這手結束時
    才真的被移除；下一次輪詢的 payload 就不會再有 you。舊畫面若記得「本人先前 leaving
    為真」，這裡判斷是離桌完成了，自動清 tableId、回大廳，使用者不用自己想辦法逃出觀戰畫面。
-   同時每次回應都設一次 balance（有才設，桌視圖多半沒有，這裡的 typeof 檢查跟其他讀取路徑
-   一致）。*/
+   同時每次回應都設一次 balance（有才設，桌視圖多半沒有）。*/
 function applyPokerView(pk, payload) {
   const previousYou = pk.view && pk.view.you;
   const prevHand = pk.view && pk.view.lastResult ? pk.view.lastResult.handNo : null;
   pk.view = payload;
   const nextHand = payload.lastResult ? payload.lastResult.handNo : null;
-  if (nextHand != null && nextHand !== prevHand && (payload.you || previousYou)
-      && typeof refreshCasinoHistory === 'function') {
+  if (nextHand != null && nextHand !== prevHand && (payload.you || previousYou)) {
     refreshCasinoHistory('poker');
   }
   if (typeof payload.balance === 'number') setCasinoBalance(payload.balance);
@@ -421,7 +342,6 @@ function stopPokerPolling() {
 function startPokerPolling() {
   const panel = $('#casinoPoker');
   const active = Boolean(state.user)
-    && currentView() === 'casino'
     && state.casino
     && state.casino.tab === 'poker'
     && panel
@@ -512,7 +432,7 @@ async function confirmPokerSit() {
   pk.tableId = tableId;
   applyPokerView(pk, payload);
   pk.raiseTo = null;
-  refreshCasinoBalance();
+  refreshBalance();
   renderCasinoPoker();
 }
 
@@ -577,7 +497,7 @@ async function pokerLeave() {
   pk.view = null;
   pk.raiseTo = null;
   if (typeof payload.balance === 'number') setCasinoBalance(payload.balance);
-  refreshCasinoBalance();
+  refreshBalance();
   renderCasinoPoker();
 }
 
@@ -645,24 +565,16 @@ registerDocumentListener('input', (e) => {
   }
 });
 
-/* ============================== 輪詢的停止訊號 ==============================
-   switchCasinoTab（casino.js）換到別的分頁時只會切換 #casinoPoker 的 hidden，
-   不會呼叫 renderCasinoPoker()，所以這裡不能改 switchCasinoTab，只能用
-   MutationObserver 盯 hidden 屬性；換 view（hash 改變）時 #casinoPoker 的
-   hidden 完全不會變，另外要接 hashchange 才停得掉。 */
-
-
 registerDocumentListener('visibilitychange', () => { startPokerPolling(); });
-registerWindowListener('hashchange', () => { stopPokerPolling(); });
+bridge.onUnmount(stopPokerPolling);
 
 function createPokerModal() {
-  if ('poker' !== 'poker') return;
-  bodyAddon = document.createElement('div');
-  bodyAddon.className = 'pg-official-poker-modal friend-modal-gate';
-  bodyAddon.id = 'pkSitGate';
-  bodyAddon.hidden = true;
-  bodyAddon.setAttribute('aria-hidden', 'true');
-  bodyAddon.innerHTML = `<div class="friend-modal-card" role="dialog" aria-modal="true" aria-labelledby="pkSitTitle">
+  const modal = document.createElement('div');
+  modal.className = 'pg-official-poker-modal friend-modal-gate';
+  modal.id = 'pkSitGate';
+  modal.hidden = true;
+  modal.setAttribute('aria-hidden', 'true');
+  modal.innerHTML = `<div class="friend-modal-card" role="dialog" aria-modal="true" aria-labelledby="pkSitTitle">
     <header class="modal-header">
       <div><span class="status-pill"><span class="inline-icon" data-icon="dice" aria-hidden="true"></span> 入座</span><h2 id="pkSitTitle">選擇買入金額</h2></div>
       <button type="button" class="icon-button" data-action="close-pk-sit-modal" aria-label="關閉"><span data-icon="x-close" aria-hidden="true"></span></button>
@@ -674,45 +586,19 @@ function createPokerModal() {
       <div class="adjust-actions"><button type="button" class="secondary-button" data-action="close-pk-sit-modal">取消</button><button type="button" class="primary-button" data-action="pk-sit-confirm">確定</button></div>
     </div>
   </div>`;
-  document.body.appendChild(bodyAddon);
-  mountIcons();
+  return modal;
 }
 
 export function mount(target, officialSdk) {
-  unmount();
-  root = target;
-  sdk = officialSdk;
-  generation += 1;
-  controller = new AbortController();
-  state.user = officialSdk.user || null;
-  state.casino = null;
-  root.classList.add('pg-official-poker');
-  root.innerHTML = `<div class="official-balance">餘額 <strong class="pg-balance-value">${Number(officialSdk.getBalance()).toLocaleString('zh-TW')}</strong> 金幣</div><div id="casinoPoker" aria-live="polite"></div>`;
-  releaseStyles = mountStylesheet(new URL('./game.css', import.meta.url).href);
-  createPokerModal();
-  for (const item of documentListeners) document.addEventListener(item.type, item.handler, item.options);
-  for (const item of windowListeners) window.addEventListener(item.type, item.handler, item.options);
-  renderCasinoPoker();
+  bridge.mount(target, officialSdk, {
+    panelId: 'casinoPoker',
+    live: true,
+    styleUrl: new URL('./game.css', import.meta.url).href,
+    createBodyAddon: createPokerModal,
+    render: renderCasinoPoker,
+  });
 }
 
 export function unmount() {
-  generation += 1;
-  if (typeof stopPokerPolling === 'function') stopPokerPolling();
-  if (controller) controller.abort();
-  for (const item of documentListeners) document.removeEventListener(item.type, item.handler, item.options);
-  for (const item of windowListeners) window.removeEventListener(item.type, item.handler, item.options);
-  if (bodyAddon) bodyAddon.remove();
-  bodyAddon = null;
-  if (root) {
-    for (const animation of root.getAnimations ? root.getAnimations({ subtree: true }) : []) animation.cancel();
-    root.classList.remove('pg-official-poker');
-    root.replaceChildren();
-  }
-  if (releaseStyles) releaseStyles();
-  releaseStyles = null;
-  controller = null;
-  sdk = null;
-  root = null;
-  state.user = null;
-  state.casino = null;
+  bridge.unmount();
 }

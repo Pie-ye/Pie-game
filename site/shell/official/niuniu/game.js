@@ -1,89 +1,13 @@
-import { escapeHtml, mountStylesheet, motionEnabled, renderIfChanged } from '../../util.js';
-import { mountIcons as mountIconNodes } from '../../icons.js';
+import { renderPcard } from '../../cards.js';
+import { escapeHtml, renderIfChanged } from '../../util.js';
+import { createBridge } from '../_bridge.js';
 
-let root = null;
-let sdk = null;
-let controller = null;
-let releaseStyles = null;
-let bodyAddon = null;
-let generation = 0;
-const documentListeners = [];
-const windowListeners = [];
-const state = { user: null, casino: null };
-
-function registerDocumentListener(type, handler, options) { documentListeners.push({ type, handler, options }); }
-function registerWindowListener(type, handler, options) { windowListeners.push({ type, handler, options }); }
-function $(selector) {
-  if (root) {
-    const found = root.querySelector(selector);
-    if (found) return found;
-  }
-  if (bodyAddon) {
-    if (bodyAddon.matches(selector)) return bodyAddon;
-    return bodyAddon.querySelector(selector);
-  }
-  return null;
-}
-function $$(selector) {
-  const found = root ? Array.from(root.querySelectorAll(selector)) : [];
-  if (bodyAddon) {
-    if (bodyAddon.matches(selector)) found.push(bodyAddon);
-    found.push(...bodyAddon.querySelectorAll(selector));
-  }
-  return found;
-}
-function currentCasinoUserId() { return state.user && state.user.id; }
-function ensureCasinoState() {
-  if (!state.casino) {
-    state.casino = {
-      userId: currentCasinoUserId(),
-      tab: 'niuniu',
-      balance: Number(sdk && sdk.getBalance()) || 0,
-      slots: { config: null, spinning: false, last: null, bet: 5 },
-    };
-  }
-  return state.casino;
-}
-function mountIcons() {
-  if (root) mountIconNodes(root);
-  if (bodyAddon) mountIconNodes(bodyAddon);
-}
-function toast(message) { if (sdk) sdk.toast(message); }
-function casinoRoundId() { return sdk ? sdk.roundId() : ''; }
-function refreshCasinoHistory() { if (sdk) sdk.refreshHistory(); }
-function setCasinoBalance(value) {
-  const balance = Number(value) || 0;
-  if (state.casino) state.casino.balance = balance;
-  if (sdk) sdk.setBalance(balance);
-  const output = $('.pg-balance-value');
-  if (output) output.textContent = balance.toLocaleString('zh-TW');
-}
-function isAbortedResponse(response) { return Boolean(response && response.aborted); }
-function currentView() { return root ? 'casino' : ''; }
-async function api(path, options = {}) {
-  const activeSdk = sdk;
-  const activeGeneration = generation;
-  if (!activeSdk || !controller) return { response: { ok: false, status: 0, aborted: true }, payload: {} };
-  const next = { ...options, signal: controller.signal };
-  if (typeof next.body === 'string') {
-    try { next.body = JSON.parse(next.body); } catch (_) { /* keep a non-JSON body */ }
-  }
-  let result;
-  try {
-    result = await activeSdk.api(path, next);
-  } catch (_) {
-    result = { response: { ok: false, status: 0 }, payload: { error: '連線失敗，請檢查網路後重試' } };
-  }
-  if (activeGeneration !== generation || activeSdk !== sdk) {
-    return { response: { ok: false, status: 0, aborted: true }, payload: {} };
-  }
-  return result;
-}
-async function refreshCasinoBalance() {
-  const { response, payload } = await api('/api/casino/slots/config');
-  if (!isAbortedResponse(response) && response.ok && payload && payload.balance != null) setCasinoBalance(payload.balance);
-}
-function renderPcard(card, options) { return sdk ? sdk.renderPcard(card, options) : ''; }
+const bridge = createBridge('niuniu');
+const {
+  state, $, api, casinoRoundId, currentCasinoUserId, ensureCasinoState,
+  isAbortedResponse, mountIcons, onDocument: registerDocumentListener,
+  refreshCasinoHistory, setCasinoBalance, toast,
+} = bridge;
 
 
 const NN_DEFAULT_CONFIG = {
@@ -94,15 +18,7 @@ const NN_DEFAULT_CONFIG = {
 };
 
 function ensureNiuniuState() {
-  if (typeof ensureCasinoState === 'function') ensureCasinoState();
-  if (!state.casino) {
-    state.casino = {
-      userId: currentCasinoUserId(),
-      tab: 'niuniu',
-      balance: 0,
-      slots: { config: null, spinning: false, last: null, bet: 5 },
-    };
-  }
+  ensureCasinoState();
   if (!state.casino.niuniu) {
     state.casino.niuniu = {
       config: null,
@@ -209,6 +125,7 @@ async function renderCasinoNiuniu() {
     renderIfChanged(box, '<p class="empty-hint">載入妞妞中…</p>');
     try {
       const { response, payload } = await api('/api/casino/niuniu/config');
+      if (isAbortedResponse(response)) return;
       if (currentCasinoUserId() !== userId) return;
       if (!response.ok) {
         toast((payload && payload.error) || '載入妞妞失敗');
@@ -216,7 +133,7 @@ async function renderCasinoNiuniu() {
         return;
       }
       nn.config = payload;
-      if (typeof setCasinoBalance === 'function' && payload.balance != null) {
+      if (payload.balance != null) {
         setCasinoBalance(payload.balance);
       }
     } catch (_) {
@@ -262,12 +179,12 @@ async function niuniuPlay() {
       return;
     }
     nn.result = payload;
-    if (typeof setCasinoBalance === 'function' && payload.balance != null) {
+    if (payload.balance != null) {
       setCasinoBalance(payload.balance);
     }
     const net = Number(payload.net || 0);
     toast(net > 0 ? `贏得 ${net.toLocaleString('zh-TW')} 金幣` : `輸掉 ${Math.abs(net).toLocaleString('zh-TW')} 金幣`);
-    if (typeof refreshCasinoHistory === 'function') refreshCasinoHistory('niu_niu');
+    refreshCasinoHistory('niu_niu');
   } catch (_) {
     if (currentCasinoUserId() === userId) toast('網路異常，請重試');
   } finally {
@@ -295,64 +212,15 @@ registerDocumentListener('click', (event) => {
   }
 });
 
-function createPokerModal() {
-  if ('niuniu' !== 'poker') return;
-  bodyAddon = document.createElement('div');
-  bodyAddon.className = 'pg-official-poker-modal friend-modal-gate';
-  bodyAddon.id = 'pkSitGate';
-  bodyAddon.hidden = true;
-  bodyAddon.setAttribute('aria-hidden', 'true');
-  bodyAddon.innerHTML = `<div class="friend-modal-card" role="dialog" aria-modal="true" aria-labelledby="pkSitTitle">
-    <header class="modal-header">
-      <div><span class="status-pill"><span class="inline-icon" data-icon="dice" aria-hidden="true"></span> 入座</span><h2 id="pkSitTitle">選擇買入金額</h2></div>
-      <button type="button" class="icon-button" data-action="close-pk-sit-modal" aria-label="關閉"><span data-icon="x-close" aria-hidden="true"></span></button>
-    </header>
-    <div class="pk-sit-body">
-      <label for="pkBuyInRange">買入金額（50–200）</label>
-      <input id="pkBuyInRange" type="range" min="50" max="200" step="10" value="100" data-action="pk-buyin-range">
-      <strong id="pkBuyInValue" class="pk-buyin-value">100</strong>
-      <div class="adjust-actions"><button type="button" class="secondary-button" data-action="close-pk-sit-modal">取消</button><button type="button" class="primary-button" data-action="pk-sit-confirm">確定</button></div>
-    </div>
-  </div>`;
-  document.body.appendChild(bodyAddon);
-  mountIcons();
-}
-
 export function mount(target, officialSdk) {
-  unmount();
-  root = target;
-  sdk = officialSdk;
-  generation += 1;
-  controller = new AbortController();
-  state.user = officialSdk.user || null;
-  state.casino = null;
-  root.classList.add('pg-official-niuniu');
-  root.innerHTML = `<div class="official-balance">餘額 <strong class="pg-balance-value">${Number(officialSdk.getBalance()).toLocaleString('zh-TW')}</strong> 金幣</div><div id="casinoNiuniu" aria-live="polite"></div>`;
-  releaseStyles = mountStylesheet(new URL('./game.css', import.meta.url).href);
-  createPokerModal();
-  for (const item of documentListeners) document.addEventListener(item.type, item.handler, item.options);
-  for (const item of windowListeners) window.addEventListener(item.type, item.handler, item.options);
-  renderCasinoNiuniu();
+  bridge.mount(target, officialSdk, {
+    panelId: 'casinoNiuniu',
+    live: true,
+    styleUrl: new URL('./game.css', import.meta.url).href,
+    render: renderCasinoNiuniu,
+  });
 }
 
 export function unmount() {
-  generation += 1;
-  if (typeof stopPokerPolling === 'function') stopPokerPolling();
-  if (controller) controller.abort();
-  for (const item of documentListeners) document.removeEventListener(item.type, item.handler, item.options);
-  for (const item of windowListeners) window.removeEventListener(item.type, item.handler, item.options);
-  if (bodyAddon) bodyAddon.remove();
-  bodyAddon = null;
-  if (root) {
-    for (const animation of root.getAnimations ? root.getAnimations({ subtree: true }) : []) animation.cancel();
-    root.classList.remove('pg-official-niuniu');
-    root.replaceChildren();
-  }
-  if (releaseStyles) releaseStyles();
-  releaseStyles = null;
-  controller = null;
-  sdk = null;
-  root = null;
-  state.user = null;
-  state.casino = null;
+  bridge.unmount();
 }

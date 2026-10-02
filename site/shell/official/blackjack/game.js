@@ -1,96 +1,13 @@
-import { escapeHtml, mountStylesheet, motionEnabled, renderIfChanged } from '../../util.js';
-import { mountIcons as mountIconNodes } from '../../icons.js';
+import { renderPcard } from '../../cards.js';
+import { escapeHtml, motionEnabled, renderIfChanged } from '../../util.js';
+import { createBridge } from '../_bridge.js';
 
-let root = null;
-let sdk = null;
-let controller = null;
-let releaseStyles = null;
-let bodyAddon = null;
-let generation = 0;
-const documentListeners = [];
-const windowListeners = [];
-const state = { user: null, casino: null };
-
-function registerDocumentListener(type, handler, options) { documentListeners.push({ type, handler, options }); }
-function registerWindowListener(type, handler, options) { windowListeners.push({ type, handler, options }); }
-function $(selector) {
-  if (root) {
-    const found = root.querySelector(selector);
-    if (found) return found;
-  }
-  if (bodyAddon) {
-    if (bodyAddon.matches(selector)) return bodyAddon;
-    return bodyAddon.querySelector(selector);
-  }
-  return null;
-}
-function $$(selector) {
-  const found = root ? Array.from(root.querySelectorAll(selector)) : [];
-  if (bodyAddon) {
-    if (bodyAddon.matches(selector)) found.push(bodyAddon);
-    found.push(...bodyAddon.querySelectorAll(selector));
-  }
-  return found;
-}
-function currentCasinoUserId() { return state.user && state.user.id; }
-function ensureCasinoState() {
-  if (!state.casino) {
-    state.casino = {
-      userId: currentCasinoUserId(),
-      tab: 'blackjack',
-      balance: Number(sdk && sdk.getBalance()) || 0,
-      slots: { config: null, spinning: false, last: null, bet: 5 },
-    };
-  }
-  return state.casino;
-}
-function mountIcons() {
-  if (root) mountIconNodes(root);
-  if (bodyAddon) mountIconNodes(bodyAddon);
-}
-function toast(message) { if (sdk) sdk.toast(message); }
-function casinoRoundId() { return sdk ? sdk.roundId() : ''; }
-function refreshCasinoHistory() { if (sdk) sdk.refreshHistory(); }
-function setCasinoBalance(value) {
-  const balance = Number(value) || 0;
-  if (state.casino) state.casino.balance = balance;
-  if (sdk) sdk.setBalance(balance);
-  const output = $('.pg-balance-value');
-  if (output) output.textContent = balance.toLocaleString('zh-TW');
-}
-function isAbortedResponse(response) { return Boolean(response && response.aborted); }
-function currentView() { return root ? 'casino' : ''; }
-async function api(path, options = {}) {
-  const activeSdk = sdk;
-  const activeGeneration = generation;
-  if (!activeSdk || !controller) return { response: { ok: false, status: 0, aborted: true }, payload: {} };
-  const next = { ...options, signal: controller.signal };
-  if (typeof next.body === 'string') {
-    try { next.body = JSON.parse(next.body); } catch (_) { /* keep a non-JSON body */ }
-  }
-  let result;
-  try {
-    result = await activeSdk.api(path, next);
-  } catch (_) {
-    result = { response: { ok: false, status: 0 }, payload: { error: '連線失敗，請檢查網路後重試' } };
-  }
-  if (activeGeneration !== generation || activeSdk !== sdk) {
-    return { response: { ok: false, status: 0, aborted: true }, payload: {} };
-  }
-  return result;
-}
-async function refreshCasinoBalance() {
-  const { response, payload } = await api('/api/casino/slots/config');
-  if (!isAbortedResponse(response) && response.ok && payload && payload.balance != null) setCasinoBalance(payload.balance);
-}
-
-
-const BJ_SUIT_SYMBOLS = {
-  s: '♠',
-  h: '♥',
-  d: '♦',
-  c: '♣',
-};
+const bridge = createBridge('blackjack');
+const {
+  state, $, $$, api, casinoRoundId, currentCasinoUserId, ensureCasinoState,
+  isAbortedResponse, mountIcons, onDocument: registerDocumentListener,
+  refreshCasinoHistory, setCasinoBalance, toast,
+} = bridge;
 
 const BJ_DEFAULT_CONFIG = {
   minBet: 5,
@@ -99,49 +16,11 @@ const BJ_DEFAULT_CONFIG = {
 };
 
 function ensureBlackjackState() {
-  if (typeof ensureCasinoState === 'function') {
-    ensureCasinoState();
-  }
-  if (!state.casino) {
-    state.casino = {
-      userId: currentCasinoUserId(),
-      tab: 'blackjack',
-      balance: 0,
-      slots: { config: null, spinning: false, last: null, bet: 5 },
-    };
-  }
+  ensureCasinoState();
   if (!state.casino.blackjack) {
     state.casino.blackjack = { view: null, busy: false, bet: 10 };
   }
   return state.casino.blackjack;
-}
-
-/* 牌面元件：德撲（casino-poker.js）直接呼叫 renderPcard(card) 複用同一份 HTML 結構／
-   class，兩邊牌面渲染只有一份，rank 對照（T→10 等）不會各寫各的、對出兩種結果。
-   opts.extraClass / opts.extraAttrs 只有 21 點自己的進場動畫（is-dealt + stagger 延遲）
-   會用到，德撲呼叫時不帶。 */
-function renderPcard(card, opts) {
-  const o = opts || {};
-  const extraClass = o.extraClass || '';
-  const extraAttrs = o.extraAttrs || '';
-  if (card === '??') {
-    return `<div class="pcard is-back${extraClass}"${extraAttrs} aria-label="暗牌"></div>`;
-  }
-  const rank = card[0];
-  const suitChar = card[1] || '';
-  const isRed = suitChar === 'h' || suitChar === 'd';
-  const suitUnicode = BJ_SUIT_SYMBOLS[suitChar] || suitChar;
-  const displayRank = rank === 'T' ? '10' : rank;
-  const redClass = isRed ? ' is-red' : '';
-  return `
-    <div class="pcard${redClass}${extraClass}"${extraAttrs} aria-label="${escapeHtml(displayRank)} ${escapeHtml(suitUnicode)}">
-      <div class="pcard-corner">
-        <span class="pcard-rank">${escapeHtml(displayRank)}</span>
-        <span class="pcard-suit">${suitUnicode}</span>
-      </div>
-      <div class="pcard-center" aria-hidden="true">${suitUnicode}</div>
-    </div>
-  `;
 }
 
 function calculateHandValue(cards) {
@@ -171,6 +50,7 @@ async function renderCasinoBlackjack() {
 
   if (!bj.view) {
     const { response, payload } = await api('/api/casino/blackjack');
+    if (isAbortedResponse(response)) return;
     if (!response.ok) {
       toast((payload && payload.error) || '載入 21 點失敗');
       if (renderIfChanged(box, '<p class="empty-hint">載入 21 點失敗，請稍後重試。</p>')) {
@@ -179,7 +59,7 @@ async function renderCasinoBlackjack() {
       return;
     }
     bj.view = payload;
-    if (typeof setCasinoBalance === 'function' && payload.balance != null) {
+    if (payload.balance != null) {
       setCasinoBalance(payload.balance);
     }
   }
@@ -206,7 +86,7 @@ async function renderCasinoBlackjack() {
   function renderCard(card, key) {
     const isNew = !bj.knownCards.has(key);
     nextKnownCards.add(key);
-    const canAnimate = isNew && typeof motionEnabled === 'function' && motionEnabled();
+    const canAnimate = isNew && motionEnabled();
     const dealtClass = canAnimate ? ' is-dealt' : '';
     const delayStyle = canAnimate ? ` style="animation-delay: calc(var(--stagger) * ${dealIndex++});"` : '';
     return renderPcard(card, { extraClass: dealtClass, extraAttrs: delayStyle });
@@ -420,7 +300,7 @@ async function blackjackDeal() {
         const { response: getRes, payload: getPayload } = await api('/api/casino/blackjack');
         if (getRes.ok && getPayload) {
           bj.view = getPayload;
-          if (typeof setCasinoBalance === 'function' && getPayload.balance != null) {
+          if (getPayload.balance != null) {
             setCasinoBalance(getPayload.balance);
           }
         }
@@ -429,14 +309,14 @@ async function blackjackDeal() {
       }
     } else {
       bj.view = payload;
-      if (typeof setCasinoBalance === 'function' && payload.balance != null) {
+      if (payload.balance != null) {
         setCasinoBalance(payload.balance);
       }
       if (payload.phase === 'settled' && payload.result) {
         bj.lastResult = payload.result;
         const totalPayout = Number(payload.result.totalPayout || 0);
         toast(totalPayout > 0 ? `總派彩 +${totalPayout.toLocaleString('zh-TW')} 金幣` : '未獲派彩');
-        if (typeof refreshCasinoHistory === 'function') refreshCasinoHistory('blackjack');
+        refreshCasinoHistory('blackjack');
       }
     }
   } catch (_) {
@@ -473,20 +353,20 @@ async function blackjackAction(action) {
       if (currentCasinoUserId() !== userId) return;
       if (getRes.ok && getPayload) {
         bj.view = getPayload;
-        if (typeof setCasinoBalance === 'function' && getPayload.balance != null) {
+        if (getPayload.balance != null) {
           setCasinoBalance(getPayload.balance);
         }
       }
     } else {
       bj.view = payload;
-      if (typeof setCasinoBalance === 'function' && payload.balance != null) {
+      if (payload.balance != null) {
         setCasinoBalance(payload.balance);
       }
       if (payload.phase === 'settled' && payload.result) {
         bj.lastResult = payload.result;
         const totalPayout = Number(payload.result.totalPayout || 0);
         toast(totalPayout > 0 ? `總派彩 +${totalPayout.toLocaleString('zh-TW')} 金幣` : '未獲派彩');
-        if (typeof refreshCasinoHistory === 'function') refreshCasinoHistory('blackjack');
+        refreshCasinoHistory('blackjack');
       }
     }
   } catch (_) {
@@ -587,64 +467,15 @@ registerDocumentListener('change', (e) => {
   }
 });
 
-function createPokerModal() {
-  if ('blackjack' !== 'poker') return;
-  bodyAddon = document.createElement('div');
-  bodyAddon.className = 'pg-official-poker-modal friend-modal-gate';
-  bodyAddon.id = 'pkSitGate';
-  bodyAddon.hidden = true;
-  bodyAddon.setAttribute('aria-hidden', 'true');
-  bodyAddon.innerHTML = `<div class="friend-modal-card" role="dialog" aria-modal="true" aria-labelledby="pkSitTitle">
-    <header class="modal-header">
-      <div><span class="status-pill"><span class="inline-icon" data-icon="dice" aria-hidden="true"></span> 入座</span><h2 id="pkSitTitle">選擇買入金額</h2></div>
-      <button type="button" class="icon-button" data-action="close-pk-sit-modal" aria-label="關閉"><span data-icon="x-close" aria-hidden="true"></span></button>
-    </header>
-    <div class="pk-sit-body">
-      <label for="pkBuyInRange">買入金額（50–200）</label>
-      <input id="pkBuyInRange" type="range" min="50" max="200" step="10" value="100" data-action="pk-buyin-range">
-      <strong id="pkBuyInValue" class="pk-buyin-value">100</strong>
-      <div class="adjust-actions"><button type="button" class="secondary-button" data-action="close-pk-sit-modal">取消</button><button type="button" class="primary-button" data-action="pk-sit-confirm">確定</button></div>
-    </div>
-  </div>`;
-  document.body.appendChild(bodyAddon);
-  mountIcons();
-}
-
 export function mount(target, officialSdk) {
-  unmount();
-  root = target;
-  sdk = officialSdk;
-  generation += 1;
-  controller = new AbortController();
-  state.user = officialSdk.user || null;
-  state.casino = null;
-  root.classList.add('pg-official-blackjack');
-  root.innerHTML = `<div class="official-balance">餘額 <strong class="pg-balance-value">${Number(officialSdk.getBalance()).toLocaleString('zh-TW')}</strong> 金幣</div><div id="casinoBlackjack" aria-live="polite"></div>`;
-  releaseStyles = mountStylesheet(new URL('./game.css', import.meta.url).href);
-  createPokerModal();
-  for (const item of documentListeners) document.addEventListener(item.type, item.handler, item.options);
-  for (const item of windowListeners) window.addEventListener(item.type, item.handler, item.options);
-  renderCasinoBlackjack();
+  bridge.mount(target, officialSdk, {
+    panelId: 'casinoBlackjack',
+    live: true,
+    styleUrl: new URL('./game.css', import.meta.url).href,
+    render: renderCasinoBlackjack,
+  });
 }
 
 export function unmount() {
-  generation += 1;
-  if (typeof stopPokerPolling === 'function') stopPokerPolling();
-  if (controller) controller.abort();
-  for (const item of documentListeners) document.removeEventListener(item.type, item.handler, item.options);
-  for (const item of windowListeners) window.removeEventListener(item.type, item.handler, item.options);
-  if (bodyAddon) bodyAddon.remove();
-  bodyAddon = null;
-  if (root) {
-    for (const animation of root.getAnimations ? root.getAnimations({ subtree: true }) : []) animation.cancel();
-    root.classList.remove('pg-official-blackjack');
-    root.replaceChildren();
-  }
-  if (releaseStyles) releaseStyles();
-  releaseStyles = null;
-  controller = null;
-  sdk = null;
-  root = null;
-  state.user = null;
-  state.casino = null;
+  bridge.unmount();
 }

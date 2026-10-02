@@ -1,44 +1,12 @@
-import { escapeHtml, mountStylesheet, motionEnabled, renderIfChanged } from '../../util.js';
-import { mountIcons as mountIconNodes } from '../../icons.js';
+import { escapeHtml, motionEnabled, renderIfChanged } from '../../util.js';
+import { createBridge } from '../_bridge.js';
 
-let root = null;
-let sdk = null;
-let controller = null;
-let releaseStyles = null;
-let generation = 0;
-const listeners = [];
-const state = { user: null, casino: null };
-
-function registerDocumentListener(type, handler, options) { listeners.push({ type, handler, options }); }
-function $(selector) { return root ? root.querySelector(selector) : null; }
-function $$(selector) { return root ? Array.from(root.querySelectorAll(selector)) : []; }
-function currentCasinoUserId() { return state.user && state.user.id; }
-function ensureCasinoState() {
-  if (!state.casino) state.casino = { userId: currentCasinoUserId(), balance: Number(sdk && sdk.getBalance()) || 0, slots: { config: null, spinning: false, last: null, bet: 5 } };
-  return state.casino;
-}
-function mountIcons() { if (root) mountIconNodes(root); }
-function toast(message) { if (sdk) sdk.toast(message); }
-function casinoRoundId() { return sdk ? sdk.roundId() : ''; }
-function refreshCasinoHistory() { if (sdk) sdk.refreshHistory(); }
-function setCasinoBalance(value) {
-  const balance = Number(value) || 0;
-  if (state.casino) state.casino.balance = balance;
-  if (sdk) sdk.setBalance(balance);
-  const output = $('.pg-balance-value');
-  if (output) output.textContent = balance.toLocaleString('zh-TW');
-}
-function isAbortedResponse(response) { return Boolean(response && response.aborted); }
-async function api(path, options = {}) {
-  const activeSdk = sdk;
-  const activeGeneration = generation;
-  if (!activeSdk || !controller) return { response: { ok: false, status: 0, aborted: true }, payload: {} };
-  const next = { ...options, signal: controller.signal };
-  if (typeof next.body === 'string') { try { next.body = JSON.parse(next.body); } catch (_) { /* keep body */ } }
-  const result = await activeSdk.api(path, next);
-  if (activeGeneration !== generation || activeSdk !== sdk) return { response: { ok: false, status: 0, aborted: true }, payload: {} };
-  return result;
-}
+const bridge = createBridge('slots');
+const {
+  state, $, $$, api, casinoRoundId, currentCasinoUserId, ensureCasinoState,
+  isAbortedResponse, mountIcons, onRoot: registerRootListener,
+  refreshCasinoHistory, setCasinoBalance, toast,
+} = bridge;
 
 
 /* 大獎符號在後端叫 brand，但站內品牌圖示就是 K 棒，跟 candles 幾乎一樣，玩家認不出大獎。
@@ -295,7 +263,7 @@ async function slotSpin() {
   refreshCasinoHistory('slots');
 }
 
-registerDocumentListener('click', (e) => {
+registerRootListener('click', (e) => {
   const btn = e.target.closest && e.target.closest('[data-action]');
   if (!btn) return;
   const action = btn.dataset.action;
@@ -327,34 +295,13 @@ async function loadSlots() {
 }
 
 export function mount(target, officialSdk) {
-  unmount();
-  root = target;
-  sdk = officialSdk;
-  generation += 1;
-  controller = new AbortController();
-  state.user = officialSdk.user || null;
-  state.casino = null;
-  root.classList.add('pg-official-slots');
-  root.innerHTML = `<div class=official-balance>餘額 <strong class=pg-balance-value>${Number(officialSdk.getBalance()).toLocaleString('zh-TW')}</strong> 金幣</div><div id=casinoSlots></div>`;
-  releaseStyles = mountStylesheet(new URL('./game.css', import.meta.url).href);
-  for (const item of listeners) root.addEventListener(item.type, item.handler, item.options);
-  loadSlots();
+  bridge.mount(target, officialSdk, {
+    panelId: 'casinoSlots',
+    styleUrl: new URL('./game.css', import.meta.url).href,
+    render: loadSlots,
+  });
 }
 
 export function unmount() {
-  generation += 1;
-  if (controller) controller.abort();
-  if (root) {
-    for (const item of listeners) root.removeEventListener(item.type, item.handler, item.options);
-    for (const animation of root.getAnimations ? root.getAnimations({ subtree: true }) : []) animation.cancel();
-    root.classList.remove('pg-official-slots');
-    root.replaceChildren();
-  }
-  if (releaseStyles) releaseStyles();
-  releaseStyles = null;
-  controller = null;
-  sdk = null;
-  root = null;
-  state.user = null;
-  state.casino = null;
+  bridge.unmount();
 }
