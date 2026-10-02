@@ -18,7 +18,14 @@ import {
 import { createOfficialSdk } from './official-sdk.js';
 import { escapeHtml, formatCoins } from './util.js';
 import { renderHistory } from './history.js';
-import { activateCommunity, mountCommunity, unmountCommunity, notifyTheme } from './community-host.js';
+import {
+  activateCommunity,
+  cancelWarmQueue,
+  mountCommunity,
+  notifyTheme,
+  unmountCommunity,
+  warmCommunity,
+} from './community-host.js';
 
 const THEMES = ['playful', 'studio', 'classic'];
 const THEME_KEY = 'pg_theme';
@@ -267,7 +274,7 @@ function ensureSession() {
   return sessionPromise;
 }
 
-function cardHtml(game, extraTags = []) {
+function cardHtml(game, extraTags = [], { community = false } = {}) {
   const tags = [];
   const seen = new Set();
   for (const t of [...(game.tags || []), ...extraTags]) {
@@ -275,7 +282,8 @@ function cardHtml(game, extraTags = []) {
     seen.add(t);
     tags.push(t);
   }
-  return `<a class="game-card" href="#/game/${encodeURIComponent(game.id)}">
+  const data = community ? ` data-community="${escapeHtml(game.id)}"` : '';
+  return `<a class="game-card" href="#/game/${encodeURIComponent(game.id)}"${data}>
     <h3>${escapeHtml(game.name || game.id)}</h3>
     ${game.author ? `<p class="author">${escapeHtml(game.author)}</p>` : ''}
     ${game.description ? `<p class="desc">${escapeHtml(game.description)}</p>` : ''}
@@ -312,14 +320,14 @@ function renderLobby(view) {
   let coinCards = '<p class="empty-hint">載入金幣遊戲中…</p>';
   if (catalog.casinoLoaded) {
     coinCards = coin.length
-      ? coin.map((g) => cardHtml(g, ['金幣'])).join('')
+      ? coin.map((g) => cardHtml(g, ['金幣'], { community: true })).join('')
       : '<p class="empty-hint">目前沒有通過驗證的金幣遊戲。</p>';
   }
   const freeCards = free.length
-    ? free.map((g) => cardHtml(g)).join('')
+    ? free.map((g) => cardHtml(g, [], { community: true })).join('')
     : '<p class="empty-hint">目前沒有一般遊戲。</p>';
   const multiCards = multi.length
-    ? multi.map((g) => cardHtml(g, ['多人'])).join('')
+    ? multi.map((g) => cardHtml(g, ['多人'], { community: true })).join('')
     : '<p class="empty-hint">目前沒有多人遊戲。</p>';
 
   view.innerHTML = `
@@ -342,6 +350,41 @@ function renderLobby(view) {
       <div class="card-grid">${multiCards}</div>
     </section>
   `;
+}
+
+function submissionById(id) {
+  return catalog.submissions.find((g) => g.id === id) || null;
+}
+
+function saveData() {
+  const conn = navigator.connection;
+  return Boolean(conn && (conn.saveData || /(^|-)2g$/.test(conn.effectiveType || '')));
+}
+
+/** 大廳畫好之後：閒下來時預熱投稿遊戲；指到卡片時立刻預熱那一款。 */
+function scheduleLobbyWarm(view, seq) {
+  if (!catalog.release) return;
+  const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 300));
+  if (!saveData()) {
+    idle(() => {
+      if (seq !== routeSeq) return;
+      for (const card of view.querySelectorAll('a.game-card[data-community]')) {
+        const game = submissionById(card.dataset.community);
+        if (game) warmCommunity(game, catalog.release);
+      }
+    });
+  }
+  if (view.dataset.warmBound) return;
+  view.dataset.warmBound = '1';
+  const onIntent = (ev) => {
+    const card = ev.target && ev.target.closest ? ev.target.closest('a.game-card[data-community]') : null;
+    if (!card) return;
+    const game = submissionById(card.dataset.community);
+    if (game) warmCommunity(game, catalog.release, { urgent: true });
+  };
+  view.addEventListener('pointerover', onIntent, { passive: true });
+  view.addEventListener('touchstart', onIntent, { passive: true });
+  view.addEventListener('focusin', onIntent);
 }
 
 function loginFormHtml() {
@@ -578,6 +621,7 @@ async function route() {
   const seq = ++routeSeq;
   closeLoginDialog();
   unmountGame();
+  cancelWarmQueue();
   const view = document.getElementById('view');
   if (!view) return;
   const r = parseRoute();
@@ -599,8 +643,10 @@ async function route() {
     renderLobby(view);
     if (!catalog.casinoLoaded) {
       await ensureCasinoList();
-      if (seq === routeSeq && parseRoute().name === 'lobby') renderLobby(view);
+      if (seq !== routeSeq || parseRoute().name !== 'lobby') return;
+      renderLobby(view);
     }
+    scheduleLobbyWarm(view, seq);
     return;
   }
   if (r.name === 'game') {

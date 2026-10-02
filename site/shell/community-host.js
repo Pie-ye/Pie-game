@@ -242,6 +242,69 @@ export function communityGameUrl(game, release) {
   return `${CONTENT_ORIGIN}${prefix}/games/community/${encodeURIComponent(game.id)}/${game.entry || 'index.html'}`;
 }
 
+// ── 大廳預熱 ──────────────────────────────────────────────
+// 遊戲 HTML 從源站回來要一整趟 tunnel（慢網路 0.6 秒以上），是點進投稿遊戲時最慢的一步。
+// 玩家還在大廳時，用「不能跑腳本」的隱藏 iframe 先把 /r/<sha>/ 底下的頁面載一次：
+// 內容不會變（immutable），瀏覽器快取起來，真的點進去時 HTML、CSS、主程式都直接命中快取。
+// 必須是 iframe：瀏覽器的快取依「頂層網站＋框架網站」分區，外框自己 fetch 的結果 iframe 用不到。
+// sandbox 只給 allow-same-origin、不給 allow-scripts：投稿程式碼一行都不會執行
+// （DevTools 會印「Blocked script execution … sandboxed」，那就是它在擋，正常）。
+const WARM_LIMIT = 8;
+const WARM_TIMEOUT_MS = 10000;
+const warmed = new Set();
+let warmQueue = [];
+let warming = false;
+
+function warmNext() {
+  if (warming) return;
+  const url = warmQueue.shift();
+  if (!url) return;
+  warming = true;
+  const frame = document.createElement('iframe');
+  frame.setAttribute('sandbox', 'allow-same-origin');
+  frame.setAttribute('allow', "autoplay 'none'; fullscreen 'none'; gamepad 'none'");
+  frame.setAttribute('referrerpolicy', 'no-referrer');
+  frame.setAttribute('aria-hidden', 'true');
+  frame.tabIndex = -1;
+  frame.className = 'pg-warm-frame';
+  frame.style.display = 'none';
+  let done = false;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
+    frame.remove();
+    warming = false;
+    warmNext();
+  };
+  const timer = setTimeout(finish, WARM_TIMEOUT_MS);
+  frame.addEventListener('load', finish, { once: true });
+  frame.addEventListener('error', finish, { once: true });
+  frame.src = url;
+  document.body.appendChild(frame);
+}
+
+/**
+ * 預熱投稿遊戲。urgent＝玩家已經指到這張卡片，插到佇列最前面。
+ * 沒有 release（開發模式、伺服器沒內嵌開機資料）時網址不能快取，預熱沒有意義，直接略過。
+ */
+export function warmCommunity(game, release, { urgent = false } = {}) {
+  if (!release || !game || !game.id) return;
+  const url = communityGameUrl(game, release);
+  if (warmed.has(url)) return;
+  if (!urgent && warmed.size >= WARM_LIMIT) return;
+  warmed.add(url);
+  if (urgent) warmQueue.unshift(url);
+  else warmQueue.push(url);
+  warmNext();
+}
+
+/** 離開大廳時清掉還沒開始的預熱，別跟真正要玩的遊戲搶頻寬。 */
+export function cancelWarmQueue() {
+  for (const url of warmQueue) warmed.delete(url);
+  warmQueue = [];
+}
+
 /**
  * 先把 iframe 掛上去開始下載，登入狀態還不用知道。
  * 外框確定登入狀態（金幣遊戲還要有規格）之後呼叫 activateCommunity()，

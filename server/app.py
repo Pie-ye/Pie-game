@@ -188,12 +188,11 @@ def create_shell_app(
             preload_fetch=preload_fetch,
             boot=boot_data,
         )
-        return web.Response(
-            text=body,
-            content_type="text/html",
-            charset="utf-8",
-            headers={"Cache-Control": "no-store"},
-        )
+        headers = {"Cache-Control": "no-store"}
+        if not settings.dev:
+            # Cloudflare 開了 Early Hints 時會拿這個標頭先送 103，HTML 還在回源的路上瀏覽器就開始連線、抓模組。
+            headers["Link"] = boot.early_hints(build, preconnect)
+        return web.Response(text=body, content_type="text/html", charset="utf-8", headers=headers)
 
     async def versioned(request: web.Request) -> web.StreamResponse:
         requested_build = request.match_info["build"]

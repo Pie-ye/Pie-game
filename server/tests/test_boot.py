@@ -146,6 +146,12 @@ async def test_index_embeds_boot_data_and_versions_assets(aiohttp_client, servic
     assert data["games"][0]["description"] == "</script><script>alert(1)</script>"
     assert data["casino"] == CASINO
 
+    assert response.headers["Link"] == (
+        f"<https://coinpilet.win>; rel=preconnect, <http://127.0.0.1:54471>; rel=preconnect, "
+        f"</s/{build}/tokens.css>; rel=preload; as=style, </s/{build}/shell.css>; rel=preload; as=style, "
+        f"</s/{build}/shell.js>; rel=modulepreload"
+    )
+
     assert (await client.get("/index.html")).headers["Cache-Control"] == "no-store"
 
 
@@ -154,7 +160,9 @@ async def test_dev_index_skips_api_preload(aiohttp_client, service_settings) -> 
     _write_shell(service_settings.site_dir / "shell")
     settings = replace(service_settings, dev=True)
     client = await aiohttp_client(create_shell_app(settings, casino_fetch=_casino))
-    body = await (await client.get("/")).text()
+    response = await client.get("/")
+    assert "Link" not in response.headers
+    body = await response.text()
     assert 'as="fetch"' not in body
     assert "https://coinpilet.win" not in body
 

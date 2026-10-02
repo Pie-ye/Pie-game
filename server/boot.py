@@ -258,6 +258,18 @@ def _json_for_html(value: Any) -> str:
     )
 
 
+def early_hints(build: str, preconnect: list[str]) -> str:
+    """首頁的 Link 標頭：只放一定用得到、而且不會過期出錯的東西（連線＋外框入口）。"""
+    prefix = f"/s/{build}/"
+    links = [f"<{origin}>; rel=preconnect" for origin in preconnect]
+    links += [
+        f"<{prefix}tokens.css>; rel=preload; as=style",
+        f"<{prefix}shell.css>; rel=preload; as=style",
+        f"<{prefix}shell.js>; rel=modulepreload",
+    ]
+    return ", ".join(links)
+
+
 def render_index(
     template: str,
     *,

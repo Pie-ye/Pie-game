@@ -13,6 +13,7 @@
 - 投稿遊戲：iframe 收到外框的 pg:init（SDK 套上 data-theme），且不是 2 秒逾時的獨立模式。
 
 冷快取＝每次新的 browser context；熱快取＝同一個 context 重新整理。
+--click：先開大廳等它好，再點遊戲卡片，量「點下去到可以玩」（玩家最常走的路）。
 """
 from __future__ import annotations
 
@@ -54,16 +55,15 @@ def wait_community(page, deadline: float) -> bool:
     return False
 
 
-def measure(page, url: str, route: str, timeout_s: float) -> float | None:
-    start = time.monotonic()
-    page.goto(url + route, wait_until="commit")
+OFFICIAL_IDS = {"slots", "blackjack", "poker", "dragon", "niuniu", "baccarat"}
+
+
+def wait_ready(page, route: str, start: float, timeout_s: float) -> float | None:
     deadline = start + timeout_s
     try:
         if route in ("#/", ""):
             page.wait_for_function(LOBBY_READY, timeout=timeout_s * 1000, polling=10)
-        elif route.startswith("#/game/") and route.split("/")[-1] in {
-            "slots", "blackjack", "poker", "dragon", "niuniu", "baccarat",
-        }:
+        elif route.startswith("#/game/") and route.split("/")[-1] in OFFICIAL_IDS:
             page.wait_for_function(OFFICIAL_READY, timeout=timeout_s * 1000, polling=10)
         else:
             if not wait_community(page, deadline):
@@ -73,6 +73,24 @@ def measure(page, url: str, route: str, timeout_s: float) -> float | None:
     return time.monotonic() - start
 
 
+def measure(page, url: str, route: str, timeout_s: float) -> float | None:
+    start = time.monotonic()
+    page.goto(url + route, wait_until="commit")
+    return wait_ready(page, route, start, timeout_s)
+
+
+def measure_click(page, url: str, route: str, timeout_s: float, *, settle_ms: int) -> float | None:
+    """開大廳 → 等一下（像玩家在看清單）→ 點卡片 → 量到可以玩。"""
+    page.goto(url + "#/", wait_until="commit")
+    if wait_ready(page, "#/", time.monotonic(), timeout_s) is None:
+        return None
+    page.wait_for_timeout(settle_ms)
+    game_id = route.split("/")[-1]
+    start = time.monotonic()
+    page.click(f'a.game-card[href="#/game/{game_id}"]')
+    return wait_ready(page, route, start, timeout_s)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--shell", default="https://game.coinpilet.win")
@@ -80,7 +98,17 @@ def main() -> int:
     parser.add_argument("--timeout", type=float, default=15.0)
     parser.add_argument("--routes", nargs="*", default=DEFAULT_ROUTES)
     parser.add_argument("--budget", type=float, default=1.0, help="秒；中位數超過就回非零")
+    parser.add_argument("--click", action="store_true", help="從大廳點卡片進遊戲")
+    parser.add_argument("--settle", type=int, default=1500, help="--click 時大廳好了之後等幾毫秒再點")
     args = parser.parse_args()
+    if args.click:
+        args.routes = [r for r in args.routes if r.startswith("#/game/")]
+
+    def run_once(page, route: str) -> float | None:
+        if args.click:
+            return measure_click(page, url, route, args.timeout, settle_ms=args.settle)
+        return measure(page, url, route, args.timeout)
+
     url = args.shell.rstrip("/") + "/"
 
     over_budget = False
@@ -94,14 +122,14 @@ def main() -> int:
             for _ in range(args.runs):
                 context = browser.new_context()
                 page = context.new_page()
-                first = measure(page, url, route, args.timeout)
+                first = run_once(page, route)
                 if first is None:
                     failed += 1
                 else:
                     cold.append(first)
                 # 熱快取：同一個 context，先回空白頁再開，模擬回訪。
                 page.goto("about:blank")
-                second = measure(page, url, route, args.timeout)
+                second = run_once(page, route)
                 if second is None:
                     failed += 1
                 else:
