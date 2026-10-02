@@ -8,7 +8,7 @@ const title = document.getElementById('title');
 const hello = document.getElementById('hello');
 
 function applyTheme(theme) {
-  document.documentElement.dataset.theme = theme === 'studio' ? 'studio' : 'playful';
+  document.documentElement.dataset.theme = (theme === 'studio' || theme === 'classic') ? theme : 'playful';
 }
 
 const init = await PieGame.ready();

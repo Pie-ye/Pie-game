@@ -3,4 +3,4 @@ Description=Pie-game 投稿內容同步
 
 [Service]
 Type=oneshot
-ExecStart=%h/Container/Pie-game/scripts/sync_content.sh
+ExecStart=/bin/bash %h/Container/Pie-game/scripts/sync_content.sh

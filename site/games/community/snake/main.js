@@ -18,7 +18,7 @@ const bestEl = document.getElementById('best');
 const bannerEl = document.getElementById('banner');
 
 function applyTheme(theme) {
-  document.documentElement.dataset.theme = theme === 'studio' ? 'studio' : 'playful';
+  document.documentElement.dataset.theme = (theme === 'studio' || theme === 'classic') ? theme : 'playful';
 }
 
 function readBest() {
@@ -103,10 +103,6 @@ function tick() {
     die();
     return;
   }
-  if (state.snake.some((s) => s.x === nx && s.y === ny)) {
-    die();
-    return;
-  }
   state.snake.unshift({ x: nx, y: ny });
   if (nx === state.food.x && ny === state.food.y) {
     state.score += 1;
@@ -119,6 +115,10 @@ function tick() {
     placeFood();
   } else {
     state.snake.pop();
+  }
+  if (state.snake.slice(1).some((s) => s.x === nx && s.y === ny)) {
+    die();
+    return;
   }
   draw();
 }
@@ -161,12 +161,10 @@ window.addEventListener('keydown', (ev) => {
 });
 
 document.querySelectorAll('[data-dir]').forEach((btn) => {
-  const fire = (ev) => {
+  btn.addEventListener('pointerdown', (ev) => {
     ev.preventDefault();
     steer(btn.getAttribute('data-dir'));
-  };
-  btn.addEventListener('click', fire);
-  btn.addEventListener('pointerdown', fire);
+  });
 });
 
 let swipe = null;

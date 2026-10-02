@@ -7,7 +7,7 @@ const LINES = [
 ];
 
 function applyTheme(theme) {
-  document.documentElement.dataset.theme = theme === 'studio' ? 'studio' : 'playful';
+  document.documentElement.dataset.theme = (theme === 'studio' || theme === 'classic') ? theme : 'playful';
 }
 
 function emptyGame() {
@@ -167,7 +167,13 @@ async function refreshRooms() {
   rooms.forEach((room) => {
     const li = document.createElement('li');
     li.textContent = `${room.name || '井字棋'}　${room.playerCount}/${room.maxPlayers}`;
-    li.addEventListener('click', () => client.join(room.id));
+    li.addEventListener('click', async () => {
+      try {
+        await client.join(room.id);
+      } catch (err) {
+        hello.textContent = `錯誤：${(err && (err.code || err.message)) || err}`;
+      }
+    });
     roomsEl.appendChild(li);
   });
 }
@@ -221,16 +227,32 @@ if (!init.user) {
     client.on('error', (err) => {
       hello.textContent = `錯誤：${err.code || ''}`;
     });
-    document.getElementById('createPublic').addEventListener('click', () => {
-      client.create({ maxPlayers: 2, private: false, name: '井字棋' });
+    async function showRoomError(err) {
+      hello.textContent = `錯誤：${(err && (err.code || err.message)) || err}`;
+    }
+    document.getElementById('createPublic').addEventListener('click', async () => {
+      try {
+        await client.create({ maxPlayers: 2, private: false, name: '井字棋' });
+      } catch (err) {
+        await showRoomError(err);
+      }
     });
-    document.getElementById('createPrivate').addEventListener('click', () => {
-      client.create({ maxPlayers: 2, private: true, name: '井字棋' });
+    document.getElementById('createPrivate').addEventListener('click', async () => {
+      try {
+        await client.create({ maxPlayers: 2, private: true, name: '井字棋' });
+      } catch (err) {
+        await showRoomError(err);
+      }
     });
     document.getElementById('refresh').addEventListener('click', refreshRooms);
-    document.getElementById('joinCode').addEventListener('click', () => {
+    document.getElementById('joinCode').addEventListener('click', async () => {
       const code = codeInput.value.trim();
-      if (code) client.join(code);
+      if (!code) return;
+      try {
+        await client.join(code);
+      } catch (err) {
+        await showRoomError(err);
+      }
     });
     document.getElementById('leave').addEventListener('click', async () => {
       await client.leave();

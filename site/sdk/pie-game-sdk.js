@@ -2,10 +2,14 @@
  * Pie Game 投稿 SDK：包裝外框 postMessage 與多人 WebSocket。
  * 同時掛 window.PieGame 並 export default，script 與 ES module 都能用。
  */
-const INIT_TIMEOUT_MS = 2000;
-const TICKET_TIMEOUT_MS = 5000;
-const RECONNECT_MIN_MS = 400;
-const RECONNECT_MAX_MS = 15000;
+export const SDK = {
+  initTimeoutMs: 2000,
+  ticketTimeoutMs: 5000,
+  requestTimeoutMs: 10000,
+  reconnectMinMs: 400,
+  reconnectMaxMs: 15000,
+};
+
 const PRIVATE_CODE_RE = /^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{6}$/i;
 
 function inIframe() {
@@ -54,6 +58,8 @@ function createSdk() {
   let initPromise = null;
   let unusedTicket = null;
   let mpClient = null;
+  let settleReady = null;
+  let readyTimer = null;
 
   function postToParent(payload) {
     if (!inIframe()) return;
@@ -64,6 +70,17 @@ function createSdk() {
     unusedTicket = ticket || null;
     const waiters = ticketWaiters.splice(0, ticketWaiters.length);
     waiters.forEach((fn) => fn(ticket));
+  }
+
+  function finishReady(state) {
+    if (!settleReady) return;
+    const resolve = settleReady;
+    settleReady = null;
+    if (readyTimer != null) {
+      clearTimeout(readyTimer);
+      readyTimer = null;
+    }
+    resolve(publicInit(state));
   }
 
   function onParentMessage(event) {
@@ -80,6 +97,7 @@ function createSdk() {
       unusedTicket = initState.ticket;
       applyTheme(initState.theme);
       themeListeners.forEach((cb) => cb(initState.theme));
+      finishReady(initState);
       return;
     }
     if (type === 'pg:theme') {
@@ -106,33 +124,32 @@ function createSdk() {
   function ready() {
     if (initPromise) return initPromise;
     initPromise = new Promise((resolve) => {
+      settleReady = resolve;
       if (!inIframe()) {
         initState = standaloneInit();
         applyTheme(initState.theme);
-        resolve(publicInit(initState));
+        finishReady(initState);
+        return;
+      }
+      if (initState) {
+        finishReady(initState);
         return;
       }
       postToParent({ type: 'pg:ready' });
-      const started = Date.now();
-      const timer = setInterval(() => {
-        if (initState) {
-          clearInterval(timer);
-          resolve(publicInit(initState));
-          return;
-        }
-        if (Date.now() - started >= INIT_TIMEOUT_MS) {
-          clearInterval(timer);
+      readyTimer = setTimeout(() => {
+        if (!initState) {
           initState = standaloneInit();
           applyTheme(initState.theme);
-          resolve(publicInit(initState));
+          finishReady(initState);
         }
-      }, 20);
+      }, SDK.initTimeoutMs);
     });
     return initPromise;
   }
 
   function onTheme(cb) {
-    if (typeof cb === 'function') themeListeners.push(cb);
+    if (typeof cb !== 'function') return;
+    themeListeners.push(cb);
     if (initState && initState.theme) cb(initState.theme);
   }
 
@@ -153,7 +170,7 @@ function createSdk() {
         const idx = ticketWaiters.indexOf(onTicket);
         if (idx >= 0) ticketWaiters.splice(idx, 1);
         reject(new Error('ticket timeout'));
-      }, TICKET_TIMEOUT_MS);
+      }, SDK.ticketTimeoutMs);
       function onTicket(ticket) {
         clearTimeout(timer);
         unusedTicket = null;
@@ -199,7 +216,7 @@ function createSdk() {
   };
 }
 
-class MultiplayerClient {
+export class MultiplayerClient {
   constructor({ gameId, takeTicket }) {
     this.me = null;
     this.room = null;
@@ -207,12 +224,12 @@ class MultiplayerClient {
     this._takeTicket = takeTicket;
     this._ws = null;
     this._handlers = Object.create(null);
-    this._pending = null;
+    this._queue = [];
     this._hostId = null;
     this._rejoin = null;
     this._alive = true;
     this._manualClose = false;
-    this._backoff = RECONNECT_MIN_MS;
+    this._backoff = SDK.reconnectMinMs;
     this._reconnectTimer = null;
     this._openPromise = null;
   }
@@ -286,12 +303,19 @@ class MultiplayerClient {
     const ws = new WebSocket(wsUrl());
     this._ws = ws;
     await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        reject(new Error('ws timeout'));
-        try { ws.close(); } catch (_err) { /* ignore */ }
-      }, TICKET_TIMEOUT_MS);
-      ws.addEventListener('open', () => {
+      let settled = false;
+      const finish = (ok, err) => {
+        if (settled) return;
+        settled = true;
         clearTimeout(timer);
+        if (ok) resolve();
+        else reject(err);
+      };
+      const timer = setTimeout(() => {
+        finish(false, new Error('ws timeout'));
+        try { ws.close(); } catch (_err) { /* ignore */ }
+      }, SDK.ticketTimeoutMs);
+      ws.addEventListener('open', () => {
         ws.send(JSON.stringify({ type: 'auth', ticket, gameId: this._gameId }));
       });
       ws.addEventListener('message', (ev) => {
@@ -299,21 +323,18 @@ class MultiplayerClient {
         if (!msg) return;
         if (msg.type === 'welcome') {
           this.me = msg.you;
-          resolve();
+          finish(true);
           return;
         }
         if (msg.type === 'error') {
-          clearTimeout(timer);
-          reject(Object.assign(new Error(msg.code || 'error'), { code: msg.code }));
+          finish(false, Object.assign(new Error(msg.code || 'error'), { code: msg.code }));
         }
-      }, { once: false });
+      });
       ws.addEventListener('error', () => {
-        clearTimeout(timer);
-        reject(new Error('ws error'));
+        finish(false, new Error('ws error'));
       });
       ws.addEventListener('close', () => {
-        clearTimeout(timer);
-        reject(new Error('ws closed'));
+        finish(false, new Error('ws closed'));
       }, { once: true });
     });
     ws.addEventListener('message', (ev) => this._onMessage(ev.data));
@@ -342,18 +363,37 @@ class MultiplayerClient {
 
   _request(body, expectType) {
     return new Promise((resolve, reject) => {
-      this._pending = { type: expectType, resolve, reject };
+      if (!this._ws || this._ws.readyState !== WebSocket.OPEN) {
+        reject(Object.assign(new Error('not_connected'), { code: 'not_connected' }));
+        return;
+      }
+      const entry = { type: expectType, resolve, reject, timer: null };
+      entry.timer = setTimeout(() => {
+        const idx = this._queue.indexOf(entry);
+        if (idx >= 0) this._queue.splice(idx, 1);
+        reject(Object.assign(new Error('timeout'), { code: 'timeout' }));
+      }, SDK.requestTimeoutMs);
+      this._queue.push(entry);
       this._send(body);
     });
   }
 
-  _finishPending(ok, payload) {
-    const pending = this._pending;
-    if (!pending) return false;
-    this._pending = null;
-    if (ok) pending.resolve(payload);
-    else pending.reject(Object.assign(new Error(payload && payload.code ? payload.code : 'error'), payload || {}));
-    return true;
+  _takeQueued(expectType) {
+    const idx = expectType
+      ? this._queue.findIndex((item) => item.type === expectType)
+      : (this._queue.length ? 0 : -1);
+    if (idx < 0) return null;
+    const entry = this._queue.splice(idx, 1)[0];
+    clearTimeout(entry.timer);
+    return entry;
+  }
+
+  _rejectAll(code) {
+    const pending = this._queue.splice(0, this._queue.length);
+    pending.forEach((entry) => {
+      clearTimeout(entry.timer);
+      entry.reject(Object.assign(new Error(code), { code }));
+    });
   }
 
   _onMessage(raw) {
@@ -366,7 +406,8 @@ class MultiplayerClient {
     if (msg.type === 'pong' || msg.type === 'welcome') return;
     if (msg.type === 'error') {
       this._emit('error', msg);
-      this._finishPending(false, msg);
+      const waiting = this._takeQueued(null);
+      if (waiting) waiting.reject(Object.assign(new Error(msg.code || 'error'), { code: msg.code }));
       return;
     }
     if (msg.type === 'joined') {
@@ -377,12 +418,14 @@ class MultiplayerClient {
           ? { code: msg.room.code }
           : { roomId: msg.room.id };
       }
-      this._finishPending(true, msg);
+      const waiting = this._takeQueued('joined');
+      if (waiting) waiting.resolve(msg);
       this._emit('joined', msg);
       return;
     }
     if (msg.type === 'rooms') {
-      this._finishPending(true, msg);
+      const waiting = this._takeQueued('rooms');
+      if (waiting) waiting.resolve(msg);
       return;
     }
     if (msg.type === 'playerJoined') {
@@ -409,6 +452,7 @@ class MultiplayerClient {
 
   _onClose() {
     this._ws = null;
+    this._rejectAll('disconnected');
     if (!this._alive || this._manualClose) return;
     this._emit('disconnected', {});
     this._scheduleReconnect();
@@ -417,12 +461,12 @@ class MultiplayerClient {
   _scheduleReconnect() {
     if (this._reconnectTimer || !this._alive) return;
     const delay = this._backoff;
-    this._backoff = Math.min(this._backoff * 2, RECONNECT_MAX_MS);
+    this._backoff = Math.min(this._backoff * 2, SDK.reconnectMaxMs);
     this._reconnectTimer = setTimeout(async () => {
       this._reconnectTimer = null;
       try {
         await this._connectOnce();
-        this._backoff = RECONNECT_MIN_MS;
+        this._backoff = SDK.reconnectMinMs;
         if (this._rejoin) {
           try {
             if (this._rejoin.code) await this.join(this._rejoin.code);

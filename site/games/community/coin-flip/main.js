@@ -1,7 +1,7 @@
 import PieGame from '../../../sdk/pie-game-sdk.js';
 
 function applyTheme(theme) {
-  document.documentElement.dataset.theme = theme === 'studio' ? 'studio' : 'playful';
+  document.documentElement.dataset.theme = (theme === 'studio' || theme === 'classic') ? theme : 'playful';
 }
 
 const coin = document.getElementById('coin');

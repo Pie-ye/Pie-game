@@ -82,6 +82,15 @@ SHA2="$(git -C "$CLONE" rev-parse HEAD)"
 run_sync
 expect_live "$SHA2"
 
+echo "案例：懸空 live 連結仍做 fast-forward 檢查"
+rm -rf "$RELEASES/$SHA2"
+[[ -L "$LIVE" ]]
+printf 'dangle\n' >> "$CLONE/site/games/community/demo-game/README.md"
+commit_push "dangle"
+SHA2="$(git -C "$CLONE" rev-parse HEAD)"
+run_sync
+expect_live "$SHA2"
+
 echo "案例：非 fast-forward 拒絕"
 git -C "$CLONE" reset --hard "$SHA1" >/dev/null
 printf '%s\n' 'diverged' >> "$CLONE/site/games/community/demo-game/README.md"
@@ -118,19 +127,22 @@ git -C "$CLONE" reset --hard "$SHA2" >/dev/null
 git -C "$CLONE" push --force origin main >/dev/null 2>&1
 write_valid_game "$CLONE"
 
-echo "案例：保留最近 5 份"
+echo "案例：保留最近 5 份（live 不佔名額）"
 for i in 1 2 3 4 5; do
   printf 'release %s\n' "$i" >> "$CLONE/site/games/community/demo-game/README.md"
   commit_push "keep-$i"
   run_sync
 done
 release_count="$(find "$RELEASES" -mindepth 1 -maxdepth 1 -type d | wc -l)"
-if [[ "$release_count" -ne 5 ]]; then
-  echo "應保留 5 份，實際 $release_count" >&2
+# live 一份 + 另外 5 份歷史 = 6
+if [[ "$release_count" -ne 6 ]]; then
+  echo "應保留 live+5 共 6 份，實際 $release_count" >&2
   find "$RELEASES" -mindepth 1 -maxdepth 1 -type d >&2
   exit 1
 fi
 FINAL="$(git -C "$CLONE" rev-parse HEAD)"
 expect_live "$FINAL"
+LIVE_TARGET="$(readlink -f "$LIVE")"
+[[ -d "$LIVE_TARGET" ]]
 
 echo "test_sync_content.sh 全部通過"

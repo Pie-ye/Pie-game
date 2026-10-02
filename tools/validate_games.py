@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """驗證投稿遊戲目錄、game.json、金幣規格與 PR 變更範圍。
 
-validate_spec 複製自股票大亂鬥 server/casino/community.py。
-來源工作樹：/home/pieye/Container/Retire-count-casino
-當時 HEAD：86eb49bcacfe5e36556bc9ce03b649518ff825fb
-該檔於複製時尚未提交（S2 進行中）；規則與 design §1.5、S2 brief 一致。
+validate_spec 與 rtp_for_bet 整段複製自股票大亂鬥 server/casino/community.py。
+上游 commit：12cdc18a867a34ebf74e881e259698ecacceb82e
+（fix(casino): 修正 S2 第二輪審核 findings）
 """
 from __future__ import annotations
 
@@ -17,10 +16,26 @@ from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
-# --- 以下 validate_spec 與其常數與股票大亂鬥 community.py 相同 ---
+# --- 以下常數與 validate_spec／rtp_for_bet 與股票大亂鬥 community.py 相同 ---
 MAX_FILE_BYTES = 64 * 1024  # 單檔與整份規格上限 64 KB
 MAX_DISPLAY_ITEM_BYTES = 2 * 1024  # display 單項上限 2 KB
 ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{1,30}$")
+
+
+def rtp_for_bet(choice: dict[str, Any], bet: int) -> Fraction:
+    """單一選項在指定押注金額下的實際回饋率。
+
+    用實際派彩 floor(bet × return) 計算，因為金幣帳本只能記整數，
+    回傳 Fraction 而非 float 是為了讓驗證與測試能做精確比較、不受浮點誤差影響。
+    """
+    total_weight = 0
+    total_payout = 0
+    for outcome in choice["outcomes"]:
+        weight = outcome["weight"]
+        ret_frac = Fraction(outcome["return"])
+        total_weight += weight
+        total_payout += weight * ((bet * ret_frac.numerator) // ret_frac.denominator)
+    return Fraction(total_payout, total_weight * bet)
 
 
 def validate_spec(obj: Any) -> tuple[bool, str | None, dict[str, float]]:
@@ -152,8 +167,8 @@ def validate_spec(obj: Any) -> tuple[bool, str | None, dict[str, float]]:
             if ret_frac > 1000:
                 return False, f"結果 '{oid}' 的 return 數值不可超過 1000", {}
 
-            # display（可選）：list，長度 1–32，每項任意 JSON，序列化後單項 ≤ 2 KB
-            if "display" in outcome and outcome["display"] is not None:
+            # display（可選）：若出現則必須為 list，長度 1–32，每項任意 JSON，序列化後單項 ≤ 2 KB
+            if "display" in outcome:
                 display = outcome["display"]
                 if not isinstance(display, list) or not (1 <= len(display) <= 32):
                     return False, f"結果 '{oid}' 的 display 必須為長度 1–32 的陣列", {}
@@ -167,9 +182,7 @@ def validate_spec(obj: Any) -> tuple[bool, str | None, dict[str, float]]:
 
             parsed_outcomes.append((weight, ret_frac))
 
-        # 9. 期望值驗證：
-        # 對 minBet..maxBet 的每一個整數押注，以實際派彩 floor(bet × return) 計算 RTP：
-        # RTP = Σ(weight × floor(bet×return)) / (Σweight × bet)，全部必須 ≤ 98/100
+        # 9. 期望值驗證：名目 RTP = Σ(weight × return) / Σweight 必須 ≤ 98/100
         sum_weight = sum(w for w, _ in parsed_outcomes)
 
         # 標稱 RTP
@@ -177,12 +190,10 @@ def validate_spec(obj: Any) -> tuple[bool, str | None, dict[str, float]]:
         if nominal_rtp > max_rtp_fraction:
             return False, f"選項 '{cid}' 期望回饋率超過 98%（{float(nominal_rtp):.4f}）", {}
 
+        # 防禦性檢查：floor 只會降低派彩，數學上不會擋下名目檢查已放行的規格；
+        # 保留是為了將來若改用非 floor 的捨入規則時仍安全。
         for bet in range(min_bet, max_bet + 1):
-            total_payout = sum(
-                w * ((bet * rf.numerator) // rf.denominator)
-                for w, rf in parsed_outcomes
-            )
-            bet_rtp = Fraction(total_payout, sum_weight * bet)
+            bet_rtp = rtp_for_bet(choice, bet)
             if bet_rtp > max_rtp_fraction:
                 return False, f"選項 '{cid}' 在押注 {bet} 時回饋率超過 98%（{float(bet_rtp):.4f}）", {}
 
@@ -190,14 +201,25 @@ def validate_spec(obj: Any) -> tuple[bool, str | None, dict[str, float]]:
 
     return True, None, rtp_by_choice
 
-
 # --- 投稿目錄規則 ---
 GAME_FILE_MAX_BYTES = 25 * 1024 * 1024  # 25 MiB
-GAME_TOTAL_MAX_BYTES = 50 * 1024 * 1024  # 50 MB（以 50 MiB 計）
+GAME_TOTAL_MAX_BYTES = 50_000_000  # 50 MB
 REQUIRED_GAME_FIELDS = ("id", "name", "kind", "multiplayer", "author", "entry", "description", "tags")
-SRC_HREF_RE = re.compile(r'(?P<attr>src|href)\s*=\s*(?P<q>["\'])(?P<url>.*?)(?P=q)', re.IGNORECASE | re.DOTALL)
+ATTR_RE = re.compile(
+    r'(?P<attr>srcset|src|href|poster)\s*=\s*(?:(?P<q>["\'])(?P<quoted>.*?)(?P=q)|(?P<bare>[^\s>]+))',
+    re.IGNORECASE | re.DOTALL,
+)
 URL_FN_RE = re.compile(r'url\(\s*(?P<q>["\']?)(?P<url>.*?)(?P=q)\s*\)', re.IGNORECASE | re.DOTALL)
+IMPORT_RE = re.compile(
+    r'''@import\s+(?:url\s*\(\s*)?(?:["']?)(?P<url>(?:https?:)?//[^"')\s]+)''',
+    re.IGNORECASE,
+)
 A_TAG_RE = re.compile(r"<a\b([^>]*)>", re.IGNORECASE | re.DOTALL)
+META_TAG_RE = re.compile(r"<meta\b([^>]*)/?>", re.IGNORECASE | re.DOTALL)
+HREF_IN_ATTRS_RE = re.compile(
+    r'''\bhref\s*=\s*(?:(["'])(.*?)\1|([^\s>]+))''',
+    re.IGNORECASE | re.DOTALL,
+)
 COMMUNITY_PREFIX = "site/games/community/"
 
 
@@ -207,15 +229,44 @@ def _is_external_url(url: str) -> bool:
 
 
 def _rel_has_noopener(attrs: str) -> bool:
-    match = re.search(r"""\brel\s*=\s*(['"])(.*?)\1""", attrs, re.IGNORECASE | re.DOTALL)
+    match = re.search(r'''\brel\s*=\s*(['"])(.*?)\1''', attrs, re.IGNORECASE | re.DOTALL)
     if match is None:
-        return False
+        match = re.search(r'''\brel\s*=\s*([^\s>]+)''', attrs, re.IGNORECASE)
+        if match is None:
+            return False
+        tokens = re.split(r"\s+", match.group(1).lower())
+        return "noopener" in tokens
     tokens = re.split(r"\s+", match.group(2).lower())
     return "noopener" in tokens
 
 
 def _line_at(text: str, index: int) -> int:
     return text.count("\n", 0, index) + 1
+
+
+def _attr_value(match: re.Match[str]) -> str:
+    quoted = match.group("quoted")
+    if quoted is not None:
+        return quoted.strip()
+    return (match.group("bare") or "").strip()
+
+
+def _urls_from_attr(attr: str, value: str) -> list[str]:
+    if attr.lower() == "srcset":
+        urls: list[str] = []
+        for part in value.split(","):
+            token = part.strip().split(None, 1)[0] if part.strip() else ""
+            if token:
+                urls.append(token)
+        return urls
+    return [value]
+
+
+def _inside_anchor(text: str, index: int) -> bool:
+    before = text[:index]
+    last_lt = before.rfind("<")
+    last_gt = before.rfind(">")
+    return last_lt > last_gt and re.match(r"<a\b", text[last_lt:index + 8], re.IGNORECASE) is not None
 
 
 def check_external_resources(path: Path, text: str) -> list[str]:
@@ -225,32 +276,50 @@ def check_external_resources(path: Path, text: str) -> list[str]:
 
     for match in A_TAG_RE.finditer(text):
         attrs = match.group(1)
-        href_match = re.search(r"""\bhref\s*=\s*(['"])(.*?)\1""", attrs, re.IGNORECASE | re.DOTALL)
+        href_match = HREF_IN_ATTRS_RE.search(attrs)
         if href_match is None:
             continue
-        url = href_match.group(2).strip()
+        url = (href_match.group(2) if href_match.group(2) is not None else href_match.group(3) or "").strip()
         if _is_external_url(url) and not _rel_has_noopener(attrs):
             errors.append(f"{rel}:{_line_at(text, match.start())}：外連 <a href> 必須加上 rel=\"noopener\"")
 
-    for match in SRC_HREF_RE.finditer(text):
-        url = match.group("url").strip()
-        if not _is_external_url(url):
-            continue
+    for match in ATTR_RE.finditer(text):
         attr = match.group("attr").lower()
-        if attr == "href":
-            before = text[: match.start()]
-            last_lt = before.rfind("<")
-            last_gt = before.rfind(">")
-            if last_lt > last_gt and re.match(r"<a\b", text[last_lt : match.start() + 8], re.IGNORECASE):
-                continue
-        errors.append(f"{rel}:{_line_at(text, match.start())}：不得引用外部網址（{attr}={url[:80]}）")
+        value = _attr_value(match)
+        if attr == "href" and _inside_anchor(text, match.start()):
+            continue
+        for url in _urls_from_attr(attr, value):
+            if _is_external_url(url):
+                errors.append(f"{rel}:{_line_at(text, match.start())}：不得引用外部網址（{attr}={url[:80]}）")
 
     for match in URL_FN_RE.finditer(text):
         url = match.group("url").strip()
         if _is_external_url(url):
             errors.append(f"{rel}:{_line_at(text, match.start())}：不得引用外部網址（url({url[:80]})）")
-    return errors
 
+    for match in IMPORT_RE.finditer(text):
+        url = match.group("url").strip()
+        if _is_external_url(url):
+            errors.append(f"{rel}:{_line_at(text, match.start())}：不得引用外部網址（@import {url[:80]}）")
+
+    for match in META_TAG_RE.finditer(text):
+        attrs = match.group(1)
+        if not re.search(r'''http-equiv\s*=\s*(["']?)refresh\1''', attrs, re.IGNORECASE):
+            continue
+        content_match = re.search(
+            r'''\bcontent\s*=\s*(?:(["'])(.*?)\1|([^\s>]+))''',
+            attrs,
+            re.IGNORECASE | re.DOTALL,
+        )
+        if content_match is None:
+            continue
+        content = content_match.group(2) if content_match.group(2) is not None else content_match.group(3) or ""
+        url_match = re.search(r'''url\s*=\s*([^\s;"']+)''', content, re.IGNORECASE)
+        if url_match and _is_external_url(url_match.group(1).strip()):
+            errors.append(
+                f"{rel}:{_line_at(text, match.start())}：不得引用外部網址（meta refresh={url_match.group(1).strip()[:80]}）"
+            )
+    return errors
 
 def _iter_files(root: Path) -> list[Path]:
     files: list[Path] = []

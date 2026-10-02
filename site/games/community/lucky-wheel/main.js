@@ -6,7 +6,7 @@ const statusEl = document.getElementById('status');
 let rotation = 0;
 
 function applyTheme(theme) {
-  document.documentElement.dataset.theme = theme === 'studio' ? 'studio' : 'playful';
+  document.documentElement.dataset.theme = (theme === 'studio' || theme === 'classic') ? theme : 'playful';
 }
 
 function indexOf(result) {

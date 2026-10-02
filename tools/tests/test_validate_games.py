@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -9,6 +12,9 @@ import pytest
 import validate_games
 
 REPO = Path(__file__).resolve().parents[2]
+UPSTREAM_COMMUNITY = Path("/home/pieye/Container/Retire-count-casino/server/casino/community.py")
+UPSTREAM_VECTORS = Path("/home/pieye/Container/Retire-count-casino/tests/fixtures/community_spec_vectors.json")
+UPSTREAM_ROOT = Path("/home/pieye/Container/Retire-count-casino")
 
 
 def _write(path: Path, content: str) -> None:
@@ -170,8 +176,88 @@ def test_changed_files_two_games_fail(tmp_path: Path) -> None:
 
 
 def test_spec_vectors_invalid_reason() -> None:
-    errors = validate_games.run_vectors(REPO / "tests/spec_vectors.json")
-    assert errors == []
+    data = json.loads((REPO / "tests/spec_vectors.json").read_text(encoding="utf-8"))
+    assert data["invalid"], "向量檔應有不合法案例"
+    for index, item in enumerate(data["invalid"]):
+        needle = item["reason_contains"]
+        ok, reason, _rtp = validate_games.validate_spec(item["spec"])
+        assert ok is False, f"invalid[{index}] 應失敗"
+        assert needle in (reason or ""), f"invalid[{index}] 原因應含「{needle}」，實際：{reason}"
+
+
+def test_spec_vectors_sha256_matches_upstream() -> None:
+    if not UPSTREAM_VECTORS.is_file():
+        pytest.skip("上游 community_spec_vectors.json 不存在")
+    ours = hashlib.sha256((REPO / "tests/spec_vectors.json").read_bytes()).hexdigest()
+    theirs = hashlib.sha256(UPSTREAM_VECTORS.read_bytes()).hexdigest()
+    assert ours == theirs
+
+
+def test_validate_spec_matches_upstream_on_every_vector() -> None:
+    if not UPSTREAM_COMMUNITY.is_file():
+        pytest.skip("上游 community.py 不存在")
+    vectors_path = REPO / "tests/spec_vectors.json"
+    script = r"""
+import json, sys
+from server.casino.community import validate_spec
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+out = []
+for spec in data["valid"]:
+    ok, reason, rtp = validate_spec(spec)
+    out.append({"ok": ok, "reason": reason, "rtp": rtp})
+for item in data["invalid"]:
+    ok, reason, rtp = validate_spec(item["spec"])
+    out.append({"ok": ok, "reason": reason, "rtp": rtp})
+json.dump(out, sys.stdout)
+"""
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(UPSTREAM_ROOT)
+    proc = subprocess.run(
+        [sys.executable, "-c", script, str(vectors_path)],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=str(UPSTREAM_ROOT),
+    )
+    upstream = json.loads(proc.stdout)
+    data = json.loads(vectors_path.read_text(encoding="utf-8"))
+    local: list[dict[str, object]] = []
+    for spec in data["valid"]:
+        ok, reason, rtp = validate_games.validate_spec(spec)
+        local.append({"ok": ok, "reason": reason, "rtp": rtp})
+    for item in data["invalid"]:
+        ok, reason, rtp = validate_games.validate_spec(item["spec"])
+        local.append({"ok": ok, "reason": reason, "rtp": rtp})
+    assert json.loads(json.dumps(local)) == upstream
+
+
+def test_unquoted_script_src(tmp_path: Path) -> None:
+    game_dir = _valid_tree(tmp_path)
+    _write(game_dir / "index.html", "<!DOCTYPE html><script src=https://cdn.example/x.js></script>")
+    errors = validate_games.validate_community(tmp_path)
+    assert any("不得引用外部網址" in item for item in errors)
+
+
+def test_srcset_poster_import_meta_refresh(tmp_path: Path) -> None:
+    game_dir = _valid_tree(tmp_path)
+    _write(
+        game_dir / "index.html",
+        """<!DOCTYPE html>
+<img srcset="https://cdn.example/a.png 1x, //cdn.example/b.png 2x">
+<video poster=https://cdn.example/p.jpg></video>
+<meta http-equiv="refresh" content="0;url=https://evil.example/">
+<link href=https://cdn.example/x.css rel=stylesheet>
+""",
+    )
+    _write(game_dir / "style.css", '@import url("https://fonts.example/x.css");')
+    errors = validate_games.validate_community(tmp_path)
+    joined = "\n".join(errors)
+    assert "srcset=" in joined
+    assert "poster=" in joined
+    assert "meta refresh=" in joined
+    assert "href=" in joined
+    assert "@import" in joined or "url(" in joined
 
 
 def test_coin_flip_rtp() -> None:

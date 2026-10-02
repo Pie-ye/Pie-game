@@ -17,7 +17,7 @@ jobs:
           python-version: "3.12"
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
       - name: Install pytest
         run: python3 -m pip install pytest
       - name: Validate games
@@ -25,9 +25,9 @@ jobs:
       - name: Spec vectors
         run: python3 tools/validate_games.py --vectors tests/spec_vectors.json
       - name: Changed files
+        if: github.event_name == 'pull_request'
         run: |
-          git fetch origin main --depth=1 || true
-          git diff --name-only origin/main...HEAD > /tmp/changed.txt || git diff --name-only HEAD > /tmp/changed.txt
+          git diff --name-only ${{ github.event.pull_request.base.sha }}...${{ github.sha }} > /tmp/changed.txt
           python3 tools/validate_games.py --changed-files /tmp/changed.txt
       - name: Syntax-check JavaScript
         run: |

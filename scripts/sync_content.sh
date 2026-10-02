@@ -52,11 +52,25 @@ if ! flock -n 9; then
   exit 0
 fi
 
+remove_release() {
+  local dir="$1"
+  if git -C "$CONTENT_REPO" worktree remove --force "$dir" 2>/dev/null; then
+    git -C "$CONTENT_REPO" worktree prune
+    return 0
+  fi
+  rm -rf "$dir"
+  git -C "$CONTENT_REPO" worktree prune
+}
+
 git -C "$CONTENT_REPO" fetch origin main
 NEW_SHA="$(git -C "$CONTENT_REPO" rev-parse origin/main)"
 CURRENT_SHA=""
-if [[ -e "$LIVE_LINK" ]]; then
-  CURRENT_SHA="$(git -C "$LIVE_LINK" rev-parse HEAD)"
+if [[ -L "$LIVE_LINK" ]]; then
+  if CURRENT_SHA="$(git -C "$LIVE_LINK" rev-parse HEAD 2>/dev/null)"; then
+    :
+  else
+    CURRENT_SHA="$(basename "$(readlink "$LIVE_LINK")")"
+  fi
   if [[ "$CURRENT_SHA" == "$NEW_SHA" ]]; then
     echo "已是最新 $NEW_SHA"
     exit 0
@@ -76,13 +90,13 @@ VALIDATOR="$NEW_DIR/tools/validate_games.py"
 GAMES_DIR="$NEW_DIR/site/games/community"
 if [[ ! -f "$VALIDATOR" ]]; then
   echo "驗證失敗：找不到 $VALIDATOR" >&2
-  git -C "$CONTENT_REPO" worktree remove --force "$NEW_DIR" || rm -rf "$NEW_DIR"
+  remove_release "$NEW_DIR"
   exit 1
 fi
 
 if ! python3 "$VALIDATOR" "$GAMES_DIR"; then
   echo "驗證失敗，不切換 live" >&2
-  git -C "$CONTENT_REPO" worktree remove --force "$NEW_DIR" || rm -rf "$NEW_DIR"
+  remove_release "$NEW_DIR"
   exit 1
 fi
 
@@ -93,8 +107,11 @@ mapfile -t DIRS < <(find "$RELEASES" -mindepth 1 -maxdepth 1 -type d -printf '%T
 LIVE_TARGET="$(readlink -f "$LIVE_LINK" || true)"
 kept=0
 for dir in "${DIRS[@]}"; do
+  if [[ "$dir" == "$LIVE_TARGET" ]]; then
+    continue
+  fi
   kept=$((kept + 1))
-  if [[ "$kept" -gt 5 && "$dir" != "$LIVE_TARGET" ]]; then
-    git -C "$CONTENT_REPO" worktree remove --force "$dir" || rm -rf "$dir"
+  if [[ "$kept" -gt 5 ]]; then
+    remove_release "$dir"
   fi
 done

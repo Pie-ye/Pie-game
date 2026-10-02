@@ -306,12 +306,12 @@
       }
     },
     {
-      "name": "小注 floor 導致超標",
+      "name": "名目 RTP 98.4% 被拒",
       "reason_contains": "超過 98%",
       "spec": {
         "specVersion": 1,
-        "id": "small-bet-floor-exceed",
-        "name": "小注穿透",
+        "id": "nominal-rtp-984",
+        "name": "名目超標",
         "author": "tester",
         "minBet": 5,
         "maxBet": 100,
@@ -879,6 +879,39 @@
                 "label": "贏",
                 "weight": 48,
                 "return": "2"
+              },
+              {
+                "id": "lose",
+                "label": "輸",
+                "weight": 52,
+                "return": "0"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "display 為 null 被拒",
+      "reason_contains": "display",
+      "spec": {
+        "specVersion": 1,
+        "id": "bad-display-null",
+        "name": "空展示",
+        "author": "tester",
+        "minBet": 5,
+        "maxBet": 100,
+        "choices": [
+          {
+            "id": "choice-1",
+            "label": "選項",
+            "outcomes": [
+              {
+                "id": "win",
+                "label": "贏",
+                "weight": 48,
+                "return": "2",
+                "display": null
               },
               {
                 "id": "lose",
