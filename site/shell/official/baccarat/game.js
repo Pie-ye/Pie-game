@@ -141,12 +141,12 @@ async function renderCasinoBaccarat() {
     { id: 'banker', label: '莊 1:0.95', desc: '1 賠 0.95（贏抽 5%）' },
   ];
 
+  const sideKeys = { player: 'q', tie: 'w', banker: 'e' };
   const sideChoicesHtml = sideOptions.map((opt) => {
     const isSelected = side === opt.id;
     return `
-      <button type="button" class="bc-side-btn${isSelected ? ' is-selected' : ''}" data-action="bc-select-side" data-side="${opt.id}" aria-pressed="${isSelected}">
-        <span class="bc-side-main">${escapeHtml(opt.label)}</span>
-        <span class="bc-side-desc">${escapeHtml(opt.desc)}</span>
+      <button type="button" class="pg-seg${isSelected ? ' is-active' : ''}" data-action="bc-select-side" data-side="${opt.id}" data-key="${sideKeys[opt.id]}" aria-pressed="${isSelected}" title="${escapeHtml(opt.desc)}">
+        <span class="pg-seg-main">${escapeHtml(opt.label)}</span>
       </button>
     `;
   }).join('');
@@ -155,9 +155,7 @@ async function renderCasinoBaccarat() {
   const betChipsHtml = bets.map((b) => {
     const isSelected = Number(b) === bet;
     return `
-      <button type="button" class="btn-preset chip-btn${isSelected ? ' is-active' : ''}" data-action="bc-bet" data-bet="${b}" aria-pressed="${isSelected}">
-        ${b}
-      </button>
+      <button type="button" class="pg-chip${isSelected ? ' is-active' : ''}" data-action="bc-bet" data-bet="${b}" aria-pressed="${isSelected}">${b}</button>
     `;
   }).join('');
 
@@ -194,27 +192,17 @@ async function renderCasinoBaccarat() {
           </div>
         </div>
 
-        <div class="bc-bet-choices">${sideChoicesHtml}</div>
+      </div>
 
-        <div class="bc-bet-row">
-          <div class="bc-bet-chips">
-            <span class="eyebrow">籌碼</span>
-            ${betChipsHtml}
-          </div>
-          <div class="bc-custom-bet">
-            <label for="bcBetInput" class="eyebrow">自訂</label>
-            <input type="number" id="bcBetInput" class="bc-bet-input" min="${minBet}" max="${maxBet}" value="${bet}" step="1" ${busy ? 'disabled' : ''} />
-            <span class="unit">金幣</span>
-          </div>
+      <div class="pg-dock casino-sticky-actions">
+        <div class="pg-dock-pick" role="group" aria-label="押哪一邊">${sideChoicesHtml}</div>
+        <div class="pg-dock-bet" role="group" aria-label="押注">
+          ${betChipsHtml}
+          <input type="number" id="bcBetInput" class="pg-bet-input" min="${minBet}" max="${maxBet}" value="${bet}" step="1" aria-label="自訂押注" ${busy ? 'disabled' : ''} />
         </div>
-
-        <div class="bc-actions casino-sticky-actions">
-          <div class="bc-action-info">
-            <span class="eyebrow">選擇</span>
-            <span class="bc-choice-pill">押 <strong>${escapeHtml(currentSideName)}</strong> ${bet.toLocaleString('zh-TW')} 金幣</span>
-          </div>
-          <button type="button" class="primary-button bc-deal-btn" data-action="bc-deal" ${canDeal ? '' : 'disabled'}>
-            ${busy ? '發牌中…' : `發牌（${bet.toLocaleString('zh-TW')} 金幣）`}
+        <div class="pg-dock-act">
+          <button type="button" class="primary-button pg-dock-primary bc-deal-btn" data-action="bc-deal" data-side-name="${escapeHtml(currentSideName)}" ${canDeal ? '' : 'disabled'}>
+            ${busy ? '發牌中…' : `押${escapeHtml(currentSideName)} · ${bet.toLocaleString('zh-TW')}`}
           </button>
         </div>
       </div>
@@ -370,7 +358,7 @@ registerDocumentListener('input', (e) => {
     bc.bet = val;
     const dealBtn = $('#casinoBaccarat [data-action="bc-deal"]');
     if (dealBtn) {
-      dealBtn.textContent = `發牌（${val.toLocaleString('zh-TW')} 金幣）`;
+      dealBtn.textContent = `押${dealBtn.dataset.sideName || ''} · ${val.toLocaleString('zh-TW')}`;
       const balance = Number((state.casino && state.casino.balance) || 0);
       dealBtn.disabled = Boolean(bc.busy || balance < val);
     }

@@ -18,7 +18,7 @@ const bestEl = document.getElementById('best');
 const bannerEl = document.getElementById('banner');
 
 function applyTheme(theme) {
-  document.documentElement.dataset.theme = (theme === 'studio' || theme === 'classic') ? theme : 'playful';
+  document.documentElement.dataset.theme = (theme === 'cyber' || theme === 'studio') ? 'cyber' : 'playful';
 }
 
 function readBest() {
@@ -188,4 +188,4 @@ PieGame.onTheme((theme) => {
   draw();
 });
 reset();
-PieGame.setHeight(document.documentElement.scrollHeight);
+PieGame.setHeight();

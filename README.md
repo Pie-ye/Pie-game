@@ -106,6 +106,18 @@ python3 tools/perf_load.py                         # 正式站
 python3 tools/perf_load.py --shell http://localhost:54470 --runs 5
 ```
 
+## 介面（v0.2）
+
+- 主題兩套：**賽博電玩**（`cyber`，預設）與**盤房日場**（`playful`）。v0.1 的夜場／輕鬆競賽已移除，存過的人自動換成賽博。
+- 每款遊戲同一個版面：頁首（左邊回大廳、右邊全螢幕）→ 遊戲畫面 → 控制列 → 規則與紀錄。
+  控制列順序固定是「選項 → 押注 → 動作」，主要按鈕永遠在最右邊，黏在視窗底部（手機固定在螢幕底）。
+- 快捷鍵（`site/shell/hotkeys.js`）：空白鍵／Enter＝主要按鈕，1–9＝籌碼，其餘看按鈕右上角的提示
+  （21 點空白鍵要牌、S 停牌、D 加倍、P 分牌；百家樂 Q／W／E；射龍門 F 放棄、A／D 猜小／大；德撲 F 棄牌、R 加注、C 跟注）。
+- 動效移植自 Arc（github.com/kuratlielia/arc-library，MIT）：按鈕按壓彈簧、Toast 堆疊、登入框進場、
+  餘額數字逐位捲動、換頁淡入、大廳卡片依序進場。Arc 是 React＋Motion，外框沒有建置流程且 CSP 只允許
+  同源腳本，所以只搬 `foundation.css`／`motion-tokens.ts` 的曲線與時長和互動手法（`tokens.css`、`motion.js`）。
+  Arc 拿掉全站焦點環的那一條刻意不搬。系統「減少動態」會關掉位移與彈性。
+
 ## 範例遊戲
 
 - `snake` 貪吃蛇（一般）

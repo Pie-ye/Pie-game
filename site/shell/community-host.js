@@ -1,6 +1,7 @@
 import { CONTENT_ORIGIN } from './config.js';
 import { casinoRoundId, fetchSession, getUser, playCommunity, playTicket, setBalance } from './api.js';
 import { escapeHtml, rtpPercent } from './util.js';
+import { bindDockHotkeys } from './hotkeys.js';
 
 const BETS = [5, 10, 20, 50, 100];
 // 節流 3 秒，對齊 SDK 的 ticketTimeoutMs（5 秒）：10 秒的話 SDK 會先 timeout。
@@ -12,15 +13,14 @@ let iframe = null;
 let current = null;
 let generation = 0;
 let abort = null;
+let unbindHotkeys = null;
 
-function defaultHeight() {
-  return Math.min(window.innerHeight * 0.8, 720);
-}
-
+// 遊戲回報的高度只當「想要多高」：真正的上限由 CSS（視窗高度扣掉頂欄與控制列）決定，
+// 遊戲畫面永遠跟控制列一起留在同一個畫面裡。
 function clampHeight(px) {
   const n = Number(px);
-  if (!Number.isFinite(n) || n <= 0) return defaultHeight();
-  return Math.min(Math.max(n, 80), 1200);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.min(Math.max(Math.ceil(n), 120), 1600);
 }
 
 function isLive(id) {
@@ -123,14 +123,16 @@ function syncChoice(choice) {
   if (note) note.textContent = rtpLineFor(choice);
 }
 
+const CHOICE_KEYS = ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', 'a', 's'];
+
 function renderBetBar(root, { spec, onPlay, mountId: id }) {
   const bar = document.createElement('div');
-  bar.className = 'casino-sticky-actions';
+  bar.className = 'pg-dock casino-sticky-actions';
   bar.id = 'coinBetBar';
 
   if (!getUser()) {
-    bar.innerHTML = `<a class="primary-button" href="#/login">登入後才能下注</a>
-      <p class="rtp-note">金幣遊戲的下注由外框送出，長期玩一定虧。</p>`;
+    bar.innerHTML = `<p class="pg-dock-note rtp-note">金幣遊戲的下注由外框送出，長期玩一定虧。</p>
+      <div class="pg-dock-act"><a class="primary-button pg-dock-primary" href="#/login">登入後才能下注</a></div>`;
     root.appendChild(bar);
     return bar;
   }
@@ -140,22 +142,22 @@ function renderBetBar(root, { spec, onPlay, mountId: id }) {
   const bets = allowedBets(spec);
   current.bet = bets.includes(current.bet) ? current.bet : bets[0];
 
-  const choiceHtml = choices.map((c) => {
-    const pct = rtpPercent(c.rtp);
-    const rtp = pct != null ? `回饋率 ${pct}%` : '';
-    return `<button type="button" class="choice-btn${c.id === current.choice ? ' is-active' : ''}" data-choice="${escapeHtml(c.id)}" aria-pressed="${c.id === current.choice ? 'true' : 'false'}">${escapeHtml(c.label || c.id)}${rtp ? `<small> ${escapeHtml(rtp)}</small>` : ''}</button>`;
-  }).join('');
+  // 只有一個選項時不必選，選項區整個省掉。
+  const choiceHtml = choices.length > 1 ? choices.map((c, i) => {
+    const key = CHOICE_KEYS[i] ? ` data-key="${CHOICE_KEYS[i]}"` : '';
+    return `<button type="button" class="pg-seg choice-btn${c.id === current.choice ? ' is-active' : ''}" data-choice="${escapeHtml(c.id)}"${key} aria-pressed="${c.id === current.choice ? 'true' : 'false'}">${escapeHtml(c.label || c.id)}</button>`;
+  }).join('') : '';
 
   const betHtml = bets.map((b) => (
-    `<button type="button" class="bet-btn${b === current.bet ? ' is-active' : ''}" data-bet="${b}" aria-pressed="${b === current.bet ? 'true' : 'false'}">${b}</button>`
+    `<button type="button" class="pg-chip bet-btn${b === current.bet ? ' is-active' : ''}" data-bet="${b}" aria-pressed="${b === current.bet ? 'true' : 'false'}">${b}</button>`
   )).join('');
 
   bar.innerHTML = `
-    <div class="choice-row" role="group" aria-label="選項">${choiceHtml}</div>
-    <div class="bet-row" role="group" aria-label="押注">${betHtml}</div>
-    <div class="play-row">
-      <button type="button" class="primary-button" id="playBtn">下注</button>
-      <p class="rtp-note">${escapeHtml(rtpLineFor(current.choice))}</p>
+    ${choiceHtml ? `<div class="pg-dock-pick choice-row" role="group" aria-label="選項">${choiceHtml}</div>` : ''}
+    <div class="pg-dock-bet bet-row" role="group" aria-label="押注"><span class="pg-dock-label">押注</span>${betHtml}</div>
+    <p class="pg-dock-note rtp-note">${escapeHtml(rtpLineFor(current.choice))}</p>
+    <div class="pg-dock-act play-row">
+      <button type="button" class="primary-button pg-dock-primary" id="playBtn">下注</button>
     </div>
   `;
   root.appendChild(bar);
@@ -208,8 +210,8 @@ function onMessage(event, id) {
     return;
   }
   if (type === 'pg:height') {
-    const px = data.px != null ? data.px : data.height;
-    iframe.style.height = `${clampHeight(px)}px`;
+    const px = clampHeight(data.px != null ? data.px : data.height);
+    if (px != null) iframe.style.setProperty('--frame-h', `${px}px`);
     return;
   }
   if (type === 'pg:select') {
@@ -232,8 +234,17 @@ export function unmountCommunity() {
     window.removeEventListener('message', listener);
     listener = null;
   }
+  if (unbindHotkeys) {
+    unbindHotkeys();
+    unbindHotkeys = null;
+  }
   iframe = null;
   current = null;
+}
+
+/** 外框頁首的全螢幕鈕：把 iframe 整個放大（遊戲自己不必處理）。 */
+export function requestCommunityFullscreen() {
+  if (iframe && iframe.requestFullscreen) iframe.requestFullscreen();
 }
 
 /** 投稿遊戲的網址。有 release 時走 /r/<sha>/…：內容不會變，瀏覽器與 Cloudflare 都能永久快取。 */
@@ -334,19 +345,6 @@ export function mountCommunity(root, { game, release, toast, refreshHistory, onB
     playing: false,
   };
 
-  const toolbar = document.createElement('div');
-  toolbar.className = 'frame-toolbar';
-  const fsBtn = document.createElement('button');
-  fsBtn.type = 'button';
-  fsBtn.className = 'secondary-button';
-  fsBtn.setAttribute('aria-label', '全螢幕');
-  fsBtn.textContent = '全螢幕';
-  fsBtn.addEventListener('click', () => {
-    if (iframe && iframe.requestFullscreen) iframe.requestFullscreen();
-  });
-  toolbar.appendChild(fsBtn);
-  root.appendChild(toolbar);
-
   const wrap = document.createElement('div');
   wrap.className = 'community-frame-wrap';
   iframe = document.createElement('iframe');
@@ -421,6 +419,7 @@ export function activateCommunity({ spec } = {}) {
         if (refreshHistory) await refreshHistory();
       },
     });
+    unbindHotkeys = bindDockHotkeys(() => root);
   }
 
   sendInit(id);

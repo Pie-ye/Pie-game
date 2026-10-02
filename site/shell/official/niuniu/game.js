@@ -88,12 +88,19 @@ function niuniuMarkup(nn) {
   const betsHtml = bets.map((value) => {
     const amount = Number(value);
     const active = amount === bet ? ' is-active' : '';
-    return `<button type="button" class="filter-tab${active}" data-action="nn-bet" data-bet="${amount}" aria-pressed="${amount === bet ? 'true' : 'false'}" ${nn.busy ? 'disabled' : ''}>${amount}</button>`;
+    return `<button type="button" class="pg-chip${active}" data-action="nn-bet" data-bet="${amount}" aria-pressed="${amount === bet ? 'true' : 'false'}" ${nn.busy ? 'disabled' : ''}>${amount}</button>`;
   }).join('');
 
   return `<div class="nn-layout">
     ${handsHtml}
     ${resultHtml}
+    <div class="pg-dock casino-sticky-actions">
+      <div class="pg-dock-bet" role="group" aria-label="押注"><span class="pg-dock-label">押注</span>${betsHtml}</div>
+      <p class="pg-dock-note">先凍結 ${lockMult} 倍（${lock.toLocaleString('zh-TW')}），結算後退回</p>
+      <div class="pg-dock-act">
+        <button type="button" class="primary-button pg-dock-primary" data-action="nn-play" ${canPlay ? '' : 'disabled'}>${nn.busy ? '開牌中…' : `開牌 · ${bet.toLocaleString('zh-TW')}`}</button>
+      </div>
+    </div>
     <div class="nn-rules">
       <div class="nn-rule-copy">
         <h3>倍率表</h3>
@@ -106,10 +113,6 @@ function niuniuMarkup(nn) {
         <span><strong>其餘</strong> ×1</span>
       </div>
       <p class="nn-warning">每局先凍結 5 倍押注，結算後退回。長期玩一定虧。</p>
-    </div>
-    <div class="nn-actions casino-sticky-actions">
-      <div class="nn-bets" aria-label="選擇押注">${betsHtml}</div>
-      <button type="button" class="primary-button" data-action="nn-play" ${canPlay ? '' : 'disabled'}>${nn.busy ? '開牌中…' : `開牌（先凍結 ${lock.toLocaleString('zh-TW')}）`}</button>
     </div>
   </div>`;
 }

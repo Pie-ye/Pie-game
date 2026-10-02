@@ -7,7 +7,7 @@ const LINES = [
 ];
 
 function applyTheme(theme) {
-  document.documentElement.dataset.theme = (theme === 'studio' || theme === 'classic') ? theme : 'playful';
+  document.documentElement.dataset.theme = (theme === 'cyber' || theme === 'studio') ? 'cyber' : 'playful';
 }
 
 function emptyGame() {
@@ -51,14 +51,14 @@ function markFor(userId) {
 function showLobby() {
   lobby.hidden = false;
   table.hidden = true;
-  PieGame.setHeight(document.documentElement.scrollHeight);
+  PieGame.setHeight();
 }
 
 function showTable() {
   lobby.hidden = true;
   table.hidden = false;
   renderBoard();
-  PieGame.setHeight(document.documentElement.scrollHeight);
+  PieGame.setHeight();
 }
 
 function renderBoard() {
@@ -199,7 +199,7 @@ PieGame.onTheme(applyTheme);
 
 if (!init.user) {
   hello.textContent = '請先在外框登入，才能加入房間。';
-  PieGame.setHeight(document.documentElement.scrollHeight);
+  PieGame.setHeight();
 } else {
   try {
     client = await PieGame.multiplayer.connect();
@@ -267,9 +267,9 @@ if (!init.user) {
       refreshRooms();
     });
     await refreshRooms();
-    PieGame.setHeight(document.documentElement.scrollHeight);
+    PieGame.setHeight();
   } catch (err) {
     hello.textContent = `連線失敗：${err.message || err}`;
-    PieGame.setHeight(document.documentElement.scrollHeight);
+    PieGame.setHeight();
   }
 }

@@ -83,7 +83,7 @@ function renderCasinoSlots() {
 
   const betsHtml = bets.map((n) => {
     const active = Number(n) === Number(bet) ? ' is-active' : '';
-    return `<button type="button" class="filter-tab${active}" data-action="slot-bet" data-bet="${Number(n)}" aria-pressed="${Number(n) === Number(bet) ? 'true' : 'false'}" ${spinning ? 'disabled' : ''}>${Number(n).toLocaleString('zh-TW')}</button>`;
+    return `<button type="button" class="pg-chip${active}" data-action="slot-bet" data-bet="${Number(n)}" aria-pressed="${Number(n) === Number(bet) ? 'true' : 'false'}" ${spinning ? 'disabled' : ''}>${Number(n).toLocaleString('zh-TW')}</button>`;
   }).join('');
 
   const payRows = symbols.map((sym) => {
@@ -114,13 +114,15 @@ function renderCasinoSlots() {
             <div class="slot-payline" aria-hidden="true"></div>
           </div>
         </div>
-        <div class="slot-controls casino-sticky-actions">
-          <div class="slot-bets">${betsHtml}</div>
-          <button type="button" class="primary-button" data-action="slot-spin" ${canSpin ? '' : 'disabled'}>旋轉（${Number(bet).toLocaleString('zh-TW')} 金幣）</button>
-        </div>
         <div class="slot-result">${resultHtml}</div>
+        <div class="pg-dock casino-sticky-actions">
+          <div class="pg-dock-bet" role="group" aria-label="押注"><span class="pg-dock-label">押注</span>${betsHtml}</div>
+          <div class="pg-dock-act">
+            <button type="button" class="primary-button pg-dock-primary" data-action="slot-spin" ${canSpin ? '' : 'disabled'}>${spinning ? '轉動中…' : `旋轉 · ${Number(bet).toLocaleString('zh-TW')}`}</button>
+          </div>
+        </div>
       </div>
-      <div class="slot-paytable-wrap">
+      <aside class="slot-paytable-wrap pg-aside">
         <p class="eyebrow">賠付表</p>
         <table class="slot-paytable">
           <thead><tr><th>符號</th><th class="num">倍數</th></tr></thead>
@@ -130,7 +132,7 @@ function renderCasinoSlots() {
           </tbody>
         </table>
         <p class="slot-rtp">理論回饋率 ${rtpPct}%</p>
-      </div>
+      </aside>
     </div>`;
   if (renderIfChanged(box, html)) mountIcons();
 }

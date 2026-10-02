@@ -33,7 +33,7 @@ LOBBY_READY = """() => {
 
 OFFICIAL_READY = """() => {
   const root = document.getElementById('officialRoot');
-  if (!root || !root.querySelector('.official-balance')) return false;
+  if (!root || !root.querySelector('.pg-panel')) return false;
   const css = Array.from(document.querySelectorAll('link[data-pg-official-style]'));
   if (!css.length || !css.every((l) => l.sheet)) return false;
   if (document.getElementById('loginDialog')) return true;

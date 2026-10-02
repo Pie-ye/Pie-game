@@ -124,8 +124,8 @@ site/games/community/
 | API | 說明 |
 | --- | --- |
 | `PieGame.ready()` | `Promise<{gameId, user, theme}>`。送 `pg:ready`、等 `pg:init`。不在 iframe 或 8 秒沒回應 → 獨立模式（`user=null`） |
-| `PieGame.onTheme(cb)` | 主題變更（`playful`／`studio`／`classic`） |
-| `PieGame.setHeight(px)` | 告訴外框 iframe 高度 |
+| `PieGame.onTheme(cb)` | 主題變更：`cyber`（賽博電玩，深色，預設）或 `playful`（日場，淺色）。SDK 也會在 `<html>` 設 `data-theme` 與 `data-scheme`（`dark`／`light`），CSS 直接用即可；舊名 `studio` 一律當 `cyber` |
+| `PieGame.setHeight()` | 不帶參數：SDK 量遊戲內容的實際高度告訴外框，之後內容變高變矮也自動跟著（建議）。帶數字則用那個高度。外框最高只給到「視窗扣掉頂欄與下注列」，畫面跟下注鈕一定同時看得到 |
 | `PieGame.coin.onResult(cb)` | 金幣開獎。`cb({choice, outcome, display, bet, payout, net})` |
 | `PieGame.coin.select(choiceId)` | 改外框目前選取的選項，**不會下注** |
 | `PieGame.multiplayer.connect()` | `Promise<Client>`，連 `ws(s)://{host}/mp` |
@@ -184,6 +184,9 @@ python3 tools/validate_games.py --vectors tests/spec_vectors.json
 ### 純 HTML／JS
 
 複製 `_template-free`（或金幣／多人範本），用相對路徑載入 SDK 與 CSS，不要引用 CDN。
+
+範本的 `style.css` 已經有兩套配色：`:root, [data-theme="playful"]` 是日場，`[data-theme="cyber"]` 是賽博電玩。
+金幣遊戲不用自己畫下注按鈕：外框的下注列固定在遊戲下方，玩家可以用鍵盤（選項 Q／W／E…、籌碼 1–5、空白鍵下注）操作。
 
 ### Phaser
 

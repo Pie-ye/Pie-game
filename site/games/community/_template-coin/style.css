@@ -1,16 +1,17 @@
-:root, [data-theme="playful"], [data-theme="classic"] {
+:root, [data-theme="playful"] {
   --bg: #f2eee6;
   --ink: #1a1713;
   --muted: #57503f;
   --accent: #835f13;
   --on-accent: #ffffff;
 }
-[data-theme="studio"] {
-  --bg: #12110f;
-  --ink: #eae4d8;
-  --muted: #a69d8b;
-  --accent: #d9a425;
-  --on-accent: #12110f;
+/* 賽博電玩（外框預設主題）。studio 是 v0.1 的舊名，留著給舊外框。 */
+[data-theme="cyber"], [data-theme="studio"] {
+  --bg: #07070f;
+  --ink: #e6f7ff;
+  --muted: #a3b6cc;
+  --accent: #00e5ff;
+  --on-accent: #02121a;
 }
 html, body { margin: 0; background: var(--bg); color: var(--ink); font: 1rem/1.7 sans-serif; }
 .wrap { padding: 16px; }

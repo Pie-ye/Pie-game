@@ -1,5 +1,6 @@
-/* Pie Game 設計 token：自股票大亂鬥「盤房」語意層＋相容層＋三套主題複製。
-   playful = :root 日場；studio = 夜場；classic = 輕鬆競賽。 */
+/* Pie Game 設計 token：自股票大亂鬥「盤房」語意層＋相容層。
+   兩套主題：cyber＝賽博電玩（預設，html[data-theme="cyber"]）；playful＝盤房日場（:root）。
+   動效 token 移植自 Arc（github.com/kuratlielia/arc-library，MIT）的 foundation.css／motion-tokens.ts。 */
 
 :root {
   /* ---------- 語意層（盤房日場）---------- */
@@ -125,6 +126,29 @@
   --ease-std: cubic-bezier(0.4, 0, 0.2, 1);
   --stagger: 40ms;
 
+  /* ---------- Arc 動效 ----------
+     --ease-arc-spring 是 Arc 的 bounce .15 彈簧以 linear() 取樣，要配 --dur-spring 才是原本手感。
+     不支援 linear() 的瀏覽器在檔尾退回 --ease-out。 */
+  --ease-arc-spring: linear(0, 0.0258, 0.09, 0.1763, 0.2732, 0.3724, 0.4683, 0.5573, 0.6376, 0.7082, 0.7689, 0.8202, 0.8628, 0.8976, 0.9256, 0.9476, 0.9648, 0.9778, 0.9875, 0.9945, 0.9994, 1.0026, 1.0047, 1.0058, 1.0062, 1.0062, 1.0059, 1.0055, 1.0049, 1.0043, 1.0036, 1.0031, 1.0025, 1.002, 1.0016, 1.0013, 1);
+  --ease-arc-enter: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-arc-standard: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-arc-exit: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-arc-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-instant: 120ms;
+  --dur-fast: 160ms;
+  --dur-standard: 240ms;
+  --dur-considered: 480ms;
+  --dur-spring: 580ms;
+  --dur-press: 120ms;
+  --stagger-item: 35ms;
+
+  /* 霓虹光暈：日場沒有，賽博主題才填值。 */
+  --glow-1: none;
+  --glow-2: none;
+  --neon-2: var(--brand);
+  --font-display: var(--font);
+  --clip-corner: 0px;
+
   --brass-on-dark: #d9a425;
 
   --font: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI",
@@ -134,96 +158,71 @@
     Consolas, "Liberation Mono", "PingFang TC", "Microsoft JhengHei", monospace;
 }
 
-html[data-theme="studio"] {
-  --paper: #12110f;
-  --paper-sunk: #0c0b0a;
-  --sheet: #1b1916;
-  --sheet-raised: #221f1a;
-  --sheet-top: #2b2721;
-  --rule-hair: #2c2823;
-  --rule-strong: #6d6457;
-  --ink-1: #eae4d8;
-  --ink-2: #a69d8b;
-  --ink-3: #8a8271;
-  --brass: #d9a425;
-  --brass-deep: #f0bc46;
-  --brass-wash: #2a2317;
-  --on-brass: #12110f;
-  --gain: #3fae84;
-  --loss: #e06a5e;
-  --caution: #e5923f;
-  --info: #5fa8c9;
-  --on-gain: #12110f;
-  --on-loss: #12110f;
-  --masthead: #0f0e0c;
-  --masthead-ink: #cfc7b7;
-  --masthead-muted: #8b8372;
+html[data-theme="cyber"] {
+  color-scheme: dark;
+
+  /* ---------- 語意層（賽博電玩）----------
+     深藍黑底、青色主色、洋紅副色、螢光綠贏／霓虹紅輸。文字對底色對比都 ≥ 4.5:1。 */
+  --paper: #07070f;
+  --paper-sunk: #04040a;
+  --sheet: #0d0f1c;
+  --sheet-raised: #121527;
+  --sheet-top: #181c33;
+  --rule-hair: rgba(0, 240, 255, 0.14);
+  --rule-strong: rgba(0, 240, 255, 0.42);
+  --ink-1: #e6f7ff;
+  --ink-2: #a3b6cc;
+  --ink-3: #8193ab;
+  --brass: #00e5ff;
+  --brass-deep: #7af4ff;
+  --brass-wash: rgba(0, 229, 255, 0.1);
+  --on-brass: #02121a;
+  --gain: #39ff88;
+  --loss: #ff3d6e;
+  --caution: #ffd23f;
+  --info: #5cc8ff;
+  --on-gain: #03140a;
+  --on-loss: #1a0309;
+  --gain-on-dark: #39ff88;
+  --loss-on-dark: #ff3d6e;
+  --masthead: #05050c;
+  --masthead-ink: #e6f7ff;
+  --masthead-muted: #8193ab;
+  --brass-on-dark: #00e5ff;
 
   --card: var(--overlay);
   --sidebar-bg: var(--nav);
 
-  --alloc-crypto: #dac281;
-  --alloc-tw: #d8a28a;
-  --alloc-cash: #a69884;
-  --alloc-fund: #808d4c;
-  --alloc-us: #9a6d3f;
-  --alloc-uk: #a24b45;
-
-  --radius: 3px;
-  --radius-sm: 2px;
-  --radius-overlay: 4px;
+  --radius: 6px;
+  --radius-sm: 4px;
+  --radius-overlay: 10px;
 
   --surface-1: var(--sheet);
   --surface-2: var(--sheet-raised);
   --surface-3: var(--sheet-top);
   --elev-1: 0 0 0 1px var(--hairline);
-  --elev-2: 0 0 0 1px var(--line-strong);
-  --elev-3: 0 0 0 1px var(--line-strong), 0 24px 48px rgba(0, 0, 0, 0.62);
+  --elev-2: 0 0 0 1px var(--line-strong), 0 10px 30px rgba(0, 0, 0, 0.5);
+  --elev-3: 0 0 0 1px var(--line-strong), 0 24px 60px rgba(0, 0, 0, 0.7);
+
+  --neon-2: #ff2bd6;
+  --glow-1: 0 0 0 1px rgba(0, 229, 255, 0.55), 0 0 18px rgba(0, 229, 255, 0.35);
+  --glow-2: 0 0 0 1px rgba(255, 43, 214, 0.55), 0 0 18px rgba(255, 43, 214, 0.3);
+  --clip-corner: 10px;
+  --font-display: "Orbitron", "Rajdhani", "Share Tech Mono", ui-monospace, "JetBrains Mono",
+    "Cascadia Mono", Consolas, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", monospace;
 }
 
-html[data-theme="classic"] {
-  --paper: #eef4f0;
-  --paper-sunk: #f7faf8;
-  --sheet: #ffffff;
-  --sheet-raised: #ffffff;
-  --sheet-top: #ffffff;
-  --rule-hair: #e3ece6;
-  --rule-strong: #848d88;
-  --ink-1: #17251d;
-  --ink-2: #4d6157;
-  --ink-3: #617169;
-  --brass: #147e4b;
-  --brass-deep: #0f6e40;
-  --brass-wash: #e6f4ec;
-  --on-brass: #ffffff;
-  --gain: #0a7f49;
-  --loss: #c5403b;
-  --caution: #a75b04;
-  --info: #0e7490;
-  --on-gain: #ffffff;
-  --on-loss: #ffffff;
-  --masthead: #0c2a1c;
-  --masthead-ink: #dcebe2;
-  --masthead-muted: #9fc4ae;
-  --brass-on-dark: #3ddc90;
+@supports not (transition-timing-function: linear(0, 1)) {
+  :root {
+    --ease-arc-spring: var(--ease-out);
+  }
+}
 
-  --sidebar-bg: linear-gradient(180deg, #14402c 0%, #0c2a1c 100%);
-
-  --alloc-cash: #10b981;
-  --alloc-tw: #3b82f6;
-  --alloc-us: #8b5cf6;
-  --alloc-uk: #ef4444;
-  --alloc-crypto: #f59e0b;
-  --alloc-fund: #06b6d4;
-
-  --radius: 14px;
-  --radius-sm: 9px;
-  --radius-overlay: 18px;
-
-  --surface-1: var(--sheet);
-  --surface-2: var(--sheet-raised);
-  --surface-3: var(--sheet-top);
-  --elev-1: 0 1px 3px rgba(18, 48, 32, 0.06), 0 4px 16px rgba(18, 48, 32, 0.06);
-  --elev-2: var(--elev-1);
-  --elev-3: 0 8px 30px rgba(18, 48, 32, 0.14);
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-spring: 1ms;
+    --dur-press: 1ms;
+    --dur-standard: 1ms;
+    --dur-considered: 1ms;
+  }
 }

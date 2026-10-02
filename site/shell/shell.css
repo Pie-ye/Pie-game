@@ -173,7 +173,14 @@ a:hover {
   font-size: var(--fs-caption);
   font-weight: 600;
   border: 1px solid transparent;
-  transition: transform var(--dur-0) var(--ease-std), opacity var(--dur-1) var(--ease-out);
+  /* Arc Button：按下快速縮小、放開用彈簧回彈。用獨立的 scale 屬性，不跟 transform 打架。 */
+  transition:
+    background var(--dur-fast) var(--ease-arc-standard),
+    border-color var(--dur-fast) var(--ease-arc-standard),
+    color var(--dur-fast) var(--ease-arc-standard),
+    box-shadow var(--dur-fast) var(--ease-arc-standard),
+    opacity var(--dur-fast) var(--ease-arc-standard),
+    scale var(--dur-spring) var(--ease-arc-spring);
 }
 
 .primary-button {
@@ -202,10 +209,13 @@ a:hover {
   font-weight: 500;
 }
 
-.primary-button:active,
-.secondary-button:active,
-.outlined-button:active {
-  transform: translateY(1px);
+.primary-button:active:not(:disabled),
+.secondary-button:active:not(:disabled),
+.outlined-button:active:not(:disabled),
+.is-key-press:not(:disabled) {
+  scale: 0.97;
+  transition-duration: var(--dur-fast), var(--dur-fast), var(--dur-fast), var(--dur-fast), var(--dur-fast), var(--dur-press);
+  transition-timing-function: var(--ease-arc-standard);
 }
 
 button:disabled,
@@ -256,12 +266,20 @@ button:disabled,
   color: inherit;
   text-decoration: none;
   min-height: calc(var(--control-h) * 4);
-  transition: transform var(--dur-1) var(--ease-out), opacity var(--dur-1) var(--ease-out);
+  transition:
+    translate var(--dur-spring) var(--ease-arc-spring),
+    border-color var(--dur-fast) var(--ease-arc-standard),
+    box-shadow var(--dur-standard) var(--ease-arc-standard);
 }
 
 .game-card:hover {
   text-decoration: none;
-  transform: translateY(-2px);
+  translate: 0 -3px;
+  border-color: var(--line-strong);
+}
+
+.game-card:active {
+  scale: 0.985;
 }
 
 .game-card h3 {
@@ -380,19 +398,48 @@ button:disabled,
   margin-top: var(--s3);
 }
 
+/* 遊戲頁首：回大廳在最左、標題、全螢幕在最右，一行搞定，不再浪費一整列。 */
 .game-page-head {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
   gap: var(--s3);
-  flex-wrap: wrap;
-  margin-bottom: var(--s4);
+  margin-bottom: var(--s3);
 }
 
 .game-page-head h1 {
   margin: 0;
-  font-size: var(--fs-h2);
-  line-height: var(--lh-h2);
+  font-size: var(--fs-h3);
+  line-height: var(--lh-h3);
+  font-family: var(--font-display);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  min-height: var(--control-h);
+  padding: 0 var(--s3) 0 var(--s2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ink-soft);
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  transition: color var(--dur-fast) var(--ease-arc-standard), border-color var(--dur-fast) var(--ease-arc-standard);
+}
+
+.back-button span {
+  font-size: 1.4em;
+  line-height: 1;
+}
+
+.back-button:hover {
+  color: var(--ink);
+  border-color: var(--line-strong);
+  text-decoration: none;
 }
 
 .placeholder-panel {
@@ -420,18 +467,20 @@ button:disabled,
   overflow: hidden;
 }
 
+/* 遊戲畫面高度：遊戲用 PieGame.setHeight() 回報想要多高（--frame-h），
+   但永遠不超過「視窗扣掉頂欄、頁首、控制列」，畫面跟下注鈕一定同時看得到。 */
 .community-frame {
+  --frame-chrome: 190px;
   display: block;
   width: 100%;
-  height: min(80vh, 720px);
+  height: clamp(280px, var(--frame-h, 560px), calc(100dvh - var(--frame-chrome)));
   border: 0;
   background: var(--sheet);
+  transition: height var(--dur-standard) var(--ease-arc-standard);
 }
 
-.frame-toolbar {
-  display: flex;
-  justify-content: flex-end;
-  margin: var(--s2) 0 var(--s3);
+.game-stage.is-community:has(.pg-dock) .community-frame {
+  --frame-chrome: 290px;
 }
 
 .mp-banner {
@@ -444,50 +493,6 @@ button:disabled,
   font-size: var(--fs-caption);
 }
 
-.casino-sticky-actions {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s3);
-  margin-top: var(--s4);
-  padding: var(--s4);
-  background: var(--overlay);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-}
-
-.choice-row,
-.bet-row,
-.play-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s2);
-}
-
-.choice-btn,
-.bet-btn {
-  min-height: var(--control-h);
-  padding: 0 var(--s4);
-  border-radius: 999px;
-  border: 1px solid var(--line-strong);
-  background: var(--card);
-  color: var(--ink-soft);
-  font-weight: 600;
-  font-size: var(--fs-caption);
-}
-
-.choice-btn.is-active,
-.bet-btn.is-active {
-  background: var(--primary);
-  color: var(--on-brass);
-  border-color: var(--primary);
-}
-
-.rtp-note {
-  margin: 0;
-  font-size: var(--fs-caption);
-  color: var(--ink-faint);
-}
 
 .history-block {
   margin-top: var(--s6);
@@ -532,31 +537,6 @@ button:disabled,
 
 .hist-card.is-red {
   color: var(--loss);
-}
-
-.toast {
-  --ring-color: var(--brass-on-dark);
-  position: fixed;
-  left: 50%;
-  bottom: var(--s5);
-  transform: translate(-50%, 16px);
-  background: var(--nav);
-  color: var(--nav-ink);
-  font-size: var(--fs-caption);
-  padding: var(--s3) var(--s5);
-  border-radius: 999px;
-  box-shadow: var(--elev-3);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out);
-  z-index: 200;
-  max-width: min(92vw, 520px);
-  text-align: center;
-}
-
-.toast.is-visible {
-  opacity: 1;
-  transform: translate(-50%, 0);
 }
 
 /* 撲克牌面（cards.js 的 renderPcard 共用） */
@@ -686,23 +666,765 @@ button:disabled,
     padding: var(--s4) var(--s3) var(--s8);
   }
 
-  .page-content:has(.casino-sticky-actions) {
-    padding-bottom: calc(var(--control-h) * 6);
+}
+
+/* =====================================================================
+   v0.2 遊戲版面：頁首 → 遊戲畫面 → 控制列（.pg-dock）→ 規則／紀錄
+   ===================================================================== */
+
+/* 遊戲頁不需要大廳那麼寬：畫面集中，滑鼠移動距離短。 */
+.page-content:has(.game-stage) {
+  max-width: 1040px;
+}
+
+.game-stage {
+  position: relative;
+}
+
+.game-stage:fullscreen {
+  overflow: auto;
+  padding: var(--s5);
+  background: var(--bg);
+}
+
+.pg-panel {
+  display: block;
+}
+
+/* ---------- 控制列 ----------
+   每款遊戲同一個順序：選項 → 押注 → 動作，主要按鈕固定在最右邊。
+   黏在視窗底部：遊戲畫面再長，按鈕也在同一個位置。 */
+.pg-dock {
+  position: sticky;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--s3));
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s4);
+  margin-top: var(--s3);
+  padding: var(--s2) var(--s2) var(--s2) var(--s4);
+  background: color-mix(in srgb, var(--sheet) 88%, transparent);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--elev-2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  backdrop-filter: blur(12px) saturate(1.2);
+}
+
+.pg-dock-pick,
+.pg-dock-bet,
+.pg-dock-act,
+.pg-dock-info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s1);
+}
+
+.pg-dock-pick {
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg-soft);
+}
+
+.pg-dock-act {
+  margin-left: auto;
+  gap: var(--s2);
+}
+
+.pg-dock-label {
+  margin-right: var(--s1);
+  color: var(--ink-faint);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: var(--ls-micro);
+}
+
+.pg-dock-note {
+  margin: 0;
+  color: var(--ink-faint);
+  font-size: var(--fs-caption);
+  line-height: var(--lh-caption);
+}
+
+/* 主要按鈕：固定寬度，文字換了也不會讓左邊的東西跳動。 */
+.pg-dock-primary {
+  min-width: 10.5rem;
+  min-height: calc(var(--control-h) + 6px);
+  font-size: var(--fs-body);
+  letter-spacing: 0.02em;
+}
+
+/* 籌碼 */
+.pg-chip {
+  position: relative;
+  min-width: var(--control-h);
+  min-height: var(--control-h);
+  padding: 0 var(--s3);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--ink-soft);
+  font-weight: 700;
+  font-size: var(--fs-caption);
+  font-variant-numeric: tabular-nums;
+  transition:
+    background var(--dur-fast) var(--ease-arc-standard),
+    color var(--dur-fast) var(--ease-arc-standard),
+    border-color var(--dur-fast) var(--ease-arc-standard),
+    box-shadow var(--dur-fast) var(--ease-arc-standard),
+    scale var(--dur-spring) var(--ease-arc-spring);
+}
+
+.pg-chip:hover:not(:disabled) {
+  color: var(--ink);
+  border-color: var(--brand);
+}
+
+.pg-chip.is-active {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: var(--on-brass);
+  box-shadow: var(--glow-1);
+}
+
+.pg-chip:active:not(:disabled) {
+  scale: 0.94;
+  transition-duration: var(--dur-press);
+}
+
+/* 選項（分段控制，Arc Segmented control） */
+.pg-seg {
+  position: relative;
+  min-height: calc(var(--control-h) - 6px);
+  padding: 0 var(--s3);
+  border: 0;
+  border-radius: calc(var(--radius-sm) - 1px);
+  background: transparent;
+  color: var(--ink-soft);
+  font-weight: 700;
+  font-size: var(--fs-caption);
+  transition:
+    background var(--dur-standard) var(--ease-arc-standard),
+    color var(--dur-fast) var(--ease-arc-standard),
+    box-shadow var(--dur-standard) var(--ease-arc-standard);
+}
+
+.pg-seg:hover:not(:disabled) {
+  color: var(--ink);
+}
+
+.pg-seg.is-active {
+  background: var(--sheet-top);
+  color: var(--ink);
+  box-shadow: 0 0 0 1px var(--line-strong), var(--elev-1);
+}
+
+html[data-theme="cyber"] .pg-seg.is-active {
+  color: var(--brand);
+  box-shadow: var(--glow-1);
+}
+
+.pg-bet-input {
+  width: 5.5rem;
+  height: var(--control-h);
+  margin-left: var(--s1);
+  padding: 0 var(--s2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--sheet);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 快捷鍵提示：只在有滑鼠與實體鍵盤的裝置顯示 */
+@media (hover: hover) and (pointer: fine) {
+  .pg-dock [data-kbd] {
+    position: relative;
   }
 
-  .casino-sticky-actions {
+  .pg-dock [data-kbd]::after {
+    content: attr(data-kbd);
+    position: absolute;
+    top: -7px;
+    right: -5px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border: 1px solid var(--line-strong);
+    border-radius: 4px;
+    background: var(--sheet-top);
+    color: var(--ink-faint);
+    font: 600 10px/14px var(--font-mono);
+    text-align: center;
+    pointer-events: none;
+    opacity: 0.85;
+  }
+
+  .pg-dock [data-kbd]:disabled::after {
+    opacity: 0.35;
+  }
+}
+
+@media (max-width: 767px) {
+  /* 手機大廳：兩欄小卡，一個畫面看得到更多遊戲。 */
+  .card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--s2);
+  }
+
+  .game-card {
+    min-height: calc(var(--control-h) * 2.6);
+    padding: var(--s3);
+  }
+
+  .game-card .desc {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .page-content:has(.pg-dock) {
+    padding-bottom: calc(var(--control-h) * 5);
+  }
+
+  /* 手機：控制列固定在螢幕底部，拇指搆得到；主要按鈕撐滿最後一列。 */
+  .pg-dock {
     position: fixed;
-    left: var(--s3);
-    right: var(--s3);
+    left: var(--s2);
+    right: var(--s2);
     bottom: calc(env(safe-area-inset-bottom, 0px) + var(--s2));
     z-index: 40;
-    width: auto;
     margin: 0;
     padding: var(--s2);
-    box-shadow: var(--elev-2);
+    gap: var(--s2);
   }
 
-  .toast {
-    bottom: calc(var(--control-h) * 4 + env(safe-area-inset-bottom, 0px));
+  .pg-dock-pick,
+  .pg-dock-bet {
+    width: 100%;
+    justify-content: center;
   }
+
+  .pg-dock-pick .pg-seg {
+    flex: 1;
+  }
+
+  .pg-dock-note {
+    width: 100%;
+    text-align: center;
+  }
+
+  .pg-dock-act {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .pg-dock-act > * {
+    flex: 1;
+  }
+
+  .pg-dock-primary {
+    flex: 2;
+    min-width: 0;
+  }
+
+  .community-frame {
+    --frame-chrome: 150px;
+  }
+
+  .game-stage.is-community:has(.pg-dock) .community-frame {
+    --frame-chrome: 300px;
+  }
+}
+
+/* =====================================================================
+   Arc 動效（Arc：github.com/kuratlielia/arc-library，MIT）
+   Arc 是 React＋Motion；這裡只搬曲線、時長與互動手法，全部用原生 CSS／WAAPI。
+   Arc foundation.css 拿掉全站焦點環的那一條刻意不搬：鍵盤使用者需要看到焦點。
+   ===================================================================== */
+
+/* ---------- Toast 堆疊（Arc Toast stack） ---------- */
+.toast-region {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--s5));
+  z-index: 200;
+  width: min(92vw, 420px);
+  height: 0;
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
+}
+
+.page-content:has(.pg-dock) ~ .toast-region {
+  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--control-h) * 2.6);
+}
+
+.toast-item {
+  --ring-color: var(--brass-on-dark);
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: var(--s3) var(--s5);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--nav);
+  color: var(--nav-ink);
+  box-shadow: var(--elev-3);
+  font-size: var(--fs-caption);
+  text-align: center;
+  pointer-events: auto;
+  transform-origin: 50% 0;
+  transform: translateY(calc(var(--i, 0) * -10px)) scale(calc(1 - var(--i, 0) * 0.05));
+  transition:
+    transform var(--dur-spring) var(--ease-arc-spring),
+    opacity var(--dur-standard) var(--ease-arc-standard),
+    filter var(--dur-standard) var(--ease-arc-standard);
+}
+
+.toast-item[data-front="false"] {
+  filter: brightness(0.9);
+}
+
+.toast-region[data-expanded="true"] .toast-item {
+  filter: none;
+  transform: translateY(calc(var(--i, 0) * (-100% - 8px)));
+}
+
+@starting-style {
+  .toast-item {
+    opacity: 0;
+    transform: translateY(18px) scale(0.96);
+  }
+}
+
+.toast-item[data-leaving] {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(calc(var(--i, 0) * -10px + 6px)) scale(0.94);
+  transition:
+    transform var(--dur-standard) var(--ease-arc-standard),
+    opacity var(--dur-exit) var(--ease-arc-standard);
+}
+
+.toast-item.is-bump {
+  animation: toast-bump var(--dur-3) var(--ease-arc-standard);
+}
+
+@keyframes toast-bump {
+  40% {
+    scale: 1.05;
+  }
+}
+
+/* ---------- 登入框：淡入＋彈簧上浮（Arc Dialog） ---------- */
+.login-dialog-backdrop {
+  transition: opacity var(--dur-standard) var(--ease-arc-standard);
+}
+
+.login-dialog {
+  transition:
+    opacity var(--dur-fast) var(--ease-arc-standard),
+    transform var(--dur-spring) var(--ease-arc-spring);
+}
+
+@starting-style {
+  .login-dialog-backdrop {
+    opacity: 0;
+  }
+
+  .login-dialog {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+  }
+}
+
+/* ---------- 大廳卡片依序進場（Arc stagger.item = 35ms） ---------- */
+.lobby-section .game-card {
+  animation: pg-rise var(--dur-considered) var(--ease-arc-enter) both;
+}
+
+.lobby-section .game-card:nth-child(2) { animation-delay: calc(var(--stagger-item) * 1); }
+.lobby-section .game-card:nth-child(3) { animation-delay: calc(var(--stagger-item) * 2); }
+.lobby-section .game-card:nth-child(4) { animation-delay: calc(var(--stagger-item) * 3); }
+.lobby-section .game-card:nth-child(5) { animation-delay: calc(var(--stagger-item) * 4); }
+.lobby-section .game-card:nth-child(6) { animation-delay: calc(var(--stagger-item) * 5); }
+.lobby-section .game-card:nth-child(n + 7) { animation-delay: calc(var(--stagger-item) * 6); }
+
+@keyframes pg-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* ---------- 換頁（View Transitions）：舊畫面快速淡出、新畫面淡入上浮 ---------- */
+#view {
+  view-transition-name: pg-view;
+}
+
+::view-transition-old(pg-view) {
+  animation: pg-view-out var(--dur-fast) var(--ease-arc-exit) both;
+}
+
+::view-transition-new(pg-view) {
+  animation: pg-view-in var(--dur-standard) var(--ease-arc-enter) both;
+}
+
+@keyframes pg-view-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes pg-view-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* ---------- 數字逐位捲動（Arc Slot text，motion.js 的 setRollingText） ---------- */
+.roll {
+  display: inline-flex;
+  align-items: baseline;
+  white-space: pre;
+  font-variant-numeric: tabular-nums;
+}
+
+.roll-slot {
+  position: relative;
+  display: inline-block;
+}
+
+.roll-window {
+  position: absolute;
+  top: 50%;
+  right: -0.08em;
+  left: -0.08em;
+  height: 1.5em;
+  margin-top: -0.75em;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 25%, #000 75%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 25%, #000 75%, transparent);
+}
+
+.roll-sizer {
+  visibility: hidden;
+}
+
+.roll-strip {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  will-change: transform;
+}
+
+.roll-cell {
+  display: block;
+  height: 1.5em;
+  line-height: 1.5em;
+}
+
+.roll-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---------- <details> 平滑展開（Arc Accordion） ---------- */
+@supports selector(::details-content) {
+  details {
+    interpolate-size: allow-keywords;
+  }
+
+  details::details-content {
+    block-size: 0;
+    overflow: clip;
+    transition:
+      block-size var(--dur-3) var(--ease-arc-standard),
+      content-visibility var(--dur-3) allow-discrete;
+  }
+
+  details[open]::details-content {
+    block-size: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lobby-section .game-card,
+  .toast-item.is-bump {
+    animation: none;
+  }
+
+  ::view-transition-old(pg-view),
+  ::view-transition-new(pg-view) {
+    animation: none;
+  }
+
+  .primary-button:active:not(:disabled),
+  .secondary-button:active:not(:disabled),
+  .outlined-button:active:not(:disabled),
+  .pg-chip:active:not(:disabled),
+  .is-key-press:not(:disabled),
+  .game-card:active {
+    scale: none;
+  }
+
+  .game-card:hover {
+    translate: none;
+  }
+}
+
+/* =====================================================================
+   賽博電玩主題（html[data-theme="cyber"]）
+   深色底＋格線、青色主色、洋紅副色、霓虹光暈、切角卡片、等寬標題。
+   只用 CSS 漸層，沒有圖片與外部字型（CSP 只允許同源）。
+   ===================================================================== */
+html[data-theme="cyber"] body {
+  background-color: var(--paper);
+  background-image:
+    radial-gradient(1100px 520px at 12% -8%, rgba(0, 229, 255, 0.14), transparent 60%),
+    radial-gradient(900px 520px at 100% 0%, rgba(255, 43, 214, 0.12), transparent 60%),
+    linear-gradient(rgba(0, 229, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 229, 255, 0.05) 1px, transparent 1px);
+  background-size: auto, auto, 32px 32px, 32px 32px;
+}
+
+html[data-theme="cyber"] ::selection {
+  background: rgba(255, 43, 214, 0.45);
+  color: #fff;
+}
+
+html[data-theme="cyber"] .topbar {
+  background: color-mix(in srgb, var(--masthead) 82%, transparent);
+  border-bottom-color: var(--line);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 1px 0 rgba(255, 43, 214, 0.25);
+}
+
+html[data-theme="cyber"] .brand {
+  font-family: var(--font-display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: linear-gradient(90deg, var(--brand), var(--neon-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: none;
+}
+
+html[data-theme="cyber"] .brand:hover {
+  color: transparent;
+  filter: drop-shadow(0 0 8px rgba(0, 229, 255, 0.55));
+}
+
+html[data-theme="cyber"] :is(.page-heading, .lobby-section h2, .game-page-head h1, .history-block h2, .auth-card h1) {
+  font-family: var(--font-display);
+  letter-spacing: 0.04em;
+}
+
+html[data-theme="cyber"] .lobby-section h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  color: var(--ink);
+  font-size: var(--fs-lead);
+  text-transform: uppercase;
+}
+
+html[data-theme="cyber"] .lobby-section h2::before {
+  content: "";
+  width: 4px;
+  height: 1.1em;
+  background: linear-gradient(var(--brand), var(--neon-2));
+  box-shadow: 0 0 10px var(--brand);
+}
+
+html[data-theme="cyber"] .lobby-section h2::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--line-strong), transparent);
+}
+
+/* 切角卡片：右上與左下切掉一角，霓虹細框，指到時亮起來。 */
+html[data-theme="cyber"] .game-card {
+  position: relative;
+  background:
+    linear-gradient(160deg, rgba(0, 229, 255, 0.06), transparent 40%),
+    var(--sheet);
+  border-color: var(--line);
+  clip-path: polygon(0 0, calc(100% - var(--clip-corner)) 0, 100% var(--clip-corner), 100% 100%, var(--clip-corner) 100%, 0 calc(100% - var(--clip-corner)));
+}
+
+html[data-theme="cyber"] .game-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-top: 1px solid var(--brand);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-standard) var(--ease-arc-standard);
+}
+
+html[data-theme="cyber"] .game-card:hover {
+  border-color: var(--line-strong);
+  box-shadow: inset 0 0 24px rgba(0, 229, 255, 0.08);
+}
+
+html[data-theme="cyber"] .game-card:hover::after {
+  opacity: 1;
+}
+
+html[data-theme="cyber"] .game-card h3 {
+  color: var(--ink);
+  font-family: var(--font-display);
+  letter-spacing: 0.03em;
+}
+
+html[data-theme="cyber"] .game-card:hover h3 {
+  color: var(--brand);
+}
+
+html[data-theme="cyber"] .tag {
+  border-color: var(--line);
+  background: rgba(0, 229, 255, 0.06);
+  color: var(--brand);
+  font-family: var(--font-mono);
+}
+
+html[data-theme="cyber"] .tag:first-child {
+  border-color: rgba(255, 43, 214, 0.45);
+  background: rgba(255, 43, 214, 0.08);
+  color: #ff8be8;
+}
+
+/* 按鈕：主要按鈕霓虹光暈＋切角；次要按鈕細框。 */
+html[data-theme="cyber"] .primary-button {
+  background: linear-gradient(180deg, #33ecff, var(--brand));
+  color: var(--on-brass);
+  border-color: transparent;
+  box-shadow: var(--glow-1);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+html[data-theme="cyber"] .primary-button:hover:not(:disabled) {
+  background: linear-gradient(180deg, #8ef6ff, #33ecff);
+  box-shadow: 0 0 0 1px rgba(0, 229, 255, 0.8), 0 0 26px rgba(0, 229, 255, 0.55);
+}
+
+html[data-theme="cyber"] .primary-button:disabled {
+  background: var(--sheet-top);
+  color: var(--ink-faint);
+  box-shadow: none;
+}
+
+html[data-theme="cyber"] :is(.secondary-button, .outlined-button, .back-button) {
+  background: rgba(0, 229, 255, 0.04);
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+html[data-theme="cyber"] :is(.secondary-button, .outlined-button, .back-button):hover:not(:disabled) {
+  border-color: var(--brand);
+  color: var(--brand);
+  box-shadow: 0 0 12px rgba(0, 229, 255, 0.25);
+  text-decoration: none;
+}
+
+html[data-theme="cyber"] .balance-pill {
+  background: rgba(57, 255, 136, 0.08);
+  border-color: rgba(57, 255, 136, 0.45);
+  color: var(--gain);
+  font-family: var(--font-mono);
+  box-shadow: 0 0 12px rgba(57, 255, 136, 0.18);
+}
+
+html[data-theme="cyber"] .theme-field select,
+html[data-theme="cyber"] .auth-form input,
+html[data-theme="cyber"] .pg-bet-input {
+  background: var(--paper-sunk);
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+html[data-theme="cyber"] .pg-dock {
+  background: color-mix(in srgb, var(--sheet) 82%, transparent);
+  border-color: var(--line-strong);
+  box-shadow: 0 0 0 1px rgba(0, 229, 255, 0.08), 0 -2px 24px rgba(0, 229, 255, 0.1), 0 18px 40px rgba(0, 0, 0, 0.55);
+}
+
+html[data-theme="cyber"] .pg-chip {
+  background: var(--paper-sunk);
+  font-family: var(--font-mono);
+}
+
+html[data-theme="cyber"] .pg-chip.is-active {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: var(--on-brass);
+}
+
+html[data-theme="cyber"] .pg-dock-pick {
+  background: var(--paper-sunk);
+}
+
+html[data-theme="cyber"] .community-frame-wrap,
+html[data-theme="cyber"] .auth-card {
+  border-color: var(--line-strong);
+  box-shadow: 0 0 0 1px rgba(0, 229, 255, 0.06), 0 0 40px rgba(0, 229, 255, 0.08);
+}
+
+html[data-theme="cyber"] .toast-item {
+  background: rgba(5, 5, 12, 0.92);
+  border-color: rgba(255, 43, 214, 0.5);
+  box-shadow: var(--glow-2), var(--elev-3);
+}
+
+html[data-theme="cyber"] .pcard {
+  background: #eef9ff;
+  border-color: rgba(0, 229, 255, 0.5);
+  box-shadow: 0 0 10px rgba(0, 229, 255, 0.2);
+}
+
+html[data-theme="cyber"] .pcard:not(.is-red):not(.is-back) {
+  color: #0b1020;
+}
+
+html[data-theme="cyber"] .pcard.is-red {
+  color: #d1124f;
+}
+
+html[data-theme="cyber"] .pcard.is-back {
+  background-color: #0b1030;
+  background-image:
+    repeating-linear-gradient(45deg, rgba(0, 229, 255, 0.35) 0, rgba(0, 229, 255, 0.35) 1px, transparent 0, transparent 8px),
+    repeating-linear-gradient(-45deg, rgba(255, 43, 214, 0.3) 0, rgba(255, 43, 214, 0.3) 1px, transparent 0, transparent 8px);
+}
+
+html[data-theme="cyber"] .casino-history-table th {
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  font-weight: 600;
+  letter-spacing: 0.04em;
 }

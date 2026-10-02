@@ -1,7 +1,7 @@
 import PieGame from '../../../sdk/pie-game-sdk.js';
 
 function applyTheme(theme) {
-  document.documentElement.dataset.theme = (theme === 'studio' || theme === 'classic') ? theme : 'playful';
+  document.documentElement.dataset.theme = (theme === 'cyber' || theme === 'studio') ? 'cyber' : 'playful';
 }
 
 const coin = document.getElementById('coin');
@@ -48,4 +48,4 @@ const init = await PieGame.ready();
 applyTheme(init.theme);
 PieGame.onTheme(applyTheme);
 setChoice('heads');
-PieGame.setHeight(document.documentElement.scrollHeight);
+PieGame.setHeight();

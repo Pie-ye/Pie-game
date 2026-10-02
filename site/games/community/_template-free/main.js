@@ -8,13 +8,13 @@ const title = document.getElementById('title');
 const hello = document.getElementById('hello');
 
 function applyTheme(theme) {
-  document.documentElement.dataset.theme = (theme === 'studio' || theme === 'classic') ? theme : 'playful';
+  document.documentElement.dataset.theme = (theme === 'cyber' || theme === 'studio') ? 'cyber' : 'playful';
 }
 
 const init = await PieGame.ready();
 applyTheme(init.theme);
 PieGame.onTheme(applyTheme);
-PieGame.setHeight(document.documentElement.scrollHeight);
+PieGame.setHeight();
 
 title.textContent = init.gameId;
 const who = init.user && init.user.displayName ? init.user.displayName : '訪客';

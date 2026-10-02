@@ -1,5 +1,6 @@
 import { mountStylesheet } from '../util.js';
 import { mountIcons as mountIconNodes } from '../icons.js';
+import { bindDockHotkeys } from '../hotkeys.js';
 
 const abortedResult = () => ({
   response: { ok: false, status: 0, aborted: true },
@@ -12,6 +13,7 @@ export function createBridge(gameId) {
   let controller = null;
   let releaseStyles = null;
   let bodyAddon = null;
+  let unbindHotkeys = null;
   let generation = 0;
   const rootListeners = [];
   const documentListeners = [];
@@ -165,6 +167,8 @@ export function createBridge(gameId) {
       root.classList.remove(`pg-official-${gameId}`);
       root.replaceChildren();
     }
+    if (unbindHotkeys) unbindHotkeys();
+    unbindHotkeys = null;
     if (releaseStyles) releaseStyles();
     releaseStyles = null;
     controller = null;
@@ -183,8 +187,8 @@ export function createBridge(gameId) {
     state.user = officialSdk.user || null;
     state.casino = null;
     root.classList.add(`pg-official-${gameId}`);
-    root.innerHTML = `<div class="official-balance">餘額 <strong class="pg-balance-value"></strong></div><div id="${options.panelId}"${options.live ? ' aria-live="polite"' : ''}></div>`;
-    root.querySelector('.pg-balance-value').textContent = balanceText(Number(officialSdk.getBalance()) || 0);
+    // 餘額只顯示在頂欄（sticky，永遠看得到），遊戲裡不再重複一行。
+    root.innerHTML = `<div id="${options.panelId}" class="pg-panel"${options.live ? ' aria-live="polite"' : ''}></div>`;
     releaseStyles = mountStylesheet(options.styleUrl);
     if (options.createBodyAddon) {
       const addon = options.createBodyAddon();
@@ -197,6 +201,7 @@ export function createBridge(gameId) {
       document.addEventListener(item.type, item.handler, item.options);
     }
     options.render();
+    unbindHotkeys = bindDockHotkeys(() => root);
   }
 
   return {

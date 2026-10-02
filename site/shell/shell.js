@@ -23,11 +23,16 @@ import {
   cancelWarmQueue,
   mountCommunity,
   notifyTheme,
+  requestCommunityFullscreen,
   unmountCommunity,
   warmCommunity,
 } from './community-host.js';
+import { setRollingText, swapView } from './motion.js';
 
-const THEMES = ['playful', 'studio', 'classic'];
+const THEMES = ['cyber', 'playful'];
+const DEFAULT_THEME = 'cyber';
+// v0.2 以前的兩套主題已經拿掉，存過的人一律換成賽博。
+const RETIRED_THEMES = { studio: 'cyber', classic: 'cyber' };
 const THEME_KEY = 'pg_theme';
 
 // firstGet：遊戲掛上後第一個打的 GET。點進遊戲時先預取，跟下載遊戲模組同時跑。
@@ -68,25 +73,89 @@ let sessionPromise = null;
 let catalogPromise = null;
 let casinoPromise = null;
 
-let toastTimer = null;
 let currentOfficial = null;
 let routeSeq = 0;
 let menuCloseListener = null;
 let loginDialog = null;
 
+// Toast 堆疊（Arc Toast stack）：最多疊 3 則，新的在最前面；滑鼠移上去展開並暫停計時；
+// 同一句話連續出現時不再疊一則，改成輕彈一下。
+const TOAST_MAX = 3;
+const TOAST_LINGER_MS = 1500;
+let toastPaused = false;
+
+function toastRegion() {
+  const region = document.getElementById('toast');
+  if (region && !region.dataset.bound) {
+    region.dataset.bound = '1';
+    region.addEventListener('mouseenter', () => {
+      toastPaused = true;
+      region.dataset.expanded = 'true';
+      for (const item of region.children) clearTimeout(item._timer);
+    });
+    region.addEventListener('mouseleave', () => {
+      toastPaused = false;
+      region.dataset.expanded = 'false';
+      for (const item of region.children) scheduleToast(item, TOAST_LINGER_MS);
+    });
+  }
+  return region;
+}
+
+function layoutToasts(region) {
+  const live = Array.from(region.children).filter((item) => !item.dataset.leaving);
+  live.reverse().forEach((item, index) => {
+    item.style.setProperty('--i', String(index));
+    item.dataset.front = index === 0 ? 'true' : 'false';
+  });
+}
+
+function dismissToast(item) {
+  if (!item || item.dataset.leaving) return;
+  clearTimeout(item._timer);
+  item.dataset.leaving = 'true';
+  const region = item.parentElement;
+  if (region) layoutToasts(region);
+  const remove = () => item.remove();
+  item.addEventListener('transitionend', remove, { once: true });
+  setTimeout(remove, 400);
+}
+
+function scheduleToast(item, duration) {
+  clearTimeout(item._timer);
+  if (toastPaused) return;
+  item._timer = setTimeout(() => dismissToast(item), duration);
+}
+
 function toast(message, duration = 3200) {
-  const el = document.getElementById('toast');
-  if (!el) return;
-  el.textContent = message || '';
-  el.classList.add('is-visible');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => {
-    el.classList.remove('is-visible');
-  }, typeof duration === 'number' ? duration : 3200);
+  const region = toastRegion();
+  const text = String(message || '');
+  if (!region || !text) return;
+  const wait = typeof duration === 'number' ? duration : 3200;
+  const same = Array.from(region.children).find((item) => item.dataset.text === text && !item.dataset.leaving);
+  if (same) {
+    same.classList.remove('is-bump');
+    void same.offsetWidth;
+    same.classList.add('is-bump');
+    region.appendChild(same);
+    layoutToasts(region);
+    scheduleToast(same, wait);
+    return;
+  }
+  const item = document.createElement('li');
+  item.className = 'toast-item';
+  item.dataset.text = text;
+  item.textContent = text;
+  region.appendChild(item);
+  const live = Array.from(region.children).filter((node) => !node.dataset.leaving);
+  while (live.length > TOAST_MAX) dismissToast(live.shift());
+  layoutToasts(region);
+  scheduleToast(item, wait);
 }
 
 function applyTheme(theme) {
-  const next = THEMES.includes(theme) ? theme : 'playful';
+  const mapped = RETIRED_THEMES[theme] || theme;
+  const next = THEMES.includes(mapped) ? mapped : DEFAULT_THEME;
   document.documentElement.dataset.theme = next;
   try {
     localStorage.setItem(THEME_KEY, next);
@@ -99,11 +168,11 @@ function applyTheme(theme) {
 }
 
 function bootTheme() {
-  let saved = 'playful';
+  let saved = DEFAULT_THEME;
   try {
-    saved = localStorage.getItem(THEME_KEY) || 'playful';
+    saved = localStorage.getItem(THEME_KEY) || DEFAULT_THEME;
   } catch (_) {
-    saved = 'playful';
+    saved = DEFAULT_THEME;
   }
   applyTheme(saved);
 }
@@ -131,7 +200,8 @@ function renderChrome() {
   if (pill) {
     if (user) {
       pill.hidden = false;
-      pill.textContent = balanceLabel(getBalance());
+      // Arc Slot text：餘額變動時數字逐位捲動（減少動態時直接換字）。
+      setRollingText(pill, balanceLabel(getBalance()));
     } else {
       pill.hidden = true;
     }
@@ -526,16 +596,32 @@ function warmOfficial(meta) {
   return import(officialModuleUrl(meta.id));
 }
 
+function gameHeadHtml(title, { fullscreen = true } = {}) {
+  // 回大廳在最左邊、全螢幕在最右邊；每款遊戲同一個位置，不必找。
+  return `<div class="game-page-head">
+      <a class="back-button" href="#/" aria-label="回大廳"><span aria-hidden="true">‹</span> 大廳</a>
+      <h1>${escapeHtml(title)}</h1>
+      ${fullscreen ? '<button type="button" class="secondary-button game-fullscreen" id="gameFullscreen" aria-label="全螢幕">全螢幕</button>' : ''}
+    </div>`;
+}
+
+function bindFullscreen(view, getTarget) {
+  const btn = view.querySelector('#gameFullscreen');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    const target = getTarget();
+    if (target && target.requestFullscreen) target.requestFullscreen();
+  });
+}
+
 async function renderOfficialGame(view, meta) {
   view.innerHTML = `
-    <div class="game-page-head">
-      <h1>${escapeHtml(meta.name)}</h1>
-      <a class="outlined-button" href="#/">回大廳</a>
-    </div>
-    <div id="officialRoot"><p class="empty-hint">載入中…</p></div>
+    ${gameHeadHtml(meta.name)}
+    <div id="officialRoot" class="game-stage"><p class="empty-hint">載入中…</p></div>
     <div id="historyRoot"></div>
   `;
   const root = view.querySelector('#officialRoot');
+  bindFullscreen(view, () => root);
   const historyRoot = view.querySelector('#historyRoot');
   let mod;
   try {
@@ -570,10 +656,7 @@ async function renderOfficialGame(view, meta) {
 function renderCoinUnavailable(view, game) {
   // 伺服器沒有通過驗證的規格就不能下注，直接開網址時要說清楚，不要給一條空下注列。
   view.innerHTML = `
-    <div class="game-page-head">
-      <h1>${escapeHtml(game.name || game.id)}</h1>
-      <a class="outlined-button" href="#/">回大廳</a>
-    </div>
+    ${gameHeadHtml(game.name || game.id, { fullscreen: false })}
     <p class="empty-hint">這個遊戲目前不能玩：伺服器還沒有通過驗證的金幣規格。</p>
   `;
 }
@@ -585,14 +668,13 @@ async function renderCommunityGame(view, game, seq) {
     return;
   }
   view.innerHTML = `
-    <div class="game-page-head">
-      <h1>${escapeHtml(game.name || game.id)}</h1>
-      <a class="outlined-button" href="#/">回大廳</a>
-    </div>
-    <div id="communityRoot"></div>
+    ${gameHeadHtml(game.name || game.id)}
+    <div id="communityRoot" class="game-stage is-community"></div>
     <div id="historyRoot"></div>
   `;
   const root = view.querySelector('#communityRoot');
+  const fsBtn = view.querySelector('#gameFullscreen');
+  if (fsBtn) fsBtn.addEventListener('click', requestCommunityFullscreen);
   const historyRoot = view.querySelector('#historyRoot');
   const refresh = isCoin
     ? () => refreshGameHistory(historyRoot, 'community', game.id)
@@ -673,8 +755,11 @@ function boot() {
   if (!catalog.casinoLoaded) void ensureCasinoList();
   renderChrome();
   window.addEventListener('hashchange', () => {
-    renderChrome();
-    route();
+    // 換頁動畫只包住同步換畫面那一段：route() 在第一個 await 之前就把新頁面畫好了。
+    swapView(() => {
+      renderChrome();
+      void route();
+    });
   });
   void route();
 }

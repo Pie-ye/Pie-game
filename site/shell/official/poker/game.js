@@ -228,29 +228,32 @@ function pokerActionsHtml(view) {
   const hasRaise = you.minRaise !== null && you.minRaise !== undefined;
 
   let raiseHtml = '';
+  let raiseBtnHtml = '';
   if (hasRaise) {
     const minRaise = Number(you.minRaise);
     const maxRaise = Number(you.maxRaise);
     const raiseTo = pk.raiseTo != null ? Number(pk.raiseTo) : minRaise;
     const raiseDisabled = busy || !isActor;
     raiseHtml = `
-      <div class="pk-raise">
-        <label for="pkRaiseRange">加注到</label>
+      <div class="pg-dock-bet pk-raise">
+        <label class="pg-dock-label" for="pkRaiseRange">加注到</label>
         <input id="pkRaiseRange" type="range" min="${minRaise}" max="${maxRaise}" step="1" value="${raiseTo}" data-action="pk-raise-range" ${raiseDisabled ? 'disabled' : ''} />
         <strong class="pk-raise-value">${raiseTo.toLocaleString('zh-TW')}</strong>
-        <button type="button" class="secondary-button" data-action="pk-raise-confirm" ${raiseDisabled ? 'disabled' : ''}>確定</button>
       </div>`;
+    raiseBtnHtml = `<button type="button" class="secondary-button" data-action="pk-raise-confirm" data-key="r" ${raiseDisabled ? 'disabled' : ''}>加注</button>`;
   }
 
-  const waitMsg = !isActor ? '<p class="pk-actions-wait">等待其他玩家</p>' : '';
+  const waitMsg = !isActor ? '<p class="pg-dock-note pk-actions-wait">等待其他玩家</p>' : '';
+  // 控制列順序跟其他遊戲一致：金額（加注滑桿）→ 動作，最常按的過牌／跟注永遠在最右邊。
   return `
-    <div class="pk-actions casino-sticky-actions">
-      ${waitMsg}
-      <div class="pk-actions-row">
-        <button type="button" class="secondary-button" data-action="pk-fold" ${foldDisabled ? 'disabled' : ''}>棄牌</button>
-        <button type="button" class="primary-button" data-action="pk-call" ${callDisabled ? 'disabled' : ''}>${callLabel}</button>
-      </div>
+    <div class="pk-actions pg-dock casino-sticky-actions">
       ${raiseHtml}
+      ${waitMsg}
+      <div class="pg-dock-act">
+        <button type="button" class="secondary-button" data-action="pk-fold" data-key="f" ${foldDisabled ? 'disabled' : ''}>棄牌</button>
+        ${raiseBtnHtml}
+        <button type="button" class="primary-button pg-dock-primary" data-action="pk-call" data-key="c" ${callDisabled ? 'disabled' : ''}>${callLabel}</button>
+      </div>
     </div>`;
 }
 

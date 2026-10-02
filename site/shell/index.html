@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-Hant" data-theme="playful">
+<html lang="zh-Hant" data-theme="cyber">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -16,15 +16,14 @@
       <label class="theme-field">
         <span class="visually-hidden">主題</span>
         <select id="themeSelect" aria-label="主題">
+          <option value="cyber">賽博電玩</option>
           <option value="playful">盤房日場</option>
-          <option value="studio">盤房夜場</option>
-          <option value="classic">輕鬆競賽</option>
         </select>
       </label>
       <div id="authSlot"></div>
     </div>
   </header>
   <main id="view" class="page-content"></main>
-  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <ol id="toast" class="toast-region" role="status" aria-live="polite"></ol>
 </body>
 </html>

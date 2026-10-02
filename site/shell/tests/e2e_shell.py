@@ -351,7 +351,7 @@ def main() -> int:
         page.goto(MOCK_URL + "#/")
         page.wait_for_selector("#lobbyOfficial .game-card")
         page.wait_for_timeout(500)
-        for theme in ("playful", "studio", "classic"):
+        for theme in ("cyber", "playful"):
             page.locator("#themeSelect").select_option(theme)
             page.wait_for_timeout(150)
             html_theme = page.locator("html").get_attribute("data-theme")
@@ -390,7 +390,8 @@ def main() -> int:
             init = frame.evaluate("() => JSON.parse(document.body.dataset.init || '{}')")
             check("pg-init-gameId", init.get("gameId") == "coin-flip", str(init))
             check("pg-init-user", isinstance(init.get("user"), dict) and init["user"].get("id"), str(init.get("user")))
-            height = page.locator("iframe.community-frame").evaluate("el => el.style.height")
+            # 遊戲回報的高度寫進 --frame-h，實際高度再由 CSS 夾在視窗可用範圍內。
+            height = page.locator("iframe.community-frame").evaluate("el => el.style.getPropertyValue('--frame-h')")
             check("pg-height", height == "420px", height)
 
         page.evaluate("() => { document.cookie = 'pg_shell=secret-shell-cookie; path=/'; }")

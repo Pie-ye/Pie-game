@@ -169,82 +169,48 @@ async function renderCasinoDragon() {
     </div>
   `;
 
-  // 3. 動作區（帶 .casino-sticky-actions 以相容手機懸浮列）
-  let actionsHtml = '';
-  if (phase === 'idle') {
-    actionsHtml = `
-      <div class="dg-actions-container casino-sticky-actions">
-        <button type="button" class="primary-button dg-deal-btn" data-action="dg-deal" ${busy ? 'disabled' : ''}>
-          發柱
-        </button>
-      </div>
-    `;
-  } else if (phase === 'dealt') {
+  // 3. 控制列：押注籌碼一直在同一個位置，主要按鈕（發柱／下注進門／再發一次）永遠在最右邊。
+  const chipsHtml = bets.map((b) => {
+    const active = Number(b) === Number(currentBet) ? ' is-active' : '';
+    return `<button type="button" class="pg-chip${active}" data-action="dg-chip" data-bet="${Number(b)}" aria-pressed="${active ? 'true' : 'false'}" ${busy ? 'disabled' : ''}>${Number(b)}</button>`;
+  }).join('');
+  const betGroupHtml = `<div class="pg-dock-bet" role="group" aria-label="押注"><span class="pg-dock-label">押注</span>${chipsHtml}</div>`;
+
+  let actHtml = '';
+  let noteHtml = '';
+  if (phase === 'dealt') {
     const isPair = Boolean(view.pair);
     const options = Array.isArray(view.options) ? view.options : [];
-
-    // 押注選擇鈕
-    const betsHtml = bets.map((b) => {
-      const active = Number(b) === Number(currentBet) ? ' is-active' : '';
-      return `<button type="button" class="filter-tab${active}" data-action="dg-chip" data-bet="${Number(b)}" aria-pressed="${active ? 'true' : 'false'}" ${busy ? 'disabled' : ''}>${Number(b)}</button>`;
-    }).join('');
-
-    let optionButtonsHtml = '';
+    const passHtml = `<button type="button" class="secondary-button" data-action="dg-pass" data-key="f" ${busy ? 'disabled' : ''}>放棄</button>`;
     if (!isPair && options.length > 0) {
       const opt = options[0];
-      const lockAmount = currentBet * opt.pillarMult;
-      const canBet = !busy && balance >= lockAmount;
-      optionButtonsHtml = `
-        <div class="dg-btn-group">
-          <button type="button" class="primary-button" data-action="dg-bet" data-choice="inside" ${canBet ? '' : 'disabled'}>
-            下注進門 · 賠 ×${opt.payout}
-          </button>
-          <span class="dg-mult-hint">撞柱賠 2 倍</span>
-          <button type="button" class="secondary-button" data-action="dg-pass" ${busy ? 'disabled' : ''}>
-            放棄
-          </button>
-        </div>
-      `;
+      const canBet = !busy && balance >= currentBet * opt.pillarMult;
+      noteHtml = '<p class="pg-dock-note">撞柱賠 2 倍押注</p>';
+      actHtml = `${passHtml}
+        <button type="button" class="primary-button pg-dock-primary" data-action="dg-bet" data-choice="inside" ${canBet ? '' : 'disabled'}>下注進門 · ×${escapeHtml(String(opt.payout))}</button>`;
     } else if (isPair) {
-      const pairBtns = options.map((opt) => {
-        const lockAmount = currentBet * opt.pillarMult;
-        const canBet = !busy && balance >= lockAmount;
-        const label = opt.choice === 'high' ? '猜大' : '猜小';
-        return `
-          <button type="button" class="primary-button" data-action="dg-bet" data-choice="${escapeHtml(opt.choice)}" ${canBet ? '' : 'disabled'}>
-            ${label} · 賠 ×${opt.payout} <span class="dg-mult-hint">（撞柱賠 3 倍）</span>
-          </button>
-        `;
+      noteHtml = '<p class="pg-dock-note">對子：猜大或猜小，撞柱賠 3 倍押注</p>';
+      const sorted = options.slice().sort((a, b) => (a.choice === 'low' ? -1 : 0) - (b.choice === 'low' ? -1 : 0));
+      const pairBtns = sorted.map((opt) => {
+        const canBet = !busy && balance >= currentBet * opt.pillarMult;
+        const isHigh = opt.choice === 'high';
+        const key = isHigh ? 'd ArrowRight' : 'a ArrowLeft';
+        return `<button type="button" class="primary-button" data-action="dg-bet" data-choice="${escapeHtml(opt.choice)}" data-key="${key}" ${canBet ? '' : 'disabled'}>${isHigh ? '猜大' : '猜小'} · ×${escapeHtml(String(opt.payout))}</button>`;
       }).join('');
-
-      optionButtonsHtml = `
-        <div class="dg-pair-options">
-          ${pairBtns}
-          <button type="button" class="secondary-button" data-action="dg-pass" ${busy ? 'disabled' : ''}>
-            放棄
-          </button>
-        </div>
-      `;
+      actHtml = `${passHtml}${pairBtns}`;
     }
-
-    actionsHtml = `
-      <div class="dg-actions-container casino-sticky-actions">
-        <div class="dg-bet-selector">
-          <span class="dg-bet-label">押注金額：</span>
-          ${betsHtml}
-        </div>
-        ${optionButtonsHtml}
-      </div>
-    `;
-  } else if (phase === 'settled') {
-    actionsHtml = `
-      <div class="dg-actions-container casino-sticky-actions">
-        <button type="button" class="primary-button dg-deal-btn" data-action="dg-deal" ${busy ? 'disabled' : ''}>
-          再發一次柱
-        </button>
-      </div>
-    `;
+  } else {
+    const label = phase === 'settled' ? '再發一次柱' : '發柱';
+    actHtml = `<button type="button" class="primary-button pg-dock-primary" data-action="dg-deal" ${busy ? 'disabled' : ''}>${busy ? '發柱中…' : label}</button>`;
   }
+
+  const actionsHtml = `
+    <div class="pg-dock casino-sticky-actions">
+      ${betGroupHtml}
+      ${noteHtml}
+      <div class="pg-dock-act">${actHtml}</div>
+    </div>
+  `;
 
   // 4. 賠率表（依可中點數 1–12 顯示對應倍率）
   const payouts = (view.config && view.config.payouts) || DG_DEFAULT_CONFIG.payouts;

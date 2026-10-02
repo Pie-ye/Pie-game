@@ -2,17 +2,7 @@
   color: var(--ink);
 }
 
-.pg-official-poker .official-balance {
-  margin-bottom: var(--s3);
-  color: var(--ink-soft);
-  font-size: var(--fs-caption);
-  text-align: right;
-}
 
-.pg-official-poker .official-balance strong {
-  color: var(--ink);
-  font-size: var(--fs-lead);
-}
 
 .pg-official-poker .pk-lobby {
   display: grid;
@@ -219,31 +209,26 @@
 
 .pg-official-poker .pk-actions {
   grid-column: 1;
-  display: grid;
-  gap: var(--s3);
 }
 
-.pg-official-poker .pk-actions-row,
+
+
 .pg-official-poker .pk-raise {
-  display: flex;
-  align-items: center;
-  gap: var(--s2);
-}
-
-.pg-official-poker .pk-actions-row button {
-  flex: 1;
+  flex: 1 1 14rem;
 }
 
 .pg-official-poker .pk-raise input {
   flex: 1;
+  min-width: 6rem;
   accent-color: var(--brand);
 }
 
-.pg-official-poker .pk-actions-wait {
-  margin: 0;
-  color: var(--ink-faint);
-  font-size: var(--fs-caption);
+.pg-official-poker .pk-raise-value {
+  min-width: 3.5em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
+
 
 .pg-official-poker .pk-aside {
   grid-column: 2;

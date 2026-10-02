@@ -6,7 +6,7 @@ const statusEl = document.getElementById('status');
 let rotation = 0;
 
 function applyTheme(theme) {
-  document.documentElement.dataset.theme = (theme === 'studio' || theme === 'classic') ? theme : 'playful';
+  document.documentElement.dataset.theme = (theme === 'cyber' || theme === 'studio') ? 'cyber' : 'playful';
 }
 
 function indexOf(result) {
@@ -36,4 +36,4 @@ const init = await PieGame.ready();
 applyTheme(init.theme);
 PieGame.onTheme(applyTheme);
 PieGame.coin.select('spin');
-PieGame.setHeight(document.documentElement.scrollHeight);
+PieGame.setHeight();

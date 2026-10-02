@@ -192,39 +192,38 @@ async function renderCasinoBlackjack() {
     }).join('');
   }
 
-  // 3. 動作列 .bj-actions
+  // 3. 控制列：跟其他遊戲同一個順序（押注 → 動作，主要按鈕在最右邊），位置不隨階段跳動。
   let actionsHtml = '';
   if (phase === 'player') {
     actionsHtml = `
-      <div class="bj-actions bj-play-actions casino-sticky-actions">
-        <button type="button" class="secondary-button" data-action="bj-act" data-act="hit" ${view.canHit && !busy ? '' : 'disabled'}>要牌</button>
-        <button type="button" class="secondary-button" data-action="bj-act" data-act="stand" ${view.canStand && !busy ? '' : 'disabled'}>停牌</button>
-        <button type="button" class="secondary-button" data-action="bj-act" data-act="double" ${view.canDouble && !busy ? '' : 'disabled'}${view.canDouble ? '' : ' title="只有手上剛好兩張牌時才能加倍"'}>加倍</button>
-        <button type="button" class="secondary-button" data-action="bj-act" data-act="split" ${view.canSplit && !busy ? '' : 'disabled'}${view.canSplit ? '' : ' title="兩張同點數、且這局還沒分過牌才能分牌"'}>分牌</button>
-      </div>
-    `;
-  } else if (isSettled) {
-    actionsHtml = `
-      <div class="bj-actions casino-sticky-actions">
-        <button type="button" class="primary-button" data-action="bj-again" ${busy ? 'disabled' : ''}>再來一局</button>
+      <div class="pg-dock casino-sticky-actions">
+        <div class="pg-dock-act">
+          <button type="button" class="secondary-button" data-action="bj-act" data-act="split" data-key="p" ${view.canSplit && !busy ? '' : 'disabled'}${view.canSplit ? '' : ' title="兩張同點數、且這局還沒分過牌才能分牌"'}>分牌</button>
+          <button type="button" class="secondary-button" data-action="bj-act" data-act="double" data-key="d" ${view.canDouble && !busy ? '' : 'disabled'}${view.canDouble ? '' : ' title="只有手上剛好兩張牌時才能加倍"'}>加倍</button>
+          <button type="button" class="secondary-button" data-action="bj-act" data-act="stand" data-key="s" ${view.canStand && !busy ? '' : 'disabled'}>停牌</button>
+          <button type="button" class="primary-button pg-dock-primary" data-action="bj-act" data-act="hit" ${view.canHit && !busy ? '' : 'disabled'}>要牌</button>
+        </div>
       </div>
     `;
   } else {
+    // 結算後直接在原位置再發一局（不必先按「再來一局」再按「發牌」）。
     const canDeal = !busy && balance >= bet;
+    const dealLabel = isSettled ? '再發一局' : '發牌';
     const betsHtml = bets.map((b) => {
       const active = Number(b) === Number(bet) ? ' is-active' : '';
-      return `<button type="button" class="filter-tab${active}" data-action="bj-bet" data-bet="${Number(b)}" aria-pressed="${Number(b) === Number(bet) ? 'true' : 'false'}" ${busy ? 'disabled' : ''}>${Number(b)}</button>`;
+      return `<button type="button" class="pg-chip${active}" data-action="bj-bet" data-bet="${Number(b)}" aria-pressed="${Number(b) === Number(bet) ? 'true' : 'false'}" ${busy ? 'disabled' : ''}>${Number(b)}</button>`;
     }).join('');
 
     actionsHtml = `
-      <div class="bj-actions">
-        <div class="bj-bets">
+      <div class="pg-dock casino-sticky-actions">
+        <div class="pg-dock-bet" role="group" aria-label="押注">
+          <span class="pg-dock-label">押注</span>
           ${betsHtml}
-          <div class="bj-custom-bet">
-            <input type="number" class="bj-bet-input" id="bjBetInput" min="${minBet}" max="${maxBet}" value="${bet}" ${busy ? 'disabled' : ''} aria-label="自訂押注">
-          </div>
+          <input type="number" class="pg-bet-input" id="bjBetInput" min="${minBet}" max="${maxBet}" value="${bet}" ${busy ? 'disabled' : ''} aria-label="自訂押注">
         </div>
-        <button type="button" class="primary-button" data-action="bj-deal" ${canDeal ? '' : 'disabled'}>發牌（${bet.toLocaleString('zh-TW')} 金幣）</button>
+        <div class="pg-dock-act">
+          <button type="button" class="primary-button pg-dock-primary" data-action="bj-deal" data-label="${dealLabel}" ${canDeal ? '' : 'disabled'}>${busy ? '發牌中…' : `${dealLabel} · ${bet.toLocaleString('zh-TW')}`}</button>
+        </div>
       </div>
     `;
   }
@@ -255,8 +254,8 @@ async function renderCasinoBlackjack() {
     <div class="bj-layout">
       ${dealerHtml}
       <div class="bj-hands">${handsHtml}</div>
-      ${actionsHtml}
       ${resultHtml}
+      ${actionsHtml}
     </div>
   `;
 
@@ -441,7 +440,7 @@ registerDocumentListener('input', (e) => {
     bj.bet = val;
     const dealBtn = $('#casinoBlackjack [data-action="bj-deal"]');
     if (dealBtn) {
-      dealBtn.textContent = `發牌（${val.toLocaleString('zh-TW')} 金幣）`;
+      dealBtn.textContent = `${dealBtn.dataset.label || '發牌'} · ${val.toLocaleString('zh-TW')}`;
       const balance = Number((state.casino && state.casino.balance) || 0);
       dealBtn.disabled = Boolean(bj.busy || balance < val);
     }

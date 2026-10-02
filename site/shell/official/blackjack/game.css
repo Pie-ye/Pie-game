@@ -2,17 +2,7 @@
   color: var(--ink);
 }
 
-.pg-official-blackjack .official-balance {
-  margin-bottom: var(--s3);
-  color: var(--ink-soft);
-  font-size: var(--fs-caption);
-  text-align: right;
-}
 
-.pg-official-blackjack .official-balance strong {
-  color: var(--ink);
-  font-size: var(--fs-lead);
-}
 
 .pg-official-blackjack .bj-layout {
   display: grid;
@@ -46,9 +36,7 @@
 
 .pg-official-blackjack .bj-area-header,
 .pg-official-blackjack .bj-title-wrap,
-.pg-official-blackjack .bj-cards,
-.pg-official-blackjack .bj-actions,
-.pg-official-blackjack .bj-bets {
+.pg-official-blackjack .bj-cards {
   display: flex;
   align-items: center;
   gap: var(--s2);
@@ -60,9 +48,7 @@
 }
 
 .pg-official-blackjack .bj-title-wrap,
-.pg-official-blackjack .bj-cards,
-.pg-official-blackjack .bj-actions,
-.pg-official-blackjack .bj-bets {
+.pg-official-blackjack .bj-cards {
   flex-wrap: wrap;
 }
 
@@ -95,37 +81,9 @@
   font-size: var(--fs-caption);
 }
 
-.pg-official-blackjack .bj-actions {
-  justify-content: center;
-  padding: var(--s3);
-}
 
-.pg-official-blackjack .filter-tab {
-  min-width: var(--control-h);
-  min-height: var(--control-h);
-  padding: 0 var(--s3);
-  color: var(--ink-soft);
-  background: var(--card);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
-  font-size: var(--fs-caption);
-}
 
-.pg-official-blackjack .filter-tab.is-active {
-  color: var(--on-brass);
-  background: var(--brand);
-  border-color: var(--brand);
-}
 
-.pg-official-blackjack .bj-bet-input {
-  width: calc(var(--control-h) * 2.4);
-  height: var(--control-h);
-  padding: 0 var(--s2);
-  color: var(--ink);
-  background: var(--sheet);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
-}
 
 .pg-official-blackjack .bj-result {
   color: var(--ink);
@@ -151,12 +109,5 @@
     overflow-x: auto;
   }
 
-  .pg-official-blackjack .bj-play-actions {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-  }
 
-  .pg-official-blackjack .bj-play-actions button {
-    width: 100%;
-  }
 }

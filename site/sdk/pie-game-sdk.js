@@ -52,9 +52,39 @@ function publicInit(state) {
   };
 }
 
+// 外框主題：cyber（賽博電玩，深色，預設）與 playful（日場，淺色）。
+// studio 是 v0.1 的深色舊名，一律當 cyber。另外給 data-scheme="dark|light"，只想分深淺的遊戲用這個就好。
+function normalizeTheme(theme) {
+  if (theme === 'studio' || theme === 'classic') return 'cyber';
+  return theme === 'playful' ? 'playful' : 'cyber';
+}
+
 function applyTheme(theme) {
   if (typeof document === 'undefined' || !theme) return;
-  document.documentElement.dataset.theme = theme;
+  const next = normalizeTheme(theme);
+  document.documentElement.dataset.theme = next;
+  document.documentElement.dataset.scheme = next === 'playful' ? 'light' : 'dark';
+}
+
+/**
+ * 遊戲內容實際多高。不能用 documentElement.scrollHeight：iframe 裡它至少等於 iframe 本身的高度，
+ * 回報它只會讓外框維持原本的大小，永遠縮不回來。這裡量 body 每個子元素的底部。
+ */
+function contentHeight() {
+  if (typeof document === 'undefined' || !document.body) return 0;
+  const body = document.body;
+  const style = getComputedStyle(body);
+  let bottom = 0;
+  for (const child of body.children) {
+    const pos = getComputedStyle(child).position;
+    if (pos === 'fixed' || pos === 'absolute') continue;
+    const rect = child.getBoundingClientRect();
+    const margin = parseFloat(getComputedStyle(child).marginBottom) || 0;
+    bottom = Math.max(bottom, rect.bottom + margin);
+  }
+  if (!bottom) return 0;
+  const pad = (parseFloat(style.paddingBottom) || 0) + (parseFloat(style.marginBottom) || 0);
+  return Math.ceil(bottom + (window.scrollY || 0) + pad);
 }
 
 function wsUrl() {
@@ -175,10 +205,44 @@ function createSdk() {
     if (initState && initState.theme) cb(initState.theme);
   }
 
-  function setHeight(px) {
-    const n = Number(px);
-    if (!Number.isFinite(n)) return;
+  let autoHeight = false;
+  let lastHeight = 0;
+  let heightFrame = 0;
+
+  function reportHeight(px) {
+    const n = Math.ceil(px);
+    if (!Number.isFinite(n) || n <= 0 || Math.abs(n - lastHeight) < 2) return;
+    lastHeight = n;
     postToParent({ type: 'pg:height', px: n });
+  }
+
+  function followContent() {
+    if (autoHeight || typeof ResizeObserver === 'undefined' || !document.body) return;
+    autoHeight = true;
+    const observer = new ResizeObserver(() => {
+      if (heightFrame) return;
+      heightFrame = requestAnimationFrame(() => {
+        heightFrame = 0;
+        const measured = contentHeight();
+        if (measured > 40) reportHeight(measured);
+      });
+    });
+    observer.observe(document.body);
+    for (const child of document.body.children) observer.observe(child);
+  }
+
+  /**
+   * 告訴外框遊戲畫面要多高。不帶參數（建議）＝SDK 自己量內容高度，之後內容變高變矮也會自動跟著。
+   * 帶數字時，若剛好是「整個 iframe 的高度」（舊範本傳 documentElement.scrollHeight），也改用量到的內容高度。
+   */
+  function setHeight(px) {
+    let n = Number(px);
+    const measured = contentHeight();
+    const viewport = typeof window !== 'undefined' ? window.innerHeight : 0;
+    if (!Number.isFinite(n) || (measured > 40 && n >= viewport - 1)) n = measured;
+    if (!Number.isFinite(n) || n <= 0) return;
+    reportHeight(n);
+    if (px == null) followContent();
   }
 
   function takeTicket() {
