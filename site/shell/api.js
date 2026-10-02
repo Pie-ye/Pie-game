@@ -122,6 +122,9 @@ export async function api(path, opts = {}) {
   return { response, payload };
 }
 
+// skipAuthClear 只留給三種請求：登入（401＝帳密錯誤，錯誤訊息在表單內顯示）、
+// 登出（本函式自己清本地狀態）、大廳的 GET /api/casino/community（未登入也要能逛）。
+// 其他需要登入的請求遇 401 一律清本地狀態並叫出登入框。
 export async function login(username, password) {
   const { response, payload } = await api('/api/auth/login', {
     method: 'POST',
@@ -144,12 +147,14 @@ export async function logout() {
     body: {},
     skipAuthClear: true,
   });
-  if (response.ok) clearAuth();
+  // 不論伺服器怎麼回（200／401／403／500／斷線）本機一律登出。
+  clearAuth();
   return { response, payload };
 }
 
 export async function fetchSession() {
-  const { response, payload } = await api('/api/casino/session', { silent401: true, skipAuthClear: true });
+  // session 探測本身就是用來判斷有沒有登入的，401 只代表訪客：清狀態但不叫登入框。
+  const { response, payload } = await api('/api/casino/session', { silent401: true });
   if (response.ok && payload) {
     applyAuthPayload(payload);
     return session;
@@ -163,13 +168,11 @@ export async function fetchHistory(game, { limit = 20, gameId } = {}) {
   params.set('game', game);
   params.set('limit', String(limit));
   if (gameId) params.set('gameId', gameId);
-  return api(`/api/casino/history?${params.toString()}`, {
-    silent401: true,
-    skipAuthClear: true,
-  });
+  return api(`/api/casino/history?${params.toString()}`);
 }
 
 export async function fetchCommunity() {
+  // 大廳清單：訪客也會打，401 不清狀態也不導向。
   return api('/api/casino/community', { silent401: true, skipAuthClear: true });
 }
 
@@ -177,7 +180,6 @@ export async function playCommunity(id, { choice, bet, clientRoundId, signal } =
   return api(`/api/casino/community/${encodeURIComponent(id)}/play`, {
     method: 'POST',
     body: { choice, bet, clientRoundId },
-    skipAuthClear: true,
     signal,
   });
 }
@@ -186,7 +188,6 @@ export async function playTicket(gameId, opts = {}) {
   return api('/api/casino/play-ticket', {
     method: 'POST',
     body: { gameId },
-    skipAuthClear: true,
     signal: opts.signal,
   });
 }

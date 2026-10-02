@@ -1,5 +1,5 @@
 import { CONTENT_ORIGIN } from './config.js';
-import { casinoRoundId, getUser, playCommunity, playTicket, setBalance } from './api.js';
+import { casinoRoundId, fetchSession, getUser, playCommunity, playTicket, setBalance } from './api.js';
 import { escapeHtml, rtpPercent } from './util.js';
 
 const BETS = [5, 10, 20, 50, 100];
@@ -87,6 +87,15 @@ async function sendFreshTicket(id) {
   } else if (current.toast) {
     current.toast((payload && payload.error) || '無法取得遊玩通行證');
   }
+}
+
+/**
+ * 下注請求被 unmount 中止（或回應晚於離開）時，背景重抓一次 session 對帳，
+ * 因為伺服器可能已經扣款。失敗不 toast：使用者已經離開這一頁了。
+ */
+async function reconcileBalance(onBalance) {
+  const sess = await fetchSession();
+  if (onBalance) onBalance(sess ? sess.balance : 0);
 }
 
 function rtpLineFor(choiceId) {
@@ -286,7 +295,11 @@ export function mountCommunity(root, { game, spec, toast, refreshHistory, onBala
           clientRoundId: casinoRoundId(),
           signal: abort && abort.signal,
         });
-        if (!isLive(id) || (response && response.aborted)) return;
+        if (!isLive(id) || (response && response.aborted)) {
+          // 中止的請求結果不明，成功但晚到的結果也還沒記帳：兩種都背景對帳一次。
+          if ((response && response.aborted) || response.ok) void reconcileBalance(onBalance);
+          return;
+        }
         if (!response.ok) {
           if (toast) toast((payload && payload.error) || '下注失敗');
           return;

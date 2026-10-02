@@ -42,6 +42,8 @@ const catalog = {
 let toastTimer = null;
 let currentOfficial = null;
 let routeSeq = 0;
+let menuCloseListener = null;
+let loginDialog = null;
 
 function toast(message, duration = 3200) {
   const el = document.getElementById('toast');
@@ -77,7 +79,14 @@ function bootTheme() {
   applyTheme(saved);
 }
 
+function detachMenuCloseListener() {
+  if (!menuCloseListener) return;
+  document.removeEventListener('click', menuCloseListener);
+  menuCloseListener = null;
+}
+
 function renderChrome() {
+  detachMenuCloseListener();
   const user = getUser();
   const pill = document.getElementById('balancePill');
   if (pill) {
@@ -102,26 +111,34 @@ function renderChrome() {
       </div>`;
     const menu = slot.querySelector('#userMenu');
     const toggle = slot.querySelector('#userMenuToggle');
+    // 「點外面關閉」的 listener 只在選單開著時掛著，關閉與重畫頂欄時都移除。
     const closeMenu = () => {
       menu.classList.remove('is-open');
       toggle.setAttribute('aria-expanded', 'false');
+      detachMenuCloseListener();
+    };
+    const openMenu = () => {
+      menu.classList.add('is-open');
+      toggle.setAttribute('aria-expanded', 'true');
+      detachMenuCloseListener();
+      menuCloseListener = (ev) => {
+        if (!menu.contains(ev.target)) closeMenu();
+      };
+      document.addEventListener('click', menuCloseListener);
     };
     toggle.addEventListener('click', (ev) => {
       ev.stopPropagation();
-      const open = !menu.classList.contains('is-open');
-      menu.classList.toggle('is-open', open);
-      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (menu.classList.contains('is-open')) closeMenu();
+      else openMenu();
     });
-    document.addEventListener('click', closeMenu, { once: true });
     slot.querySelector('#logoutBtn').addEventListener('click', async () => {
+      // apiLogout() 不論伺服器怎麼回都會清本地狀態。
       const { response, payload } = await apiLogout();
-      if (!response.ok) {
-        toast((payload && payload.error) || '登出失敗');
-        return;
-      }
+      const serverDone = response.ok || response.status === 401 || response.status === 403;
       renderChrome();
-      location.hash = '#/';
-      toast('已登出');
+      if (location.hash && location.hash !== '#/') location.hash = '#/';
+      else route();
+      toast(serverDone ? '已登出' : `${(payload && payload.error) || '登出失敗'}，已在本機登出`);
     });
   } else {
     slot.innerHTML = `<a class="primary-button" href="#/login">登入</a>`;
@@ -247,12 +264,8 @@ function renderLobby(view) {
   `;
 }
 
-function renderLogin(view) {
-  view.innerHTML = `
-    <section class="auth-card">
-      <h1>登入</h1>
-      <p class="page-lead">使用股票大亂鬥帳號。外框帶著登入呼叫賭場 API。</p>
-      <form class="auth-form" id="loginForm">
+function loginFormHtml() {
+  return `<form class="auth-form" id="loginForm">
         <label>使用者名稱
           <input name="username" autocomplete="username" required>
         </label>
@@ -262,39 +275,85 @@ function renderLogin(view) {
         <p class="auth-error" id="loginError" role="alert"></p>
         <button type="submit" class="primary-button">登入</button>
       </form>
-      <p class="auth-register">還沒有帳號？<a href="${escapeHtml(REGISTER_URL)}" target="_blank" rel="noopener">到股票大亂鬥註冊</a></p>
-    </section>
-  `;
-  const form = view.querySelector('#loginForm');
+      <p class="auth-register">還沒有帳號？<a href="${escapeHtml(REGISTER_URL)}" target="_blank" rel="noopener">到股票大亂鬥註冊</a></p>`;
+}
+
+function bindLoginForm(scope, onSuccess) {
+  const form = scope.querySelector('#loginForm');
   form.addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const data = new FormData(form);
     const username = String(data.get('username') || '');
     const password = String(data.get('password') || '');
-    const errEl = view.querySelector('#loginError');
+    const errEl = scope.querySelector('#loginError');
     const btn = form.querySelector('button[type="submit"]');
     btn.disabled = true;
     const { response, payload } = await apiLogin(username, password);
     btn.disabled = false;
     if (!response.ok) {
       const msg = (payload && payload.error) || '登入失敗';
-      errEl.textContent = msg;
+      if (errEl) errEl.textContent = msg;
       toast(msg);
       return;
     }
+    onSuccess();
+  });
+}
+
+function renderLogin(view) {
+  view.innerHTML = `
+    <section class="auth-card">
+      <h1>登入</h1>
+      <p class="page-lead">使用股票大亂鬥帳號。外框帶著登入呼叫賭場 API。</p>
+      ${loginFormHtml()}
+    </section>
+  `;
+  bindLoginForm(view, () => {
     renderChrome();
     toast('登入成功');
     location.hash = '#/';
   });
 }
 
+function closeLoginDialog() {
+  if (!loginDialog) return;
+  loginDialog.remove();
+  loginDialog = null;
+}
+
+/** 401 時就地叫出登入框：遊戲頁留在原處，登入後可以直接繼續。 */
+function openLoginDialog() {
+  if (loginDialog) return;
+  const el = document.createElement('div');
+  el.className = 'login-dialog-backdrop';
+  el.id = 'loginDialog';
+  el.innerHTML = `<section class="auth-card login-dialog" role="dialog" aria-modal="true" aria-labelledby="loginDialogTitle">
+      <h1 id="loginDialogTitle">請重新登入</h1>
+      <p class="page-lead">登入狀態已失效。登入後可以留在這一頁繼續。</p>
+      ${loginFormHtml()}
+      <button type="button" class="secondary-button" id="loginDialogClose">稍後再說</button>
+    </section>`;
+  document.body.appendChild(el);
+  loginDialog = el;
+  el.querySelector('#loginDialogClose').addEventListener('click', closeLoginDialog);
+  bindLoginForm(el, () => {
+    closeLoginDialog();
+    renderChrome();
+    toast('登入成功');
+  });
+  const first = el.querySelector('input[name="username"]');
+  if (first) first.focus();
+}
+
 function showLoginFrom401() {
-  toast('請先登入');
-  if (parseRoute().name !== 'login') location.hash = '#/login';
-  else {
+  if (parseRoute().name === 'login') {
     renderChrome();
     route();
+    return;
   }
+  toast('請先登入');
+  renderChrome();
+  openLoginDialog();
 }
 
 async function refreshGameHistory(historyRoot, historyGame, gameId) {
@@ -380,6 +439,7 @@ async function renderCommunityGame(view, game) {
 
 async function route() {
   const seq = ++routeSeq;
+  closeLoginDialog();
   unmountGame();
   const view = document.getElementById('view');
   if (!view) return;

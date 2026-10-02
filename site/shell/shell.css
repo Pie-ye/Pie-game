@@ -356,6 +356,29 @@ button:disabled,
   color: var(--ink-soft);
 }
 
+/* 401 就地登入：蓋在原頁面上，遊戲頁不會被拆掉 */
+.login-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 180;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s4);
+  overflow: auto;
+  background: color-mix(in srgb, var(--ink) 45%, transparent);
+}
+
+.login-dialog {
+  margin: 0;
+  max-height: 100%;
+  overflow: auto;
+}
+
+.login-dialog #loginDialogClose {
+  margin-top: var(--s3);
+}
+
 .game-page-head {
   display: flex;
   align-items: center;

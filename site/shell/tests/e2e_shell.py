@@ -427,6 +427,50 @@ def main() -> int:
         history_text = page.locator("#historyRoot").inner_text()
         check("history-after-play", "局" in history_text or "押注" in history_text, history_text)
 
+        # session 失效後下注 → 清本地登入狀態、就地叫出登入框、遊戲頁留在原處
+        if frame:
+            frame.evaluate("() => { delete document.body.dataset.result; }")
+        page.evaluate("() => window.__pgMock.expireSession()")
+        page.locator("#playBtn").click()
+        expect(page.locator("#loginDialog #loginForm")).to_be_visible(timeout=5000)
+        check("expired-play-login-dialog", page.locator("#loginDialog").count() == 1, "no login dialog")
+        check("expired-play-keeps-game", page.locator("iframe.community-frame").count() == 1,
+              "game page was torn down")
+        check("expired-play-chrome-logged-out", not page.locator("#balancePill").is_visible(),
+              "balance pill still visible after 401")
+        check("expired-play-no-result", not (frame and frame.evaluate("() => document.body.dataset.result || ''")),
+              "iframe got a pg:result from a 401 play")
+
+        page.screenshot(path=str(SHOTS / "p2-login-dialog-1280.png"))
+        page.set_viewport_size({"width": 390, "height": 844})
+        page.wait_for_timeout(150)
+        page.screenshot(path=str(SHOTS / "p2-login-dialog-390.png"))
+        page.set_viewport_size({"width": 1280, "height": 800})
+        page.wait_for_timeout(150)
+
+        # 登入後可以直接繼續下注
+        page.locator("#loginDialog input[name='username']").fill("pgtest")
+        page.locator("#loginDialog input[name='password']").fill("previewpass123")
+        page.locator("#loginDialog button[type='submit']").click()
+        expect(page.locator("#balancePill")).to_be_visible(timeout=5000)
+        check("expired-relogin-closes-dialog", page.locator("#loginDialog").count() == 0, "dialog still open")
+        check("expired-relogin-keeps-game", page.locator("iframe.community-frame").count() == 1,
+              "game page was torn down after re-login")
+        page.locator("#playBtn").click()
+        page.wait_for_timeout(900)
+        resumed = frame.evaluate("() => document.body.dataset.result || ''") if frame else ""
+        check("expired-relogin-can-play", "bet" in resumed, resumed)
+
+        # session 失效時按登出：伺服器回 401，本機狀態一樣要清掉
+        page.evaluate("() => window.__pgMock.expireSession()")
+        page.locator("#logoutBtn").click()
+        page.wait_for_timeout(500)
+        check("logout-401-clears-local", page.locator("#authSlot").get_by_role("link", name="登入").count() == 1,
+              page.locator("#authSlot").inner_text())
+        check("logout-401-hides-balance", not page.locator("#balancePill").is_visible(), "balance pill still visible")
+        check("logout-401-toast", "已登出" in page.locator("#toast").inner_text(), page.locator("#toast").inner_text())
+        login_mock(page)
+
         # 4. min-max with no intersection against 5/10/20/50/100
         page.goto(MOCK_URL + "#/game/tight-spread")
         page.wait_for_selector("#coinBetBar")

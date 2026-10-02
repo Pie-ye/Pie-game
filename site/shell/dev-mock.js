@@ -1,4 +1,5 @@
 /** 本機 ?mock=1 用的假 API，覆蓋外框會打的每一個端點。 */
+import { USE_MOCK } from './config.js';
 
 const COIN_FLIP_CHOICES = [
   { id: 'heads', label: '正面', rtp: 0.96 },
@@ -53,6 +54,16 @@ export function mockReset() {
   state.user = null;
   state.balance = 1000;
   state.history = [];
+}
+
+/** 模擬伺服器端 session 失效（之後的請求都回 401），外框的登入狀態不動。 */
+export function mockExpireSession() {
+  state.user = null;
+}
+
+// 只有 ?mock=1（localhost）時掛上，給本機 e2e 操作假伺服器狀態。
+if (USE_MOCK && typeof window !== 'undefined') {
+  window.__pgMock = { expireSession: mockExpireSession, reset: mockReset };
 }
 
 function wait(ms, signal) {
@@ -117,6 +128,8 @@ export async function mockRequest(path, { method = 'GET', body, signal } = {}) {
   }
 
   if (m === 'POST' && p === '/api/auth/logout') {
+    // session 已失效時伺服器會回 401；外框仍要把本機狀態清掉。
+    if (!state.user) return json(401, { error: '未登入' });
     state.user = null;
     return json(200, { ok: true });
   }
