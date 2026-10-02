@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" data-theme="playful">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pie Game</title>
+  <link rel="stylesheet" href="./tokens.css">
+  <link rel="stylesheet" href="./shell.css">
+  <script type="module" src="./shell.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#/" aria-label="Pie Game 大廳">Pie Game</a>
+    <div class="topbar-actions">
+      <span id="balancePill" class="balance-pill" hidden>0 金幣</span>
+      <label class="theme-field">
+        <span class="visually-hidden">主題</span>
+        <select id="themeSelect" aria-label="主題">
+          <option value="playful">盤房日場</option>
+          <option value="studio">盤房夜場</option>
+          <option value="classic">輕鬆競賽</option>
+        </select>
+      </label>
+      <div id="authSlot"></div>
+    </div>
+  </header>
+  <main id="view" class="page-content"></main>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

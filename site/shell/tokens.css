@@ -1,0 +1,229 @@
+/* Pie Game 設計 token：自股票大亂鬥「盤房」語意層＋相容層＋三套主題複製。
+   playful = :root 日場；studio = 夜場；classic = 輕鬆競賽。 */
+
+:root {
+  /* ---------- 語意層（盤房日場）---------- */
+  --paper: #f2eee6;
+  --paper-sunk: #e9e2d3;
+  --sheet: #fbf8f2;
+  --sheet-raised: #ffffff;
+  --sheet-top: #ffffff;
+  --rule-hair: #dfd8ca;
+  --rule-strong: #8f897c;
+  --ink-1: #1a1713;
+  --ink-2: #57503f;
+  --ink-3: #6b6457;
+  --brass: #835f13;
+  --brass-deep: #6e4e0f;
+  --brass-wash: #f1e7d2;
+  --on-brass: #ffffff;
+  --gain: #0e7354;
+  --loss: #b4322b;
+  --caution: #98500a;
+  --info: #1f5f7a;
+  --on-gain: #ffffff;
+  --on-loss: #ffffff;
+  --gain-on-dark: #3fae84;
+  --loss-on-dark: #e06a5e;
+  --masthead: #221e18;
+  --masthead-ink: #ede7da;
+  --masthead-muted: #a79c87;
+
+  /* ---------- 相容層 ---------- */
+  --canvas: var(--paper);
+  --inset: var(--paper-sunk);
+  --overlay: var(--sheet);
+  --bg: var(--canvas);
+  --bg-soft: var(--inset);
+  --card: var(--overlay);
+  --ink: var(--ink-1);
+  --ink-soft: var(--ink-2);
+  --ink-faint: var(--ink-3);
+  --hairline: var(--rule-hair);
+  --line: var(--hairline);
+  --line-strong: var(--rule-strong);
+  --brand: var(--brass);
+  --primary: var(--brand);
+  --primary-strong: var(--brass-deep);
+  --primary-soft: var(--brass-wash);
+  --up: var(--gain);
+  --down: var(--loss);
+  --amber: var(--caution);
+  --warn: var(--amber);
+  --blue: var(--info);
+  --nav: var(--masthead);
+  --nav-ink: var(--masthead-ink);
+  --nav-muted: var(--masthead-muted);
+  --sidebar-bg: linear-gradient(180deg, #2a241b 0%, #1a1610 100%);
+
+  --alloc-crypto: #a68423;
+  --alloc-tw: #b9562c;
+  --alloc-cash: #695f4f;
+  --alloc-fund: #495126;
+  --alloc-us: #523518;
+  --alloc-uk: #451a17;
+
+  --radius: 10px;
+  --radius-sm: 6px;
+  --radius-overlay: 14px;
+  --control-h: 40px;
+
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --s7: 48px;
+  --s8: 64px;
+
+  --fs-micro: 0.6875rem;
+  --lh-micro: 1.5;
+  --ls-micro: 0.08em;
+  --fs-caption: 0.8125rem;
+  --lh-caption: 1.6;
+  --ls-caption: 0.01em;
+  --fs-body: 1rem;
+  --lh-body: 1.7;
+  --ls-body: 0;
+  --fs-lead: 1.125rem;
+  --lh-lead: 1.65;
+  --ls-lead: 0;
+  --fs-h3: 1.25rem;
+  --lh-h3: 1.45;
+  --ls-h3: -0.005em;
+  --fs-h2: 1.625rem;
+  --lh-h2: 1.3;
+  --ls-h2: -0.01em;
+  --fs-h1: 2.125rem;
+  --lh-h1: 1.2;
+  --ls-h1: -0.015em;
+  --fs-display: 2.875rem;
+  --lh-display: 1.1;
+  --ls-display: -0.02em;
+
+  --surface-1: var(--sheet);
+  --surface-2: var(--sheet-raised);
+  --surface-3: var(--sheet-top);
+  --elev-1: 0 1px 2px rgba(58, 42, 20, 0.05), 0 1px 3px rgba(58, 42, 20, 0.04);
+  --elev-2: 0 2px 4px rgba(58, 42, 20, 0.06), 0 8px 20px rgba(58, 42, 20, 0.07);
+  --elev-3: 0 4px 10px rgba(58, 42, 20, 0.08), 0 18px 40px rgba(58, 42, 20, 0.14);
+  --shadow: var(--elev-2);
+  --shadow-sm: var(--elev-1);
+  --shadow-lg: var(--elev-3);
+
+  --ring-color: var(--brass);
+
+  --dur-0: 90ms;
+  --dur-1: 150ms;
+  --dur-2: 220ms;
+  --dur-3: 320ms;
+  --dur-exit: 130ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-std: cubic-bezier(0.4, 0, 0.2, 1);
+  --stagger: 40ms;
+
+  --brass-on-dark: #d9a425;
+
+  --font: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", "Heiti TC",
+    "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo,
+    Consolas, "Liberation Mono", "PingFang TC", "Microsoft JhengHei", monospace;
+}
+
+html[data-theme="studio"] {
+  --paper: #12110f;
+  --paper-sunk: #0c0b0a;
+  --sheet: #1b1916;
+  --sheet-raised: #221f1a;
+  --sheet-top: #2b2721;
+  --rule-hair: #2c2823;
+  --rule-strong: #6d6457;
+  --ink-1: #eae4d8;
+  --ink-2: #a69d8b;
+  --ink-3: #8a8271;
+  --brass: #d9a425;
+  --brass-deep: #f0bc46;
+  --brass-wash: #2a2317;
+  --on-brass: #12110f;
+  --gain: #3fae84;
+  --loss: #e06a5e;
+  --caution: #e5923f;
+  --info: #5fa8c9;
+  --on-gain: #12110f;
+  --on-loss: #12110f;
+  --masthead: #0f0e0c;
+  --masthead-ink: #cfc7b7;
+  --masthead-muted: #8b8372;
+
+  --card: var(--overlay);
+  --sidebar-bg: var(--nav);
+
+  --alloc-crypto: #dac281;
+  --alloc-tw: #d8a28a;
+  --alloc-cash: #a69884;
+  --alloc-fund: #808d4c;
+  --alloc-us: #9a6d3f;
+  --alloc-uk: #a24b45;
+
+  --radius: 3px;
+  --radius-sm: 2px;
+  --radius-overlay: 4px;
+
+  --surface-1: var(--sheet);
+  --surface-2: var(--sheet-raised);
+  --surface-3: var(--sheet-top);
+  --elev-1: 0 0 0 1px var(--hairline);
+  --elev-2: 0 0 0 1px var(--line-strong);
+  --elev-3: 0 0 0 1px var(--line-strong), 0 24px 48px rgba(0, 0, 0, 0.62);
+}
+
+html[data-theme="classic"] {
+  --paper: #eef4f0;
+  --paper-sunk: #f7faf8;
+  --sheet: #ffffff;
+  --sheet-raised: #ffffff;
+  --sheet-top: #ffffff;
+  --rule-hair: #e3ece6;
+  --rule-strong: #848d88;
+  --ink-1: #17251d;
+  --ink-2: #4d6157;
+  --ink-3: #617169;
+  --brass: #147e4b;
+  --brass-deep: #0f6e40;
+  --brass-wash: #e6f4ec;
+  --on-brass: #ffffff;
+  --gain: #0a7f49;
+  --loss: #c5403b;
+  --caution: #a75b04;
+  --info: #0e7490;
+  --on-gain: #ffffff;
+  --on-loss: #ffffff;
+  --masthead: #0c2a1c;
+  --masthead-ink: #dcebe2;
+  --masthead-muted: #9fc4ae;
+  --brass-on-dark: #3ddc90;
+
+  --sidebar-bg: linear-gradient(180deg, #14402c 0%, #0c2a1c 100%);
+
+  --alloc-cash: #10b981;
+  --alloc-tw: #3b82f6;
+  --alloc-us: #8b5cf6;
+  --alloc-uk: #ef4444;
+  --alloc-crypto: #f59e0b;
+  --alloc-fund: #06b6d4;
+
+  --radius: 14px;
+  --radius-sm: 9px;
+  --radius-overlay: 18px;
+
+  --surface-1: var(--sheet);
+  --surface-2: var(--sheet-raised);
+  --surface-3: var(--sheet-top);
+  --elev-1: 0 1px 3px rgba(18, 48, 32, 0.06), 0 4px 16px rgba(18, 48, 32, 0.06);
+  --elev-2: var(--elev-1);
+  --elev-3: 0 8px 30px rgba(18, 48, 32, 0.14);
+}
