@@ -210,7 +210,8 @@ async def test_precompressed_gzip_and_brotli_headers(aiohttp_client, service_set
     assert gzip_response.headers["Content-Type"] in {"text/javascript", "application/javascript"}
     assert await gzip_response.read() == source
 
-    brotli_response = await client.head("/games/community/engine.wasm.br")
+    # 不讓客戶端解碼：CI 沒裝 Brotli，解碼會直接 400；這裡只驗標頭。
+    brotli_response = await client.head("/games/community/engine.wasm.br", auto_decompress=False)
     assert brotli_response.status == 200
     assert brotli_response.headers["Content-Encoding"] == "br"
     assert brotli_response.headers["Content-Type"] == "application/wasm"
