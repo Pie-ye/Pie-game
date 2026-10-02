@@ -1,0 +1,29 @@
+services:
+  pie-game:
+    build:
+      context: /home/pieye/Container/Pie-game
+    image: pie-game:local
+    container_name: pie-game
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      PG_SHELL_PORT: "54460"
+      PG_CONTENT_PORT: "54461"
+      PG_BIND: 127.0.0.1
+      PG_SHELL_ORIGIN: https://game.coinpilet.win
+      PG_CONTENT_ORIGIN: https://play.piea.uk
+      PG_API_ORIGIN: https://coinpilet.win
+      PG_RETIRE_BASE: http://127.0.0.1:54432
+    volumes:
+      # The content sync timer creates and atomically updates this read-only live tree.
+      - /home/pieye/pie-game-content-live/site:/srv/content:ro
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:54460/healthz', timeout=2)
+      interval: 30s
+      timeout: 3s
+      start_period: 5s
+      retries: 3
