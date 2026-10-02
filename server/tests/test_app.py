@@ -45,6 +45,10 @@ async def test_shell_headers_cache_and_health(aiohttp_client, service_settings) 
     versioned = await client.get("/app.js?v=abc123")
     assert versioned.headers["Cache-Control"] == "public, max-age=31536000, immutable"
 
+    # 沒帶版本號的模組要每次重新驗證，否則 CDN 會快取舊版好幾小時。
+    unversioned = await client.get("/app.js")
+    assert unversioned.headers["Cache-Control"] == "no-cache"
+
     health = await client.get("/healthz")
     assert health.status == 200
     assert (await health.json())["ok"] is True

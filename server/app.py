@@ -239,6 +239,10 @@ async def _static_response(request: web.Request, root: Path, relative: str) -> w
         headers["Cache-Control"] = "no-store"
     elif "v" in request.query:
         headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    else:
+        # 沒帶版本號的檔案（外框的 ES module、投稿遊戲的檔案）每次都要重新驗證；
+        # 不送的話 Cloudflare 會自己補 max-age=14400，改版後四小時內新舊模組混用。
+        headers["Cache-Control"] = "no-cache"
 
     return _NegotiatedFileResponse(representation, encoding=encoding, headers=headers)
 

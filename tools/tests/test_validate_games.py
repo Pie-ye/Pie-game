@@ -13,9 +13,9 @@ import pytest
 import validate_games
 
 REPO = Path(__file__).resolve().parents[2]
-UPSTREAM_COMMUNITY = Path("/home/pieye/Container/Retire-count-casino/server/casino/community.py")
-UPSTREAM_VECTORS = Path("/home/pieye/Container/Retire-count-casino/tests/fixtures/community_spec_vectors.json")
-UPSTREAM_ROOT = Path("/home/pieye/Container/Retire-count-casino")
+UPSTREAM_COMMUNITY = Path("/home/pieye/Container/Retire-count/server/casino/community.py")
+UPSTREAM_VECTORS = Path("/home/pieye/Container/Retire-count/tests/fixtures/community_spec_vectors.json")
+UPSTREAM_ROOT = Path("/home/pieye/Container/Retire-count")
 HASH_RECORD = REPO / "tools/upstream_validate_spec.sha256"
 COPIED_FUNCTIONS = ("validate_spec", "rtp_for_bet")
 SYNC_HINT = (

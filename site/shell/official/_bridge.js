@@ -84,12 +84,17 @@ export function createBridge(gameId) {
     if (sdk) sdk.refreshHistory();
   }
 
+  function balanceText(balance) {
+    const playMoney = Boolean(sdk && typeof sdk.isPlayMoney === 'function' && sdk.isPlayMoney());
+    return playMoney ? '無限測試金幣' : `${balance.toLocaleString('zh-TW')} 金幣`;
+  }
+
   function setCasinoBalance(value) {
     const balance = Number(value) || 0;
     if (state.casino) state.casino.balance = balance;
     if (sdk) sdk.setBalance(balance);
     const output = $('.pg-balance-value');
-    if (output) output.textContent = balance.toLocaleString('zh-TW');
+    if (output) output.textContent = balanceText(balance);
   }
 
   function isAbortedResponse(response) {
@@ -178,7 +183,8 @@ export function createBridge(gameId) {
     state.user = officialSdk.user || null;
     state.casino = null;
     root.classList.add(`pg-official-${gameId}`);
-    root.innerHTML = `<div class="official-balance">餘額 <strong class="pg-balance-value">${Number(officialSdk.getBalance()).toLocaleString('zh-TW')}</strong> 金幣</div><div id="${options.panelId}"${options.live ? ' aria-live="polite"' : ''}></div>`;
+    root.innerHTML = `<div class="official-balance">餘額 <strong class="pg-balance-value"></strong></div><div id="${options.panelId}"${options.live ? ' aria-live="polite"' : ''}></div>`;
+    root.querySelector('.pg-balance-value').textContent = balanceText(Number(officialSdk.getBalance()) || 0);
     releaseStyles = mountStylesheet(options.styleUrl);
     if (options.createBodyAddon) {
       const addon = options.createBodyAddon();

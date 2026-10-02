@@ -321,7 +321,11 @@ export function mountCommunity(root, { game, spec, toast, refreshHistory, onBala
         }, id);
         const net = Number(payload.net || 0);
         const sign = net > 0 ? '+' : (net < 0 ? '−' : '');
-        if (toast) toast(`${payload.display || '開獎'} · 淨 ${sign}${Math.abs(net)}`);
+        // display 是投稿遊戲自訂的物件（給 iframe 畫面用），提示只用結果名稱。
+        const outcome = payload.outcome;
+        const outcomeLabel = outcome && typeof outcome === 'object' ? outcome.label : outcome;
+        const label = typeof outcomeLabel === 'string' && outcomeLabel ? outcomeLabel : '開獎';
+        if (toast) toast(`${label} · 淨 ${sign}${Math.abs(net)}`);
         if (refreshHistory) await refreshHistory();
       },
     });

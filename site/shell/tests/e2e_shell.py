@@ -6,7 +6,7 @@
   # 外框
   python3 -m http.server 54472 --bind 127.0.0.1 --directory site/shell
   # 可選：股票大亂鬥暫存 DB（真 API 登入）
-  cd /home/pieye/Container/Retire-count-casino && \\
+  cd /home/pieye/Container/Retire-count && \\
     SPROUT_DB=/tmp/pg-p2/t.db SPROUT_DATA_DIR=/tmp/pg-p2/data PORT=54462 \\
     CASINO_ORIGINS=http://localhost:54472 COOKIE_SECURE=0 python3 serve.py
 

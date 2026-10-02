@@ -133,7 +133,8 @@ a:hover {
   align-items: center;
 }
 
-.user-menu-toggle {
+/* 加 .user-menu 提高權重：.secondary-button 的 display 會蓋掉單一 class，桌機就會多出一顆名字按鈕。 */
+.user-menu .user-menu-toggle {
   display: none;
   max-width: 7.5rem;
   overflow: hidden;
@@ -657,7 +658,7 @@ button:disabled,
     font-size: var(--fs-micro);
   }
 
-  .user-menu-toggle {
+  .user-menu .user-menu-toggle {
     display: inline-flex;
   }
 
