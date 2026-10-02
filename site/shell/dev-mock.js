@@ -2,7 +2,7 @@
 
 const COIN_FLIP_CHOICES = [
   { id: 'heads', label: '正面', rtp: 0.96 },
-  { id: 'tails', label: '反面', rtp: 0.96 },
+  { id: 'tails', label: '反面', rtp: 0.90 },
 ];
 
 const COIN_FLIP_OUTCOMES = {
@@ -55,10 +55,56 @@ export function mockReset() {
   state.history = [];
 }
 
-export async function mockRequest(path, { method = 'GET', body } = {}) {
+function wait(ms, signal) {
+  return new Promise((resolve, reject) => {
+    if (signal && signal.aborted) {
+      const err = new Error('aborted');
+      err.name = 'AbortError';
+      reject(err);
+      return;
+    }
+    const timer = setTimeout(resolve, ms);
+    if (signal) {
+      signal.addEventListener('abort', () => {
+        clearTimeout(timer);
+        const err = new Error('aborted');
+        err.name = 'AbortError';
+        reject(err);
+      }, { once: true });
+    }
+  });
+}
+
+const COMMUNITY_GAMES = [
+  {
+    id: 'coin-flip',
+    name: '猜硬幣',
+    author: 'Pie-ye',
+    minBet: 5,
+    maxBet: 100,
+    choices: COIN_FLIP_CHOICES,
+    sha256: 'mock-coin-flip-sha256',
+  },
+  {
+    id: 'tight-spread',
+    name: '窄押注',
+    author: 'Pie-ye',
+    minBet: 6,
+    maxBet: 9,
+    choices: [{ id: 'a', label: '甲', rtp: 0.9 }],
+    sha256: 'mock-tight-sha256',
+  },
+];
+
+export async function mockRequest(path, { method = 'GET', body, signal } = {}) {
   const url = new URL(path, 'http://mock.local');
   const p = url.pathname;
   const m = method.toUpperCase();
+  if (signal && signal.aborted) {
+    const err = new Error('aborted');
+    err.name = 'AbortError';
+    throw err;
+  }
 
   if (m === 'POST' && p === '/api/auth/login') {
     const username = String(body?.username || '');
@@ -107,17 +153,7 @@ export async function mockRequest(path, { method = 'GET', body } = {}) {
 
   if (m === 'GET' && p === '/api/casino/community') {
     return json(200, {
-      games: [
-        {
-          id: 'coin-flip',
-          name: '猜硬幣',
-          author: 'Pie-ye',
-          minBet: 5,
-          maxBet: 100,
-          choices: COIN_FLIP_CHOICES,
-          sha256: 'mock-coin-flip-sha256',
-        },
-      ],
+      games: COMMUNITY_GAMES,
       rejected: [
         { id: 'bad-game', reason: '規格未通過' },
       ],
@@ -128,15 +164,20 @@ export async function mockRequest(path, { method = 'GET', body } = {}) {
   if (m === 'POST' && playMatch) {
     if (!state.user) return json(401, { error: '未登入' });
     const gameId = decodeURIComponent(playMatch[1]);
-    if (gameId !== 'coin-flip') return json(404, { error: '找不到遊戲' });
+    const spec = COMMUNITY_GAMES.find((g) => g.id === gameId);
+    if (!spec) return json(404, { error: '找不到遊戲' });
     const choice = String(body?.choice || '');
     const bet = Number(body?.bet);
-    const outcomes = COIN_FLIP_OUTCOMES[choice];
-    if (!outcomes) return json(400, { error: '無效的選項' });
-    if (![5, 10, 20, 50, 100].includes(bet)) return json(400, { error: '無效的押注' });
+    if (!spec.choices.some((c) => c.id === choice)) return json(400, { error: '無效的選項' });
+    const outcomes = COIN_FLIP_OUTCOMES[choice] || [
+      { id: 'win', label: '中', weight: 45, return: 2, display: '中' },
+      { id: 'lose', label: '沒中', weight: 55, return: 0, display: '沒中' },
+    ];
+    if (!Number.isFinite(bet) || bet < spec.minBet || bet > spec.maxBet) return json(400, { error: '無效的押注' });
     if (bet > state.balance) return json(400, { error: '金幣不足' });
-    const outcome = pickWeighted(outcomes);
-    const payout = Math.floor(bet * Number(outcome.return || 0));
+    await wait(350, signal);
+    const picked = pickWeighted(outcomes);
+    const payout = Math.floor(bet * Number(picked.return || 0));
     const net = payout - bet;
     state.balance += net;
     const roundId = String(body?.clientRoundId || `mock-${Date.now()}`);
@@ -146,8 +187,9 @@ export async function mockRequest(path, { method = 'GET', body } = {}) {
       game: 'community',
       gameId,
       choice,
-      outcome: { id: outcome.id, label: outcome.label },
-      display: outcome.display,
+      outcome: { id: picked.id, label: picked.label },
+      outcomeLabel: picked.label,
+      display: picked.display,
       bet,
       payout,
       net,
@@ -157,8 +199,9 @@ export async function mockRequest(path, { method = 'GET', body } = {}) {
       roundId,
       gameId,
       choice,
-      outcome: { id: outcome.id, label: outcome.label },
-      display: outcome.display,
+      outcome: { id: picked.id, label: picked.label },
+      outcomeLabel: picked.label,
+      display: picked.display,
       bet,
       payout,
       net,

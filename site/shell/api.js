@@ -57,12 +57,22 @@ function notifyUnauthorized() {
 
 export async function api(path, opts = {}) {
   const method = (opts.method || 'GET').toUpperCase();
-  const body = opts.body;
+  let body = opts.body;
   const silent401 = Boolean(opts.silent401);
   const skipAuthClear = Boolean(opts.skipAuthClear);
+  if (method !== 'GET' && body == null) body = {};
 
   if (USE_MOCK) {
-    const result = await mockRequest(path, { method, body });
+    let result;
+    try {
+      result = await mockRequest(path, { method, body, signal: opts.signal });
+    } catch (err) {
+      const aborted = Boolean(err && err.name === 'AbortError');
+      return {
+        response: { ok: false, status: 0, aborted },
+        payload: { error: aborted ? '請求已取消' : '連線失敗，請檢查網路後重試' },
+      };
+    }
     if (result.response.status === 401 && !skipAuthClear) {
       if (!silent401) notifyUnauthorized();
       else clearAuth();
@@ -71,7 +81,7 @@ export async function api(path, opts = {}) {
   }
 
   const headers = Object.assign({}, opts.headers || {});
-  if (body != null && !headers['Content-Type']) {
+  if (method !== 'GET' && !headers['Content-Type']) {
     headers['Content-Type'] = 'application/json';
   }
   if (method !== 'GET' && csrfToken) {
@@ -84,7 +94,7 @@ export async function api(path, opts = {}) {
       method,
       headers,
       credentials: 'include',
-      body: body != null ? JSON.stringify(body) : undefined,
+      body: method === 'GET' ? undefined : JSON.stringify(body),
       signal: opts.signal,
     });
   } catch (err) {
@@ -129,8 +139,13 @@ export async function login(username, password) {
 }
 
 export async function logout() {
-  await api('/api/auth/logout', { method: 'POST', skipAuthClear: true });
-  clearAuth();
+  const { response, payload } = await api('/api/auth/logout', {
+    method: 'POST',
+    body: {},
+    skipAuthClear: true,
+  });
+  if (response.ok) clearAuth();
+  return { response, payload };
 }
 
 export async function fetchSession() {
@@ -148,23 +163,30 @@ export async function fetchHistory(game, { limit = 20, gameId } = {}) {
   params.set('game', game);
   params.set('limit', String(limit));
   if (gameId) params.set('gameId', gameId);
-  return api(`/api/casino/history?${params.toString()}`);
-}
-
-export async function fetchCommunity() {
-  return api('/api/casino/community');
-}
-
-export async function playCommunity(id, { choice, bet, clientRoundId }) {
-  return api(`/api/casino/community/${encodeURIComponent(id)}/play`, {
-    method: 'POST',
-    body: { choice, bet, clientRoundId },
+  return api(`/api/casino/history?${params.toString()}`, {
+    silent401: true,
+    skipAuthClear: true,
   });
 }
 
-export async function playTicket(gameId) {
+export async function fetchCommunity() {
+  return api('/api/casino/community', { silent401: true, skipAuthClear: true });
+}
+
+export async function playCommunity(id, { choice, bet, clientRoundId, signal } = {}) {
+  return api(`/api/casino/community/${encodeURIComponent(id)}/play`, {
+    method: 'POST',
+    body: { choice, bet, clientRoundId },
+    skipAuthClear: true,
+    signal,
+  });
+}
+
+export async function playTicket(gameId, opts = {}) {
   return api('/api/casino/play-ticket', {
     method: 'POST',
     body: { gameId },
+    skipAuthClear: true,
+    signal: opts.signal,
   });
 }

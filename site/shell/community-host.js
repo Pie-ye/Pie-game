@@ -3,10 +3,13 @@ import { casinoRoundId, getUser, playCommunity, playTicket, setBalance } from '.
 import { escapeHtml, rtpPercent } from './util.js';
 
 const BETS = [5, 10, 20, 50, 100];
+const TICKET_INTERVAL_MS = 10000;
 
 let listener = null;
 let iframe = null;
 let current = null;
+let generation = 0;
+let abort = null;
 
 function defaultHeight() {
   return Math.min(window.innerHeight * 0.8, 720);
@@ -18,8 +21,12 @@ function clampHeight(px) {
   return Math.min(Math.max(n, 80), 1200);
 }
 
-function postToGame(payload) {
-  if (!iframe || !iframe.contentWindow) return;
+function isLive(id) {
+  return Boolean(current && current.mountId === id && iframe && iframe.contentWindow);
+}
+
+function postToGame(payload, id) {
+  if (!isLive(id)) return;
   iframe.contentWindow.postMessage(payload, CONTENT_ORIGIN);
 }
 
@@ -33,9 +40,18 @@ function userPayload() {
   return { id: user.id, displayName: user.displayName || user.username };
 }
 
-async function sendInit() {
-  if (!current || !current.ready) return;
-  const { game } = current;
+export function allowedBets(spec) {
+  const min = Number(spec && spec.minBet != null ? spec.minBet : 5);
+  const max = Number(spec && spec.maxBet != null ? spec.maxBet : 100);
+  const hits = BETS.filter((b) => b >= min && b <= max);
+  if (hits.length) return hits;
+  if (min === max) return [min];
+  return [min, max];
+}
+
+async function sendInit(id) {
+  if (!isLive(id) || !current.ready) return;
+  const { game, toast } = current;
   const payload = {
     type: 'pg:init',
     gameId: game.id,
@@ -43,29 +59,58 @@ async function sendInit() {
     theme: currentTheme(),
   };
   if (game.multiplayer && getUser()) {
-    const { response, payload: ticketBody } = await playTicket(game.id);
+    const { response, payload: ticketBody } = await playTicket(game.id, { signal: abort && abort.signal });
+    if (!isLive(id)) return;
+    if (response && response.aborted) return;
     if (response.ok && ticketBody && ticketBody.ticket) {
       payload.ticket = ticketBody.ticket;
+    } else {
+      const err = (ticketBody && ticketBody.error) || '無法取得遊玩通行證';
+      if (toast) toast(err);
+      payload.ticket = null;
+      payload.ticketError = err;
     }
   }
-  postToGame(payload);
+  postToGame(payload, id);
 }
 
-async function sendFreshTicket() {
-  if (!current || !getUser()) return;
-  const { response, payload } = await playTicket(current.game.id);
+async function sendFreshTicket(id) {
+  if (!isLive(id) || !getUser()) return;
+  if (!current.game.multiplayer) return;
+  const now = Date.now();
+  if (current.lastTicketAt && now - current.lastTicketAt < TICKET_INTERVAL_MS) return;
+  current.lastTicketAt = now;
+  const { response, payload } = await playTicket(current.game.id, { signal: abort && abort.signal });
+  if (!isLive(id) || (response && response.aborted)) return;
   if (response.ok && payload && payload.ticket) {
-    postToGame({ type: 'pg:ticket', ticket: payload.ticket });
+    postToGame({ type: 'pg:ticket', ticket: payload.ticket }, id);
+  } else if (current.toast) {
+    current.toast((payload && payload.error) || '無法取得遊玩通行證');
   }
 }
 
-function allowedBets(spec) {
-  const min = Number(spec && spec.minBet != null ? spec.minBet : 5);
-  const max = Number(spec && spec.maxBet != null ? spec.maxBet : 100);
-  return BETS.filter((b) => b >= min && b <= max);
+function rtpLineFor(choiceId) {
+  const choices = (current && current.spec && current.spec.choices) || [];
+  const selected = choices.find((c) => c.id === choiceId);
+  const pct = selected ? rtpPercent(selected.rtp) : null;
+  return pct != null ? `回饋率 ${pct}%，長期玩一定虧` : '長期玩一定虧';
 }
 
-function renderBetBar(root, { game, spec, onPlay, toast }) {
+function syncChoice(choice) {
+  if (!current || !choice) return;
+  current.choice = choice;
+  const bar = document.getElementById('coinBetBar');
+  if (!bar) return;
+  bar.querySelectorAll('[data-choice]').forEach((el) => {
+    const on = el.getAttribute('data-choice') === choice;
+    el.classList.toggle('is-active', on);
+    el.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+  const note = bar.querySelector('.rtp-note');
+  if (note) note.textContent = rtpLineFor(choice);
+}
+
+function renderBetBar(root, { spec, onPlay, mountId: id }) {
   const bar = document.createElement('div');
   bar.className = 'casino-sticky-actions';
   bar.id = 'coinBetBar';
@@ -80,7 +125,7 @@ function renderBetBar(root, { game, spec, onPlay, toast }) {
   const choices = (spec && spec.choices) || [];
   current.choice = current.choice || (choices[0] && choices[0].id) || '';
   const bets = allowedBets(spec);
-  current.bet = bets.includes(current.bet) ? current.bet : (bets[0] || 5);
+  current.bet = bets.includes(current.bet) ? current.bet : bets[0];
 
   const choiceHtml = choices.map((c) => {
     const pct = rtpPercent(c.rtp);
@@ -92,35 +137,21 @@ function renderBetBar(root, { game, spec, onPlay, toast }) {
     `<button type="button" class="bet-btn${b === current.bet ? ' is-active' : ''}" data-bet="${b}" aria-pressed="${b === current.bet ? 'true' : 'false'}">${b}</button>`
   )).join('');
 
-  const selected = choices.find((c) => c.id === current.choice);
-  const selectedPct = selected ? rtpPercent(selected.rtp) : null;
-  const rtpLine = selectedPct != null
-    ? `回饋率 ${selectedPct}%，長期玩一定虧`
-    : '長期玩一定虧';
-
   bar.innerHTML = `
     <div class="choice-row" role="group" aria-label="選項">${choiceHtml}</div>
     <div class="bet-row" role="group" aria-label="押注">${betHtml}</div>
     <div class="play-row">
       <button type="button" class="primary-button" id="playBtn">下注</button>
-      <p class="rtp-note">${escapeHtml(rtpLine)}</p>
+      <p class="rtp-note">${escapeHtml(rtpLineFor(current.choice))}</p>
     </div>
   `;
   root.appendChild(bar);
 
   bar.addEventListener('click', async (ev) => {
+    if (!isLive(id)) return;
     const choiceBtn = ev.target.closest('[data-choice]');
     if (choiceBtn) {
-      current.choice = choiceBtn.getAttribute('data-choice');
-      bar.querySelectorAll('[data-choice]').forEach((el) => {
-        const on = el.getAttribute('data-choice') === current.choice;
-        el.classList.toggle('is-active', on);
-        el.setAttribute('aria-pressed', on ? 'true' : 'false');
-      });
-      const next = choices.find((c) => c.id === current.choice);
-      const pct = next ? rtpPercent(next.rtp) : null;
-      const note = bar.querySelector('.rtp-note');
-      if (note) note.textContent = pct != null ? `回饋率 ${pct}%，長期玩一定虧` : '長期玩一定虧';
+      syncChoice(choiceBtn.getAttribute('data-choice'));
       return;
     }
     const betBtn = ev.target.closest('[data-bet]');
@@ -140,8 +171,10 @@ function renderBetBar(root, { game, spec, onPlay, toast }) {
       try {
         await onPlay({ choice: current.choice, bet: current.bet });
       } finally {
-        current.playing = false;
-        bar.querySelectorAll('button').forEach((b) => { b.disabled = false; });
+        if (isLive(id) && current) {
+          current.playing = false;
+          bar.querySelectorAll('button').forEach((b) => { b.disabled = false; });
+        }
       }
     }
   });
@@ -149,14 +182,16 @@ function renderBetBar(root, { game, spec, onPlay, toast }) {
   return bar;
 }
 
-function onMessage(event) {
-  if (!iframe || event.source !== iframe.contentWindow) return;
+function onMessage(event, id) {
+  if (!isLive(id) || event.source !== iframe.contentWindow) return;
   if (event.origin !== CONTENT_ORIGIN) return;
   const data = event.data || {};
   const type = data.type;
   if (type === 'pg:ready') {
+    if (current.readyHandled) return;
+    current.readyHandled = true;
     current.ready = true;
-    sendInit();
+    sendInit(id);
     return;
   }
   if (type === 'pg:height') {
@@ -165,25 +200,21 @@ function onMessage(event) {
     return;
   }
   if (type === 'pg:select') {
-    const choice = data.choice;
-    if (!choice || !current) return;
-    current.choice = choice;
-    const bar = document.getElementById('coinBetBar');
-    if (bar) {
-      bar.querySelectorAll('[data-choice]').forEach((el) => {
-        const on = el.getAttribute('data-choice') === choice;
-        el.classList.toggle('is-active', on);
-        el.setAttribute('aria-pressed', on ? 'true' : 'false');
-      });
-    }
+    syncChoice(data.choice);
     return;
   }
   if (type === 'pg:ticket') {
-    sendFreshTicket();
+    if (!current.game.multiplayer) return;
+    sendFreshTicket(id);
   }
 }
 
 export function unmountCommunity() {
+  generation += 1;
+  if (abort) {
+    try { abort.abort(); } catch (_) { /* ignore */ }
+    abort = null;
+  }
   if (listener) {
     window.removeEventListener('message', listener);
     listener = null;
@@ -194,7 +225,20 @@ export function unmountCommunity() {
 
 export function mountCommunity(root, { game, spec, toast, refreshHistory, onBalance }) {
   unmountCommunity();
-  current = { game, spec, ready: false, choice: '', bet: 5, playing: false };
+  const id = generation;
+  abort = new AbortController();
+  current = {
+    mountId: id,
+    game,
+    spec,
+    toast,
+    ready: false,
+    readyHandled: false,
+    lastTicketAt: 0,
+    choice: '',
+    bet: null,
+    playing: false,
+  };
 
   if (game.multiplayer && !getUser()) {
     const banner = document.createElement('p');
@@ -228,22 +272,23 @@ export function mountCommunity(root, { game, spec, toast, refreshHistory, onBala
   wrap.appendChild(iframe);
   root.appendChild(wrap);
 
-  listener = onMessage;
+  listener = (event) => onMessage(event, id);
   window.addEventListener('message', listener);
 
   if (game.kind === 'coin') {
     renderBetBar(root, {
-      game,
       spec,
-      toast,
+      mountId: id,
       onPlay: async ({ choice, bet }) => {
         const { response, payload } = await playCommunity(game.id, {
           choice,
           bet,
           clientRoundId: casinoRoundId(),
+          signal: abort && abort.signal,
         });
+        if (!isLive(id) || (response && response.aborted)) return;
         if (!response.ok) {
-          toast((payload && payload.error) || '下注失敗');
+          if (toast) toast((payload && payload.error) || '下注失敗');
           return;
         }
         if (payload.balance != null) {
@@ -258,10 +303,10 @@ export function mountCommunity(root, { game, spec, toast, refreshHistory, onBala
           bet: payload.bet,
           payout: payload.payout,
           net: payload.net,
-        });
+        }, id);
         const net = Number(payload.net || 0);
         const sign = net > 0 ? '+' : (net < 0 ? '−' : '');
-        toast(`${payload.display || '開獎'} · 淨 ${sign}${Math.abs(net)}`);
+        if (toast) toast(`${payload.display || '開獎'} · 淨 ${sign}${Math.abs(net)}`);
         if (refreshHistory) await refreshHistory();
       },
     });
@@ -269,5 +314,6 @@ export function mountCommunity(root, { game, spec, toast, refreshHistory, onBala
 }
 
 export function notifyTheme(theme) {
-  postToGame({ type: 'pg:theme', theme });
+  if (!current) return;
+  postToGame({ type: 'pg:theme', theme }, current.mountId);
 }

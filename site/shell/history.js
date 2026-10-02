@@ -152,7 +152,10 @@ function rowsFor(game, items) {
   const head = '<th>時間</th><th>選擇</th><th>結果</th><th class="num">押注</th><th class="num">派彩</th><th class="num">輸贏</th>';
   const rows = items.map((it) => {
     const choice = it.choice && it.choice.label ? it.choice.label : it.choice;
-    const outcome = it.outcome && it.outcome.label ? it.outcome.label : (it.display || it.outcome);
+    const outcomeId = (it.outcome && typeof it.outcome === 'object')
+      ? (it.outcome.id || '')
+      : (it.outcome || '');
+    const outcome = it.outcomeLabel || outcomeId || '—';
     return `<tr>
       <td>${escapeHtml(formatDateTime(it.at))}</td>
       <td>${escapeHtml(choice || '—')}</td>

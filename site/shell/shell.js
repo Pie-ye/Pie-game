@@ -92,10 +92,33 @@ function renderChrome() {
   if (!slot) return;
   slot.className = 'auth-slot';
   if (user) {
-    slot.innerHTML = `<span class="user-name">${escapeHtml(user.displayName || user.username)}</span>
-      <button type="button" class="secondary-button" id="logoutBtn">登出</button>`;
+    const name = user.displayName || user.username;
+    slot.innerHTML = `<div class="user-menu" id="userMenu">
+        <button type="button" class="user-menu-toggle secondary-button" id="userMenuToggle" aria-expanded="false" aria-haspopup="true" aria-label="使用者選單">${escapeHtml(name)}</button>
+        <div class="user-menu-panel" id="userMenuPanel">
+          <span class="user-name">${escapeHtml(name)}</span>
+          <button type="button" class="secondary-button" id="logoutBtn">登出</button>
+        </div>
+      </div>`;
+    const menu = slot.querySelector('#userMenu');
+    const toggle = slot.querySelector('#userMenuToggle');
+    const closeMenu = () => {
+      menu.classList.remove('is-open');
+      toggle.setAttribute('aria-expanded', 'false');
+    };
+    toggle.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const open = !menu.classList.contains('is-open');
+      menu.classList.toggle('is-open', open);
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    document.addEventListener('click', closeMenu, { once: true });
     slot.querySelector('#logoutBtn').addEventListener('click', async () => {
-      await apiLogout();
+      const { response, payload } = await apiLogout();
+      if (!response.ok) {
+        toast((payload && payload.error) || '登出失敗');
+        return;
+      }
       renderChrome();
       location.hash = '#/';
       toast('已登出');

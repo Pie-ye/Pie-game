@@ -127,6 +127,26 @@ a:hover {
   gap: var(--s2);
 }
 
+.user-menu {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.user-menu-toggle {
+  display: none;
+  max-width: 7.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-menu-panel {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
 .user-name {
   font-size: var(--fs-caption);
   color: var(--ink-soft);
@@ -556,7 +576,7 @@ button:disabled,
 }
 
 .pcard-suit {
-  font-size: 0.85em;
+  font-size: calc(var(--fs-body) * 0.85);
   line-height: 1;
 }
 
@@ -565,7 +585,7 @@ button:disabled,
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-size: calc(var(--control-h) * 0.9);
+  font-size: calc(var(--fs-h1) * 1.05);
   line-height: 1;
   pointer-events: none;
   opacity: 0.85;
@@ -596,6 +616,46 @@ button:disabled,
 @media (max-width: 767px) {
   .topbar {
     padding: var(--s2) var(--s3);
+    gap: var(--s2);
+  }
+
+  .topbar-actions {
+    gap: var(--s1);
+  }
+
+  .theme-field select {
+    max-width: 7.5rem;
+    font-size: var(--fs-caption);
+    padding: 0 var(--s2);
+  }
+
+  .balance-pill {
+    padding: 0 var(--s2);
+    font-size: var(--fs-micro);
+  }
+
+  .user-menu-toggle {
+    display: inline-flex;
+  }
+
+  .user-menu-panel {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: calc(100% + var(--s1));
+    flex-direction: column;
+    align-items: stretch;
+    min-width: 10rem;
+    padding: var(--s2);
+    background: var(--sheet);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--elev-2);
+    z-index: 50;
+  }
+
+  .user-menu.is-open .user-menu-panel {
+    display: flex;
   }
 
   .page-content {
