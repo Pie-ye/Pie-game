@@ -14,9 +14,12 @@ services:
       PG_CONTENT_ORIGIN: https://play.piea.uk
       PG_API_ORIGIN: https://coinpilet.win
       PG_RETIRE_BASE: http://127.0.0.1:54432
+      PG_CONTENT_DIR: /srv/pie-content/live/site
     volumes:
-      # The content sync timer creates and atomically updates this read-only live tree.
-      - /home/pieye/pie-game-content-live/site:/srv/content:ro
+      # 掛整個 content 根目錄，不是 live 連結本身：Docker 只在容器啟動時解析一次
+      # bind 來源，綁連結的話之後的原子切換永遠進不來。live 是 releases/<sha> 的
+      # 相對連結，伺服器每個請求重新解析。
+      - /home/pieye/pie-game-content:/srv/pie-content:ro
     healthcheck:
       test:
         - CMD

@@ -155,6 +155,9 @@ SDK 只接受 `event.source === window.parent` 的訊息；會自動回 `pong`�
 - 每房最多 16 人
 - 單則訊息 ≤ 16 KB
 - 每連線 20 則／秒
+- 房名 ≤ 40 字元（超過回 `bad_message`）
+- `list` 最多回 50 間（人多的、先開的優先），另附 `total` 總數
+- `setState` 每房最多 64 個 key、key ≤ 64 字元、整份 state ≤ 64 KB（超過回 `state_too_large`）
 - 伺服器重啟會清空所有房間（請自己處理斷線）
 - 房主裁定規則，**不能用金幣**
 
@@ -194,8 +197,13 @@ python3 tools/validate_games.py --vectors tests/spec_vectors.json
 
 1. Fork [Pie-ye/Pie-game](https://github.com/Pie-ye/Pie-game)，從 `main` 開分支。
 2. 只改 `site/games/community/<你的 id>/` 與 `site/games/community/index.json`。
+   動到其他路徑（含 `_template-*`）CI 會直接失敗。
 3. 把 id 加進 `index.json` 的 `games` 陣列。
-4. 開 PR，勾選範本裡的清單。其他路徑會標「需要擁有者審核」。
+4. 開 PR，勾選範本裡的清單。
+
+> 維護者：`tools/validate_games.py` 裡的 `validate_spec`／`rtp_for_bet` 是上游股票大亂鬥
+> `server/casino/community.py` 的複製品。**改上游規則時要同步這裡**，並更新
+> `tools/upstream_validate_spec.sha256`，否則 `tools/tests` 會失敗。詳見 README 的維護者段落。
 
 ## 審核標準
 

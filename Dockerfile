@@ -6,8 +6,8 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt \
     && groupadd --gid 1000 pie-game \
     && useradd --uid 1000 --gid 1000 --create-home pie-game \
-    && mkdir -p /srv/content \
-    && chown -R 1000:1000 /app /srv/content
+    && mkdir -p /srv/pie-content \
+    && chown -R 1000:1000 /app /srv/pie-content
 
 COPY --chown=1000:1000 server/ /app/server/
 COPY --chown=1000:1000 site/shell/ /app/site/shell/

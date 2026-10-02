@@ -1,0 +1,9 @@
+# 股票大亂鬥 server/casino/community.py 的 validate_spec／rtp_for_bet 正規化雜湊。
+# 正規化 = ast.unparse(函式的 AST) 後的 UTF-8 位元組取 sha256，所以註解與排版不影響比對。
+#
+# 改上游規則時：把 tools/validate_games.py 開頭那段複製碼同步成新版，
+# 然後更新這裡的 commit 與兩個 sha256（tools/tests/test_validate_games.py 會驗）。
+commit = 12cdc18a867a34ebf74e881e259698ecacceb82e
+note = 快照取自 12cdc18 之上的工作樹，含 rtp_for_bet 的 parsed_outcomes 預解析參數
+validate_spec_sha256 = 1b5e0f96a096fbc6c1b01b2ebfb4e56f692b868e5a84cf0b3a1130ad73c9d15c
+rtp_for_bet_sha256 = 89bfe7c4166edea761007c3456e6d34e962842cf44fcbcee8b03b9361d5c0330

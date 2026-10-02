@@ -22,17 +22,24 @@ MAX_DISPLAY_ITEM_BYTES = 2 * 1024  # display 單項上限 2 KB
 ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{1,30}$")
 
 
-def rtp_for_bet(choice: dict[str, Any], bet: int) -> Fraction:
+def rtp_for_bet(
+    choice: dict[str, Any],
+    bet: int,
+    parsed_outcomes: list[tuple[int, Fraction]] | None = None,
+) -> Fraction:
     """單一選項在指定押注金額下的實際回饋率。
 
     用實際派彩 floor(bet × return) 計算，因為金幣帳本只能記整數，
     回傳 Fraction 而非 float 是為了讓驗證與測試能做精確比較、不受浮點誤差影響。
+    `parsed_outcomes` 是 (weight, return) 的預先解析結果：驗證時逐注重算會問上百次，
+    傳進來就不必每次重新 parse Fraction。
     """
+    pairs = parsed_outcomes
+    if pairs is None:
+        pairs = [(o["weight"], Fraction(o["return"])) for o in choice["outcomes"]]
     total_weight = 0
     total_payout = 0
-    for outcome in choice["outcomes"]:
-        weight = outcome["weight"]
-        ret_frac = Fraction(outcome["return"])
+    for weight, ret_frac in pairs:
         total_weight += weight
         total_payout += weight * ((bet * ret_frac.numerator) // ret_frac.denominator)
     return Fraction(total_payout, total_weight * bet)
@@ -193,7 +200,7 @@ def validate_spec(obj: Any) -> tuple[bool, str | None, dict[str, float]]:
         # 防禦性檢查：floor 只會降低派彩，數學上不會擋下名目檢查已放行的規格；
         # 保留是為了將來若改用非 floor 的捨入規則時仍安全。
         for bet in range(min_bet, max_bet + 1):
-            bet_rtp = rtp_for_bet(choice, bet)
+            bet_rtp = rtp_for_bet(choice, bet, parsed_outcomes=parsed_outcomes)
             if bet_rtp > max_rtp_fraction:
                 return False, f"選項 '{cid}' 在押注 {bet} 時回饋率超過 98%（{float(bet_rtp):.4f}）", {}
 
@@ -204,6 +211,8 @@ def validate_spec(obj: Any) -> tuple[bool, str | None, dict[str, float]]:
 # --- 投稿目錄規則 ---
 GAME_FILE_MAX_BYTES = 25 * 1024 * 1024  # 25 MiB
 GAME_TOTAL_MAX_BYTES = 50_000_000  # 50 MB
+MAX_INDEX_GAMES = 200  # index.json 最多列 200 個遊戲
+TEMPLATE_PREFIX = "_template-"
 REQUIRED_GAME_FIELDS = ("id", "name", "kind", "multiplayer", "author", "entry", "description", "tags")
 ATTR_RE = re.compile(
     r'(?P<attr>srcset|src|href|poster)\s*=\s*(?:(?P<q>["\'])(?P<quoted>.*?)(?P=q)|(?P<bare>[^\s>]+))',
@@ -321,13 +330,28 @@ def check_external_resources(path: Path, text: str) -> list[str]:
             )
     return errors
 
-def _iter_files(root: Path) -> list[Path]:
+def _iter_files(root: Path) -> tuple[list[Path], list[str]]:
+    """走訪投稿目錄，回傳 (一般檔案清單, 符號連結錯誤)。
+
+    符號連結一律拒絕：唯讀掛進容器後連結仍會在容器內被解析，可能讀到映像裡的
+    平台檔案；驗證階段也會被連結騙過大小與外部網址檢查。
+    """
     files: list[Path] = []
-    for dirpath, dirnames, filenames in os.walk(root):
+    errors: list[str] = []
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+        here = Path(dirpath)
         dirnames[:] = [name for name in dirnames if name != ".git"]
+        for name in list(dirnames):
+            if (here / name).is_symlink():
+                errors.append(f"{here / name}：不可使用符號連結")
+                dirnames.remove(name)
         for name in filenames:
-            files.append(Path(dirpath) / name)
-    return files
+            path = here / name
+            if path.is_symlink():
+                errors.append(f"{path}：不可使用符號連結")
+                continue
+            files.append(path)
+    return files, errors
 
 
 def _load_json(path: Path) -> tuple[Any, str | None]:
@@ -341,13 +365,19 @@ def _load_json(path: Path) -> tuple[Any, str | None]:
         return None, f"{path}：JSON 無法解析（{exc}）"
 
 
-def validate_game_dir(game_dir: Path) -> list[str]:
+def validate_game_dir(game_dir: Path, *, template: bool = False) -> list[str]:
+    """驗證一個投稿目錄。
+
+    `template` 為範本目錄（`_template-*`）：資料夾名稱不是 id、也不必列進
+    index.json，其餘規則（game.json 欄位、規格、外部網址、檔案大小、符號連結）
+    與投稿完全相同。
+    """
     errors: list[str] = []
     game_id = game_dir.name
     game_json_path = game_dir / "game.json"
     readme_path = game_dir / "README.md"
 
-    if not ID_PATTERN.fullmatch(game_id):
+    if not template and not ID_PATTERN.fullmatch(game_id):
         errors.append(f"{game_dir}：資料夾名稱不符合 id 規則 ^[a-z0-9][a-z0-9-]{{1,30}}$")
 
     if not readme_path.is_file():
@@ -368,7 +398,7 @@ def validate_game_dir(game_dir: Path) -> list[str]:
     gid = data.get("id")
     if not isinstance(gid, str) or not ID_PATTERN.fullmatch(gid):
         errors.append(f"{game_json_path}：id 格式不正確")
-    elif gid != game_id:
+    elif not template and gid != game_id:
         errors.append(f"{game_json_path}：id「{gid}」與資料夾「{game_id}」不一致")
 
     name = data.get("name")
@@ -427,7 +457,9 @@ def validate_game_dir(game_dir: Path) -> list[str]:
                 errors.append(f"{spec_path}：spec.id 必須與 game.json id 相同")
 
     total = 0
-    for file_path in _iter_files(game_dir):
+    files, symlink_errors = _iter_files(game_dir)
+    errors.extend(symlink_errors)
+    for file_path in files:
         try:
             size = file_path.stat().st_size
         except OSError as exc:
@@ -455,14 +487,14 @@ def listed_game_ids(index_data: Any) -> tuple[list[str], str | None]:
     games = index_data.get("games")
     if not isinstance(games, list):
         return [], "index.json 缺少 games 陣列"
+    if len(games) > MAX_INDEX_GAMES:
+        return [], f"index.json 的 games 最多 {MAX_INDEX_GAMES} 個（目前 {len(games)}）"
     ids: list[str] = []
     for item in games:
-        if isinstance(item, str):
-            ids.append(item)
-        elif isinstance(item, dict) and isinstance(item.get("id"), str):
-            ids.append(item["id"])
-        else:
-            return [], "index.json 的 games 必須是字串 id 或含 id 的物件"
+        # 上游（股票大亂鬥）只吃字串 id，這裡不能更寬鬆。
+        if not isinstance(item, str):
+            return [], "index.json 的 games 必須是字串 id 陣列"
+        ids.append(item)
     return ids, None
 
 
@@ -482,11 +514,21 @@ def validate_community(root: Path) -> list[str]:
             errors.append(f"{index_path}：{listed_error}")
             listed = []
 
-    disk_ids = sorted(
-        path.name
-        for path in root.iterdir()
-        if path.is_dir() and not path.name.startswith("_")
-    )
+    disk_ids: list[str] = []
+    template_ids: list[str] = []
+    for path in sorted(root.iterdir()):
+        if path.is_symlink():
+            errors.append(f"{path}：不可使用符號連結")
+            continue
+        if not path.is_dir():
+            continue
+        if path.name.startswith(TEMPLATE_PREFIX):
+            template_ids.append(path.name)
+        elif path.name.startswith("_"):
+            errors.append(f"{path}：底線開頭的資料夾名稱保留給 {TEMPLATE_PREFIX}* 範本")
+        else:
+            disk_ids.append(path.name)
+
     listed_set = set(listed)
     disk_set = set(disk_ids)
     for missing in sorted(listed_set - disk_set):
@@ -498,6 +540,8 @@ def validate_community(root: Path) -> list[str]:
 
     for game_id in disk_ids:
         errors.extend(validate_game_dir(root / game_id))
+    for template_id in template_ids:
+        errors.extend(validate_game_dir(root / template_id, template=True))
     return errors
 
 
@@ -531,7 +575,19 @@ def run_vectors(path: Path) -> list[str]:
     return errors
 
 
-def check_changed_files(path: Path) -> tuple[list[str], list[str]]:
+def is_owner_pr(pr_author: str | None, repo_owner: str | None) -> bool:
+    """作者是否為 repo 擁有者。兩者任一不明（本機執行）時當成擁有者，只出警告。"""
+    if not pr_author or not repo_owner:
+        return True
+    return pr_author.strip().lower() == repo_owner.strip().lower()
+
+
+def check_changed_files(
+    path: Path,
+    *,
+    pr_author: str | None = None,
+    repo_owner: str | None = None,
+) -> tuple[list[str], list[str]]:
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
     except OSError as exc:
@@ -539,6 +595,7 @@ def check_changed_files(path: Path) -> tuple[list[str], list[str]]:
     errors: list[str] = []
     warnings: list[str] = []
     game_ids: set[str] = set()
+    outside: list[str] = []
     for raw in lines:
         rel = raw.strip().replace("\\", "/")
         if not rel:
@@ -549,11 +606,20 @@ def check_changed_files(path: Path) -> tuple[list[str], list[str]]:
             rest = rel[len(COMMUNITY_PREFIX) :]
             folder = rest.split("/", 1)[0]
             if not folder or folder.startswith("_") or "/" not in rest:
-                warnings.append(f"{rel}：需要擁有者審核")
+                outside.append(rel)
                 continue
             game_ids.add(folder)
             continue
-        warnings.append(f"{rel}：需要擁有者審核")
+        outside.append(rel)
+
+    # 投稿者改到平台路徑一律失敗；擁有者自己的 PR 只標示需要審核。
+    if is_owner_pr(pr_author, repo_owner):
+        warnings.extend(f"{rel}：需要擁有者審核" for rel in outside)
+    else:
+        errors.extend(
+            f"{rel}：投稿 PR 只能改 {COMMUNITY_PREFIX}<自己的 id>/ 與 {COMMUNITY_PREFIX}index.json"
+            for rel in outside
+        )
     if len(game_ids) > 1:
         errors.append("PR 動到多個遊戲（" + "、".join(sorted(game_ids)) + "），每次只能改一個 id")
     return errors, warnings
@@ -564,6 +630,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("games_dir", nargs="?", help="site/games/community 目錄")
     parser.add_argument("--vectors", help="規格向量 JSON")
     parser.add_argument("--changed-files", help="變更檔案清單（每行一個路徑）")
+    parser.add_argument("--pr-author", help="PR 作者的 GitHub 帳號")
+    parser.add_argument("--repo-owner", help="repo 擁有者的 GitHub 帳號")
     args = parser.parse_args(argv)
 
     if not args.games_dir and not args.vectors and not args.changed_files:
@@ -577,7 +645,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.vectors:
         errors.extend(run_vectors(Path(args.vectors)))
     if args.changed_files:
-        changed_errors, changed_warnings = check_changed_files(Path(args.changed_files))
+        changed_errors, changed_warnings = check_changed_files(
+            Path(args.changed_files),
+            pr_author=args.pr_author,
+            repo_owner=args.repo_owner,
+        )
         errors.extend(changed_errors)
         warnings.extend(changed_warnings)
 

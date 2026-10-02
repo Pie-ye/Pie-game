@@ -18,8 +18,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Install pytest
-        run: python3 -m pip install pytest
+      - name: Install dependencies
+        run: python3 -m pip install -r requirements.txt -r requirements-dev.txt
       - name: Validate games
         run: python3 tools/validate_games.py site/games/community
       - name: Spec vectors
@@ -28,11 +28,15 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           git diff --name-only ${{ github.event.pull_request.base.sha }}...${{ github.sha }} > /tmp/changed.txt
-          python3 tools/validate_games.py --changed-files /tmp/changed.txt
+          python3 tools/validate_games.py --changed-files /tmp/changed.txt \
+            --pr-author "${{ github.event.pull_request.user.login }}" \
+            --repo-owner "${{ github.repository_owner }}"
       - name: Syntax-check JavaScript
         run: |
           for f in $(git ls-files 'site/**/*.js'); do
             node --check "$f" || exit 1
           done
       - name: Unit tests
-        run: python3 -m pytest tools/tests -q
+        run: python3 -m pytest server/tests tools/tests -q
+      - name: Content sync script
+        run: bash scripts/tests/test_sync_content.sh
