@@ -45,9 +45,12 @@ async def test_shell_headers_cache_and_health(aiohttp_client, service_settings) 
     versioned = await client.get("/app.js?v=abc123")
     assert versioned.headers["Cache-Control"] == "public, max-age=31536000, immutable"
 
-    # 沒帶版本號的模組要每次重新驗證，否則 CDN 會快取舊版好幾小時。
+    # 沒帶版本號的模組不能快取（Cloudflare 會把 no-cache 改寫成四小時），其他資源每次驗證。
     unversioned = await client.get("/app.js")
-    assert unversioned.headers["Cache-Control"] == "no-cache"
+    assert unversioned.headers["Cache-Control"] == "no-store"
+    (shell / "logo.svg").write_text("<svg xmlns='http://www.w3.org/2000/svg'/>", encoding="utf-8")
+    image = await client.get("/logo.svg")
+    assert image.headers["Cache-Control"] == "no-cache"
 
     health = await client.get("/healthz")
     assert health.status == 200

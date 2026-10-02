@@ -223,6 +223,9 @@ class _NegotiatedFileResponse(web.FileResponse):
         return self._path, stat_result, self._negotiated_encoding
 
 
+_CODE_SUFFIXES = frozenset({".js", ".mjs", ".css", ".json", ".map"})
+
+
 async def _static_response(request: web.Request, root: Path, relative: str) -> web.StreamResponse:
     requested = _resolve_file(root, relative, request.raw_path)
     representation, logical_path, encoding = _select_representation(
@@ -239,9 +242,13 @@ async def _static_response(request: web.Request, root: Path, relative: str) -> w
         headers["Cache-Control"] = "no-store"
     elif "v" in request.query:
         headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    elif logical_path.suffix.lower() in _CODE_SUFFIXES:
+        # 沒帶版本號的程式與設定（外框的 ES module、投稿遊戲的 js/json）：新舊混用會壞，一律不快取。
+        # 不能用 no-cache：Cloudflare 的 Browser Cache TTL 會把它改寫成 max-age=14400，
+        # 瀏覽器就會拿四小時前的舊模組；no-store 它不會改。
+        headers["Cache-Control"] = "no-store"
     else:
-        # 沒帶版本號的檔案（外框的 ES module、投稿遊戲的檔案）每次都要重新驗證；
-        # 不送的話 Cloudflare 會自己補 max-age=14400，改版後四小時內新舊模組混用。
+        # 圖片等其他資源：每次向源站驗證（ETag／Last-Modified），舊一點也不會壞。
         headers["Cache-Control"] = "no-cache"
 
     return _NegotiatedFileResponse(representation, encoding=encoding, headers=headers)
