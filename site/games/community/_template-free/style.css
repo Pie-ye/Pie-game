@@ -1,0 +1,23 @@
+:root, [data-theme="playful"], [data-theme="classic"] {
+  --bg: #f2eee6;
+  --ink: #1a1713;
+  --muted: #57503f;
+  --accent: #835f13;
+  --sheet: #fbf8f2;
+}
+[data-theme="studio"] {
+  --bg: #12110f;
+  --ink: #eae4d8;
+  --muted: #a69d8b;
+  --accent: #d9a425;
+  --sheet: #1b1916;
+}
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 1rem/1.7 sans-serif;
+}
+.wrap { padding: 16px; }
+h1 { font-size: 1.625rem; }
+.hint { color: var(--muted); }

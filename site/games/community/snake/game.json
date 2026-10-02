@@ -1,0 +1,10 @@
+{
+  "id": "snake",
+  "name": "貪吃蛇",
+  "kind": "free",
+  "multiplayer": false,
+  "author": "Pie-ye",
+  "entry": "index.html",
+  "description": "經典貪吃蛇。鍵盤方向鍵或螢幕按鈕操作，最高分存在本機。",
+  "tags": ["休閒", "單人"]
+}

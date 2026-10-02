@@ -1,0 +1,74 @@
+:root, [data-theme="playful"], [data-theme="classic"] {
+  --bg: #f2eee6;
+  --ink: #1a1713;
+  --muted: #57503f;
+  --accent: #835f13;
+  --sheet: #fbf8f2;
+  --gain: #0e7354;
+  --loss: #b4322b;
+}
+[data-theme="studio"] {
+  --bg: #12110f;
+  --ink: #eae4d8;
+  --muted: #a69d8b;
+  --accent: #d9a425;
+  --sheet: #1b1916;
+  --gain: #3fae84;
+  --loss: #e06a5e;
+}
+html, body { margin: 0; background: var(--bg); color: var(--ink); font: 1rem/1.6 sans-serif; }
+.wrap { max-width: 360px; margin: 0 auto; padding: 16px; text-align: center; }
+h1 { font-size: 1.625rem; margin: 0 0 8px; }
+.hint { color: var(--muted); }
+.wheel-wrap { position: relative; width: 260px; height: 260px; margin: 16px auto; }
+.pointer {
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-left: 10px solid transparent;
+  border-right: 10px solid transparent;
+  border-top: 18px solid var(--accent);
+  transform: translateX(-50%);
+  z-index: 2;
+}
+.wheel {
+  width: 260px;
+  height: 260px;
+  border: 0;
+  padding: 0;
+  border-radius: 50%;
+  position: relative;
+  background: conic-gradient(
+    from -22.5deg,
+    #c45c26 0 45deg,
+    #835f13 45deg 90deg,
+    #0e7354 90deg 135deg,
+    #1f5f7a 135deg 180deg,
+    #98500a 180deg 225deg,
+    #6b6457 225deg 270deg,
+    #57503f 270deg 315deg,
+    #3a3428 315deg 360deg
+  );
+  box-shadow: 0 8px 20px rgba(58, 42, 20, 0.2);
+  transition: transform 0ms;
+}
+.wheel.spin {
+  transition: transform 2.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.label {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 40px;
+  margin-left: -20px;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.8125rem;
+  transform: rotate(calc(var(--i) * 45deg)) translateY(-96px);
+  pointer-events: none;
+}
+#status { min-height: 2.4em; }
+#status.win { color: var(--gain); }
+#status.lose { color: var(--loss); }

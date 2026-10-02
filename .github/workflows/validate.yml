@@ -1,0 +1,38 @@
+name: validate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install pytest
+        run: python3 -m pip install pytest
+      - name: Validate games
+        run: python3 tools/validate_games.py site/games/community
+      - name: Spec vectors
+        run: python3 tools/validate_games.py --vectors tests/spec_vectors.json
+      - name: Changed files
+        run: |
+          git fetch origin main --depth=1 || true
+          git diff --name-only origin/main...HEAD > /tmp/changed.txt || git diff --name-only HEAD > /tmp/changed.txt
+          python3 tools/validate_games.py --changed-files /tmp/changed.txt
+      - name: Syntax-check JavaScript
+        run: |
+          for f in $(git ls-files 'site/**/*.js'); do
+            node --check "$f" || exit 1
+          done
+      - name: Unit tests
+        run: python3 -m pytest tools/tests -q

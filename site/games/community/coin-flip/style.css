@@ -1,0 +1,82 @@
+:root, [data-theme="playful"], [data-theme="classic"] {
+  --bg: #f2eee6;
+  --ink: #1a1713;
+  --muted: #57503f;
+  --accent: #835f13;
+  --on-accent: #ffffff;
+  --sheet: #fbf8f2;
+  --gain: #0e7354;
+  --loss: #b4322b;
+  --metal: #d9c48a;
+  --metal-dark: #8a6a24;
+}
+[data-theme="studio"] {
+  --bg: #12110f;
+  --ink: #eae4d8;
+  --muted: #a69d8b;
+  --accent: #d9a425;
+  --on-accent: #12110f;
+  --sheet: #1b1916;
+  --gain: #3fae84;
+  --loss: #e06a5e;
+  --metal: #c9a227;
+  --metal-dark: #6e4e0f;
+}
+html, body { margin: 0; background: var(--bg); color: var(--ink); font: 1rem/1.6 sans-serif; }
+.wrap { max-width: 360px; margin: 0 auto; padding: 16px; text-align: center; }
+h1 { font-size: 1.625rem; margin: 0 0 8px; }
+.hint { color: var(--muted); }
+.stage {
+  perspective: 480px;
+  height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.coin {
+  width: 120px;
+  height: 120px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  position: relative;
+  transform-style: preserve-3d;
+}
+.coin.flip { animation: flip 900ms cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.coin.show-tails { transform: rotateY(180deg); }
+.face {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.125rem;
+  backface-visibility: hidden;
+  background: radial-gradient(circle at 30% 30%, var(--metal), var(--metal-dark));
+  color: var(--on-accent);
+  box-shadow: 0 8px 20px rgba(58, 42, 20, 0.2);
+}
+.tails { transform: rotateY(180deg); }
+@keyframes flip {
+  0% { transform: rotateY(0deg); }
+  100% { transform: rotateY(720deg); }
+}
+.coin.flip.to-tails { animation-name: flip-tails; }
+@keyframes flip-tails {
+  0% { transform: rotateY(0deg); }
+  100% { transform: rotateY(900deg); }
+}
+.choices { display: flex; gap: 8px; justify-content: center; margin: 12px 0; }
+.choices button {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: 1px solid var(--muted);
+  background: var(--sheet);
+  color: var(--ink);
+}
+.choices button.is-active { background: var(--accent); color: var(--on-accent); border: 0; }
+#status { min-height: 2.4em; }
+#status.win { color: var(--gain); }
+#status.lose { color: var(--loss); }

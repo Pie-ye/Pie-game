@@ -1,0 +1,50 @@
+{
+  "specVersion": 1,
+  "id": "coin-flip",
+  "name": "猜硬幣",
+  "author": "Pie-ye",
+  "minBet": 5,
+  "maxBet": 100,
+  "choices": [
+    {
+      "id": "heads",
+      "label": "正面",
+      "outcomes": [
+        {
+          "id": "win",
+          "label": "猜中",
+          "weight": 48,
+          "return": "2",
+          "display": [{"face": "heads"}]
+        },
+        {
+          "id": "lose",
+          "label": "沒中",
+          "weight": 52,
+          "return": "0",
+          "display": [{"face": "tails"}]
+        }
+      ]
+    },
+    {
+      "id": "tails",
+      "label": "反面",
+      "outcomes": [
+        {
+          "id": "win",
+          "label": "猜中",
+          "weight": 48,
+          "return": "2",
+          "display": [{"face": "tails"}]
+        },
+        {
+          "id": "lose",
+          "label": "沒中",
+          "weight": 52,
+          "return": "0",
+          "display": [{"face": "heads"}]
+        }
+      ]
+    }
+  ]
+}

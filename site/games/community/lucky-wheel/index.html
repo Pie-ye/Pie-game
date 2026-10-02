@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>幸運轉盤</title>
+  <link rel="stylesheet" href="./style.css">
+  <script type="module" src="./main.js"></script>
+</head>
+<body>
+  <main class="wrap">
+    <h1>幸運轉盤</h1>
+    <p class="hint">八格、最高 ×20。點轉盤選「旋轉」，到外框下注。</p>
+    <div class="wheel-wrap">
+      <div class="pointer" aria-hidden="true"></div>
+      <button type="button" id="wheel" class="wheel" aria-label="轉盤">
+        <span class="label" style="--i:0">×20</span>
+        <span class="label" style="--i:1">×5</span>
+        <span class="label" style="--i:2">×2</span>
+        <span class="label" style="--i:3">×2</span>
+        <span class="label" style="--i:4">×1</span>
+        <span class="label" style="--i:5">—</span>
+        <span class="label" style="--i:6">—</span>
+        <span class="label" style="--i:7">—</span>
+      </button>
+    </div>
+    <p id="status">用外框下注後轉盤會停在開出的格子</p>
+  </main>
+</body>
+</html>

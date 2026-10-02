@@ -1,0 +1,10 @@
+[Unit]
+Description=每五分鐘同步 Pie-game 投稿內容
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

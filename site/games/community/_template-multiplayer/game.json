@@ -1,0 +1,10 @@
+{
+  "id": "my-multiplayer-game",
+  "name": "我的多人遊戲",
+  "kind": "free",
+  "multiplayer": true,
+  "author": "your-github-username",
+  "entry": "index.html",
+  "description": "複製此資料夾後用 SDK 開房、加入、傳訊。規則由房主裁定。",
+  "tags": ["範本", "多人"]
+}

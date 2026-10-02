@@ -1,0 +1,63 @@
+:root, [data-theme="playful"], [data-theme="classic"] {
+  --bg: #f2eee6;
+  --ink: #1a1713;
+  --muted: #57503f;
+  --accent: #835f13;
+  --on-accent: #ffffff;
+  --sheet: #fbf8f2;
+  --line: #dfd8ca;
+  --gain: #0e7354;
+  --loss: #b4322b;
+}
+[data-theme="studio"] {
+  --bg: #12110f;
+  --ink: #eae4d8;
+  --muted: #a69d8b;
+  --accent: #d9a425;
+  --on-accent: #12110f;
+  --sheet: #1b1916;
+  --line: #2c2823;
+  --gain: #3fae84;
+  --loss: #e06a5e;
+}
+html, body { margin: 0; background: var(--bg); color: var(--ink); font: 1rem/1.6 sans-serif; }
+.wrap { max-width: 360px; margin: 0 auto; padding: 16px; }
+h1 { font-size: 1.625rem; margin: 0 0 8px; }
+.net { background: var(--loss); color: var(--on-accent); padding: 8px 12px; border-radius: 10px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+button, input {
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--muted);
+  background: var(--sheet);
+  color: var(--ink);
+}
+button[type] { background: var(--accent); color: var(--on-accent); border: 0; }
+#rooms { list-style: none; padding: 0; }
+#rooms li {
+  padding: 8px 12px;
+  margin: 4px 0;
+  background: var(--sheet);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 12px 0;
+}
+.cell {
+  aspect-ratio: 1;
+  border: 0;
+  border-radius: 10px;
+  background: var(--sheet);
+  color: var(--ink);
+  font-size: 2.125rem;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.cell:disabled { opacity: 1; }
+#turn { min-height: 1.6em; }
+.join { display: flex; gap: 8px; align-items: center; }
+.join input { width: 6em; text-transform: uppercase; }

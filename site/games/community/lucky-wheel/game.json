@@ -1,0 +1,10 @@
+{
+  "id": "lucky-wheel",
+  "name": "幸運轉盤",
+  "kind": "coin",
+  "multiplayer": false,
+  "author": "Pie-ye",
+  "entry": "index.html",
+  "description": "八格轉盤，最高二十倍。點轉盤選 spin，外框負責下注。",
+  "tags": ["金幣", "轉盤"]
+}

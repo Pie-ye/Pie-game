@@ -1,0 +1,30 @@
+{
+  "specVersion": 1,
+  "id": "my-coin-game",
+  "name": "我的金幣遊戲",
+  "author": "your-github-username",
+  "minBet": 5,
+  "maxBet": 100,
+  "choices": [
+    {
+      "id": "play",
+      "label": "開始",
+      "outcomes": [
+        {
+          "id": "win",
+          "label": "中獎",
+          "weight": 48,
+          "return": "2",
+          "display": [{"result": "win"}]
+        },
+        {
+          "id": "lose",
+          "label": "沒中",
+          "weight": 52,
+          "return": "0",
+          "display": [{"result": "lose"}]
+        }
+      ]
+    }
+  ]
+}

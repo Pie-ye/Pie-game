@@ -1,0 +1,10 @@
+{
+  "id": "tic-tac-toe",
+  "name": "井字棋",
+  "kind": "free",
+  "multiplayer": true,
+  "author": "Pie-ye",
+  "entry": "index.html",
+  "description": "兩人房井字棋。房主為 X 並裁定合法性；可開公開房或用代碼加入。",
+  "tags": ["多人", "棋類"]
+}

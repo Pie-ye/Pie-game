@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <title>貪吃蛇</title>
+  <link rel="stylesheet" href="./style.css">
+  <script type="module" src="./main.js"></script>
+</head>
+<body>
+  <main class="wrap">
+    <header class="hud">
+      <h1>貪吃蛇</h1>
+      <p>分數 <strong id="score">0</strong>　最高 <strong id="best">0</strong></p>
+    </header>
+    <canvas id="board" width="320" height="320" aria-label="遊戲盤"></canvas>
+    <p id="banner" class="banner">按任意方向開始</p>
+    <div class="pad" aria-label="方向">
+      <button type="button" data-dir="up" aria-label="上">↑</button>
+      <div class="mid">
+        <button type="button" data-dir="left" aria-label="左">←</button>
+        <button type="button" data-dir="right" aria-label="右">→</button>
+      </div>
+      <button type="button" data-dir="down" aria-label="下">↓</button>
+    </div>
+  </main>
+</body>
+</html>

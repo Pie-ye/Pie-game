@@ -1,1 +1,3 @@
-{"games":[]}
+{
+  "games": ["snake", "coin-flip", "lucky-wheel", "tic-tac-toe"]
+}

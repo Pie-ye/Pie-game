@@ -1,0 +1,10 @@
+{
+  "id": "my-free-game",
+  "name": "我的一般遊戲",
+  "kind": "free",
+  "multiplayer": false,
+  "author": "your-github-username",
+  "entry": "index.html",
+  "description": "複製此資料夾、改 id 與名稱後即可投稿的一般遊戲範本。",
+  "tags": ["範本"]
+}

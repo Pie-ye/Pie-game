@@ -1,0 +1,10 @@
+{
+  "id": "my-coin-game",
+  "name": "我的金幣遊戲",
+  "kind": "coin",
+  "multiplayer": false,
+  "author": "your-github-username",
+  "entry": "index.html",
+  "description": "複製此資料夾後改 spec.json 與畫面。下注列由外框繪製，遊戲只負責演出。",
+  "tags": ["範本", "金幣"]
+}

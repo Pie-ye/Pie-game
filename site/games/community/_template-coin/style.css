@@ -1,0 +1,25 @@
+:root, [data-theme="playful"], [data-theme="classic"] {
+  --bg: #f2eee6;
+  --ink: #1a1713;
+  --muted: #57503f;
+  --accent: #835f13;
+  --on-accent: #ffffff;
+}
+[data-theme="studio"] {
+  --bg: #12110f;
+  --ink: #eae4d8;
+  --muted: #a69d8b;
+  --accent: #d9a425;
+  --on-accent: #12110f;
+}
+html, body { margin: 0; background: var(--bg); color: var(--ink); font: 1rem/1.7 sans-serif; }
+.wrap { padding: 16px; }
+.hint { color: var(--muted); }
+button {
+  min-height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--on-accent);
+}

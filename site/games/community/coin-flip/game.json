@@ -1,0 +1,10 @@
+{
+  "id": "coin-flip",
+  "name": "猜硬幣",
+  "kind": "coin",
+  "multiplayer": false,
+  "author": "Pie-ye",
+  "entry": "index.html",
+  "description": "猜正面或反面。外框下注，這裡播硬幣翻轉。",
+  "tags": ["金幣", "運氣"]
+}

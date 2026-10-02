@@ -1,0 +1,61 @@
+:root, [data-theme="playful"], [data-theme="classic"] {
+  --bg: #f2eee6;
+  --ink: #1a1713;
+  --muted: #57503f;
+  --accent: #835f13;
+  --on-accent: #ffffff;
+  --sheet: #fbf8f2;
+  --gain: #0e7354;
+  --cell: #e9e2d3;
+}
+[data-theme="studio"] {
+  --bg: #12110f;
+  --ink: #eae4d8;
+  --muted: #a69d8b;
+  --accent: #d9a425;
+  --on-accent: #12110f;
+  --sheet: #1b1916;
+  --gain: #3fae84;
+  --cell: #2b2721;
+}
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 1rem/1.5 sans-serif;
+  user-select: none;
+  touch-action: none;
+}
+.wrap {
+  max-width: 360px;
+  margin: 0 auto;
+  padding: 12px;
+  text-align: center;
+}
+h1 { font-size: 1.25rem; margin: 0 0 4px; }
+.hud p { margin: 0 0 8px; color: var(--muted); }
+#board {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: var(--sheet);
+  border-radius: 10px;
+}
+.banner { min-height: 1.5em; color: var(--accent); }
+.pad {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.mid { display: flex; gap: 48px; }
+.pad button {
+  width: 56px;
+  height: 40px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 1.25rem;
+}

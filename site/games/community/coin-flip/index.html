@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>猜硬幣</title>
+  <link rel="stylesheet" href="./style.css">
+  <script type="module" src="./main.js"></script>
+</head>
+<body>
+  <main class="wrap">
+    <h1>猜硬幣</h1>
+    <p class="hint">點硬幣選正面或反面，到外框按下注。長期玩一定虧。</p>
+    <div class="stage">
+      <button type="button" id="coin" class="coin" aria-label="硬幣">
+        <span class="face heads">正</span>
+        <span class="face tails">反</span>
+      </button>
+    </div>
+    <div class="choices">
+      <button type="button" data-choice="heads" class="is-active">正面</button>
+      <button type="button" data-choice="tails">反面</button>
+    </div>
+    <p id="status">選好後，用外框下注</p>
+  </main>
+</body>
+</html>

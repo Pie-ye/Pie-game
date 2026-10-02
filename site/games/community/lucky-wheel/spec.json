@@ -1,0 +1,24 @@
+{
+  "specVersion": 1,
+  "id": "lucky-wheel",
+  "name": "幸運轉盤",
+  "author": "Pie-ye",
+  "minBet": 5,
+  "maxBet": 100,
+  "choices": [
+    {
+      "id": "spin",
+      "label": "旋轉",
+      "outcomes": [
+        {"id": "jackpot", "label": "頭獎", "weight": 1, "return": "20", "display": [{"index": 0}]},
+        {"id": "x5", "label": "五倍", "weight": 3, "return": "5", "display": [{"index": 1}]},
+        {"id": "x2a", "label": "兩倍", "weight": 8, "return": "2", "display": [{"index": 2}]},
+        {"id": "x2b", "label": "兩倍", "weight": 8, "return": "2", "display": [{"index": 3}]},
+        {"id": "x1", "label": "一倍", "weight": 12, "return": "1", "display": [{"index": 4}]},
+        {"id": "miss-a", "label": "未中", "weight": 17, "return": "0", "display": [{"index": 5}]},
+        {"id": "miss-b", "label": "未中", "weight": 17, "return": "0", "display": [{"index": 6}]},
+        {"id": "miss-c", "label": "未中", "weight": 17, "return": "0", "display": [{"index": 7}]}
+      ]
+    }
+  ]
+}
