@@ -33,24 +33,17 @@ export function $$(sel, root = document) {
   return Array.from(root.querySelectorAll(sel));
 }
 
-function contentFingerprint(value) {
-  const text = String(value);
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < text.length; i += 1) {
-    hash ^= text.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return `${text.length}:${hash >>> 0}`;
-}
+// 上一次寫進去的 HTML。用完整字串比較而不是雜湊：雜湊碰撞會讓畫面卡在舊內容，
+// 而 WeakMap 不會把整份 HTML 塞進 DOM 的 dataset，元素被丟掉時也會自動回收。
+const lastRenderedHtml = new WeakMap();
 
 /** Replace HTML only when it changed, so controls keep focus during polling. */
 export function renderIfChanged(element, html) {
   if (!element) return false;
   const next = String(html);
-  const fingerprint = contentFingerprint(next);
-  if (element.dataset.renderFingerprint === fingerprint) return false;
+  if (lastRenderedHtml.get(element) === next) return false;
   element.innerHTML = next;
-  element.dataset.renderFingerprint = fingerprint;
+  lastRenderedHtml.set(element, next);
   return true;
 }
 

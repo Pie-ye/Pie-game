@@ -20,6 +20,16 @@ function inIframe() {
   }
 }
 
+/** 外框 origin：referrer 拿得到就先用，否則等第一則外框訊息記下來。 */
+function referrerOrigin() {
+  try {
+    if (document.referrer) return new URL(document.referrer).origin;
+  } catch (_err) {
+    /* referrer 不是合法 URL */
+  }
+  return null;
+}
+
 function inferGameId() {
   const parts = String(location.pathname || '').split('/').filter(Boolean);
   const idx = parts.lastIndexOf('community');
@@ -60,10 +70,12 @@ function createSdk() {
   let mpClient = null;
   let settleReady = null;
   let readyTimer = null;
+  let parentOrigin = referrerOrigin();
 
   function postToParent(payload) {
     if (!inIframe()) return;
-    window.parent.postMessage(payload, '*');
+    // 知道外框 origin 之後一律指定，別讓訊息（例如 pg:ticket 的請求）廣播給任何父窗。
+    window.parent.postMessage(payload, parentOrigin || '*');
   }
 
   function flushTicket(ticket) {
@@ -85,6 +97,14 @@ function createSdk() {
 
   function onParentMessage(event) {
     if (event.source !== window.parent) return;
+    // iframe 用 referrerpolicy=no-referrer，所以 origin 常常只能從第一則 pg:init
+    // 記下來；之後入站訊息的 origin 必須相同。
+    if (parentOrigin === null) {
+      if (!event.origin || event.origin === 'null') return;
+      parentOrigin = event.origin;
+    } else if (event.origin !== parentOrigin) {
+      return;
+    }
     const data = event.data || {};
     const type = data.type;
     if (type === 'pg:init') {

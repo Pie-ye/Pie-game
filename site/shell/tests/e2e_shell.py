@@ -456,6 +456,12 @@ def main() -> int:
         check("expired-relogin-closes-dialog", page.locator("#loginDialog").count() == 0, "dialog still open")
         check("expired-relogin-keeps-game", page.locator("iframe.community-frame").count() == 1,
               "game page was torn down after re-login")
+        # 就地登入後外框會重掛這一頁，讓下注列與官方 sdk 拿到新的登入狀態，
+        # 所以要重新抓 iframe（舊的 frame handle 已經 detach）。
+        frame = wait_inited(page, "coin-flip")
+        check("expired-relogin-remounts-bet-bar",
+              page.locator("#coinBetBar #playBtn").count() == 1,
+              page.locator("#coinBetBar").inner_text())
         page.locator("#playBtn").click()
         page.wait_for_timeout(900)
         resumed = frame.evaluate("() => document.body.dataset.result || ''") if frame else ""

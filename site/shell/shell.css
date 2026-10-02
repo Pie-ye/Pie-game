@@ -558,7 +558,7 @@ button:disabled,
   transform: translate(-50%, 0);
 }
 
-/* 撲克牌面（自 casino-blackjack.js 的 renderPcard） */
+/* 撲克牌面（cards.js 的 renderPcard 共用） */
 .pcard {
   position: relative;
   width: calc(var(--control-h) * 1.6);

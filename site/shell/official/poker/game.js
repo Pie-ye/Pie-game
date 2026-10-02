@@ -4,7 +4,7 @@ import { createBridge } from '../_bridge.js';
 
 const bridge = createBridge('poker');
 const {
-  state, $, api, currentCasinoUserId, ensureCasinoState, isAbortedResponse,
+  state, $, api, ensureCasinoState, isAbortedResponse,
   mountIcons, onDocument: registerDocumentListener, refreshBalance,
   refreshCasinoHistory, setCasinoBalance, toast,
 } = bridge;

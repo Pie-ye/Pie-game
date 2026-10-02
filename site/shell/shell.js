@@ -14,7 +14,6 @@ import {
   setUnauthorizedHandler,
 } from './api.js';
 import { createOfficialSdk } from './official-sdk.js';
-import { renderPcard } from './cards.js';
 import { escapeHtml, formatCoins } from './util.js';
 import { renderHistory } from './history.js';
 import { mountCommunity, unmountCommunity, notifyTheme } from './community-host.js';
@@ -180,7 +179,8 @@ async function loadCatalog() {
       });
       if (!res.ok) return null;
       const json = await res.json();
-      if (!json || json.id !== id) return json && json.id ? json : { ...json, id };
+      // id 與資料夾不一致的遊戲直接丟掉：拿它當 key 會對錯規格、也開錯 iframe。
+      if (!json || json.id !== id) return null;
       return json;
     } catch (_) {
       return null;
@@ -340,6 +340,9 @@ function openLoginDialog() {
     closeLoginDialog();
     renderChrome();
     toast('登入成功');
+    // 重新掛載這一頁：金幣下注列與官方遊戲的 sdk 都是在 mount 時拿 user，
+    // 不重掛的話登入後下注列還是停在「登入後才能下注」。
+    void route();
   });
   const first = el.querySelector('input[name="username"]');
   if (first) first.focus();
@@ -351,9 +354,11 @@ function showLoginFrom401() {
     route();
     return;
   }
-  toast('請先登入');
+  // 同一頁可能同時打好幾個請求都拿到 401：登入框已經開著就不再疊 toast。
+  const alreadyPrompted = Boolean(loginDialog);
   renderChrome();
   openLoginDialog();
+  if (!alreadyPrompted) toast('請先登入');
 }
 
 async function refreshGameHistory(historyRoot, historyGame, gameId) {
@@ -403,7 +408,6 @@ async function renderOfficialGame(view, meta) {
     toast,
     refreshHistory: () => refreshGameHistory(historyRoot, meta.historyGame),
     roundId: casinoRoundId,
-    renderPcard,
     user: getUser(),
   });
   mod.mount(root, sdk);
@@ -414,6 +418,17 @@ async function renderOfficialGame(view, meta) {
 async function renderCommunityGame(view, game) {
   const spec = game.kind === 'coin' ? catalog.casinoById.get(game.id) : null;
   const showHistory = game.kind === 'coin';
+  if (game.kind === 'coin' && !spec) {
+    // 伺服器沒有通過驗證的規格就不能下注，直接開網址時要說清楚，不要給一條空下注列。
+    view.innerHTML = `
+      <div class="game-page-head">
+        <h1>${escapeHtml(game.name || game.id)}</h1>
+        <a class="outlined-button" href="#/">回大廳</a>
+      </div>
+      <p class="empty-hint">這個遊戲目前不能玩：伺服器還沒有通過驗證的金幣規格。</p>
+    `;
+    return;
+  }
   view.innerHTML = `
     <div class="game-page-head">
       <h1>${escapeHtml(game.name || game.id)}</h1>

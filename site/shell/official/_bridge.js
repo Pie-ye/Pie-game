@@ -209,7 +209,6 @@ export function createBridge(gameId) {
     onUnmount,
     refreshBalance,
     refreshCasinoHistory,
-    setBodyAddon,
     setCasinoBalance,
     toast,
     unmount,

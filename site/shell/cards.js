@@ -25,9 +25,9 @@ export function renderPcard(card, opts) {
     <div class="pcard${redClass}${extraClass}"${extraAttrs} aria-label="${escapeHtml(displayRank)} ${escapeHtml(suitUnicode)}">
       <div class="pcard-corner">
         <span class="pcard-rank">${escapeHtml(displayRank)}</span>
-        <span class="pcard-suit">${suitUnicode}</span>
+        <span class="pcard-suit">${escapeHtml(suitUnicode)}</span>
       </div>
-      <div class="pcard-center" aria-hidden="true">${suitUnicode}</div>
+      <div class="pcard-center" aria-hidden="true">${escapeHtml(suitUnicode)}</div>
     </div>
   `;
 }

@@ -1,4 +1,4 @@
-/** 官方遊戲掛載介面。P3 移植時依此呼叫 mount(root, sdk)。 */
+/** 官方遊戲掛載介面：mount(root, sdk)。牌面由各遊戲自己 import cards.js。 */
 export function createOfficialSdk({
   api,
   getBalance,
@@ -6,7 +6,6 @@ export function createOfficialSdk({
   toast,
   refreshHistory,
   roundId,
-  renderPcard,
   user,
 }) {
   return {
@@ -16,7 +15,6 @@ export function createOfficialSdk({
     toast,
     refreshHistory,
     roundId,
-    renderPcard,
     user,
   };
 }

@@ -155,7 +155,13 @@ function applyMove(fromId, i) {
 
 async function refreshRooms() {
   if (!client) return;
-  const rooms = await client.list();
+  let rooms;
+  try {
+    rooms = await client.list();
+  } catch (err) {
+    hello.textContent = `讀取房間列表失敗：${(err && (err.code || err.message)) || err}`;
+    return;
+  }
   roomsEl.innerHTML = '';
   if (!rooms.length) {
     const li = document.createElement('li');

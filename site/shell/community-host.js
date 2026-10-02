@@ -3,7 +3,9 @@ import { casinoRoundId, fetchSession, getUser, playCommunity, playTicket, setBal
 import { escapeHtml, rtpPercent } from './util.js';
 
 const BETS = [5, 10, 20, 50, 100];
-const TICKET_INTERVAL_MS = 10000;
+// 節流 3 秒，對齊 SDK 的 ticketTimeoutMs（5 秒）：10 秒的話 SDK 會先 timeout。
+// 一個遊戲最多 20 張／分鐘，仍低於股票大亂鬥的每人每分鐘 30 張上限。
+const TICKET_INTERVAL_MS = 3000;
 
 let listener = null;
 let iframe = null;
