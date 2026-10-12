@@ -42,11 +42,22 @@ function decodeSamples() {
 
 export function hasSample(kind) { return buffers[kind].length > 0; }
 
+const active = { chibi: [], reggie: [] };
+const lastIdx = { chibi: -1, reggie: -1 };
+
 function sample(kind, { vol = 1, rate = 1, delay = 0 } = {}) {
   const list = buffers[kind];
   if (!ac || muted || !list.length) return false;
+  const now = ac.currentTime;
+  active[kind] = active[kind].filter((end) => end > now);
+  if (active[kind].length >= 2) return true;      // 已有兩個在播，這次略過（算已處理，不退回合成音）
   const src = ac.createBufferSource();
-  src.buffer = list[Math.floor(Math.random() * list.length)];
+  // 不連續重複同一個檔
+  let idx = Math.floor(Math.random() * list.length);
+  if (list.length > 1 && idx === lastIdx[kind]) idx = (idx + 1) % list.length;
+  lastIdx[kind] = idx;
+  src.buffer = list[idx];
+  active[kind].push(now + delay + src.buffer.duration / (rate * 1.0));
   src.playbackRate.value = rate * (0.97 + Math.random() * 0.08);
   const g = ac.createGain();
   g.gain.value = vol;
@@ -133,17 +144,14 @@ const SOUNDS = {
   fish: () => tone(1320, 0.07, { type: 'sine', vol: 0.1, slide: 440 }),
   hurt: () => { tone(160, 0.22, { type: 'sawtooth', vol: 0.22, slide: -80 }); noise(0.12, { vol: 0.15, freq: 600 }); },
   chibi: () => sample('chibi', { vol: 1.2 }),
-  level: () => {
-    [523, 659, 784, 1046].forEach((f, i) => tone(f, 0.16, { type: 'triangle', vol: 0.1, delay: i * 0.07 }));
-    sample('chibi', { vol: 1.1, delay: 0.25 });
-  },
+  level: () => [523, 659, 784, 1046].forEach((f, i) => tone(f, 0.18, { type: 'triangle', vol: 0.16, delay: i * 0.07 })),
   beam: () => { tone(220, 0.4, { type: 'sawtooth', vol: 0.12, slide: 660 }); tone(880, 0.35, { type: 'sine', vol: 0.1, slide: 440 }); },
   echo: () => tone(300, 0.35, { type: 'sine', vol: 0.18, slide: -200 }),
   rain: () => tone(1400, 0.3, { type: 'sine', vol: 0.08, slide: -1000 }),
   boom: () => { noise(0.25, { vol: 0.2, freq: 500 }); tone(90, 0.25, { type: 'sine', vol: 0.25, slide: -50 }); },
   // 瑞吉的吼叫「嗷、嗷、嗷」：有取樣就播取樣，沒有就合成三聲帶共振峰的海獅吼
   roar: () => {
-    if (sample('reggie', { vol: 1.3 })) return;
+    if (hasSample('reggie')) { sample('reggie', { vol: 1.3 }); return; }
     [0, 0.2, 0.4].forEach((d, i) => bark(d, 215 - i * 12, 0.26 - i * 0.02));
     noise(0.5, { vol: 0.06, freq: 700 });
   },

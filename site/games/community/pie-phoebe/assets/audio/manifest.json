@@ -1,4 +1,14 @@
 {
-  "chibi": ["phoebe_1", "phoebe_2", "phoebe_3", "phoebe_4"],
-  "reggie": []
+  "chibi": [
+    "phoebe_1",
+    "phoebe_2",
+    "phoebe_3",
+    "phoebe_4"
+  ],
+  "reggie": [
+    "reggie_1",
+    "reggie_2",
+    "reggie_3",
+    "reggie_4"
+  ]
 }

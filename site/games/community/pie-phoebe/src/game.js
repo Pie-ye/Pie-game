@@ -491,6 +491,7 @@ export class Game {
           this.shots.push({ x: p.x, z: p.z, vx: Math.cos(a) * 10.5, vz: Math.sin(a) * 10.5, life: 2.4, dmg, pierce, hit: [], target: t });
         }
         sfx('shoot', 0.08);
+        sfx('chibi', 0.15);
       } else cd.star = 0.25;
     }
 
@@ -533,6 +534,7 @@ export class Game {
           this.fireBeam(a, w, dmg);
         }
         sfx('beam', 0.1);
+        sfx('chibi', 0.15);
         this.shake = Math.max(this.shake, 0.12);
       } else cd.litany = 0.3;
     }
@@ -561,6 +563,7 @@ export class Game {
         this.waves.push({ x: p.x, z: p.z, r: 0.5, max, dmg, id: ++this.nextId, delay: 0 });
         if (lv >= 8) this.waves.push({ x: p.x, z: p.z, r: 0.5, max, dmg, id: ++this.nextId, delay: 0.4 });
         sfx('echo', 0.1);
+        sfx('chibi', 0.15);
       } else cd.echo = 0.3;
     }
 
@@ -575,6 +578,7 @@ export class Game {
           this.strikes.push({ x: t.x + (rnd() - 0.5) * 0.8, z: t.z + (rnd() - 0.5) * 0.8, t: 0.85, max: 0.85, dmg: 34 + 11 * lv + (lv >= 7 ? 12 : 0), r: 1.5 * this.area * (lv >= 4 ? 1.3 : 1) });
         }
         sfx('rain', 0.1);
+        sfx('chibi', 0.15);
       } else cd.rain = 0.3;
     }
   }
@@ -749,7 +753,6 @@ export class Game {
         this.fxRing(pt.x, pt.z, R * 0.7, 0.35, [1, 1, 1]);
         this.popup(pt.x, pt.z, 2.7, '嗷！', '#bfe6ff');
         this.shake = Math.max(this.shake, 0.22);
-        sfx('roar', 0.2);
       }
     } else {
       // 跟隨玩家，並且去吃附近的小魚
@@ -780,6 +783,7 @@ export class Game {
         this.forNear(pt.x, pt.z, R + 1.2, () => { near++; });
         if (near >= 2) {
           pt.pose = 0.85; pt.poseFired = false;
+          sfx('roar', 0.15);
           pt.roarCd = (6.2 - 0.45 * r) * this.cdm * fm;
           pt.face = (this.nearest(pt.x, pt.z, 1, 12)[0]?.x ?? pt.x + pt.face) >= pt.x ? 1 : -1;
         } else pt.roarCd = 0.4;
@@ -798,7 +802,7 @@ export class Game {
           pt.back = sl >= 8 ? 1 : 0;
           if (pt.back) { pt.slide = 1.1; }
           pt.slideCd = (6.2 - 0.5 * sl) * this.cdm * fm;
-          sfx('echo', 0.2);
+          sfx('roar', 0.15);
         } else pt.slideCd = 0.5;
       }
     }
