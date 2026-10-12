@@ -1,0 +1,1235 @@
+// 遊戲核心：世界狀態、武器、瑞吉、敵人、渲染。
+import { THREE, Layer } from './gfx.js';
+import { WEAPONS, PASSIVES, PET, ENEMIES, WIN_TIME, xpNeed, spawnTable } from './data.js';
+import { sfx } from './audio.js';
+
+const TAU = Math.PI * 2;
+const rnd = Math.random;
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+const d2 = (ax, az, bx, bz) => { const dx = ax - bx; const dz = az - bz; return dx * dx + dz * dz; };
+const CS = 2;                       // 空間雜湊格子大小
+const MAX_ENEMY_R = 1.9;
+const PRAYER_MAX = 120;
+const MODE_TIME = 15;
+const BEST_KEY = 'pg-phoebe-best';
+
+export function loadBest() {
+  try { const v = JSON.parse(localStorage.getItem(BEST_KEY)); return v && v.time ? v : null; } catch { return null; }
+}
+
+export class Game {
+  constructor(canvas, numsCanvas, assets, ui) {
+    this.canvas = canvas;
+    this.numsCanvas = numsCanvas;
+    this.nctx = numsCanvas.getContext('2d');
+    this.assets = assets;
+    this.ui = ui;
+    this.mode = 'title';
+    this.input = { x: 0, z: 0 };
+    this.bot = false;
+    this.grid = new Map();
+    this.clock = 0;
+
+    const r = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    r.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    r.setClearColor(0x0b1026);
+    this.renderer = r;
+    this.scene = new THREE.Scene();
+    this.camera = new THREE.PerspectiveCamera(38, 16 / 10, 0.5, 200);
+    this.camDist = 1;
+    this.camPos = { x: 0, z: 0 };
+
+    this.buildScene();
+    this.newRun();
+    this.resize();
+  }
+
+  // ───────────────────────── 場景 ─────────────────────────
+  buildScene() {
+    const { tex, aspect } = this.assets;
+    const sc = this.scene;
+    const g = new THREE.Mesh(
+      new THREE.PlaneGeometry(168, 168),
+      new THREE.MeshBasicMaterial({ map: tex.ground, toneMapped: false, color: new THREE.Color(0.3, 0.34, 0.46) }),
+    );
+    tex.ground.repeat.set(28, 28);
+    g.rotation.x = -Math.PI / 2;
+    this.ground = g;
+    sc.add(g);
+
+    const solid = (t, max, order) => new Layer(sc, t, max, { alphaTest: 0.45, order });
+    const add = (t, max, order, extra = {}) => new Layer(sc, t, max, { additive: true, order, ...extra });
+    const L = this.L = {};
+    L.decorA = solid(tex.decor_crystal, 160, 1);
+    L.decorB = solid(tex.decor_grass, 160, 1);
+    L.shadow = new Layer(sc, tex.shadow, 700, { flat: true, order: 2 });
+    L.hum = solid(tex.enemy_hum, 500, 3);
+    L.bat = solid(tex.enemy_bat, 400, 3);
+    L.golem = solid(tex.enemy_golem, 160, 3);
+    L.shooter = solid(tex.enemy_shooter, 160, 3);
+    L.boss = solid(tex.enemy_boss, 4, 3);
+    L.fish = solid(tex.fish_blue, 400, 4);
+    L.gold = solid(tex.fish_gold, 120, 4);
+    L.heart = solid(tex.heart, 40, 4);
+    L.chest = solid(tex.chest, 8, 4);
+    L.phoebe = solid(tex.phoebe, 2, 5);
+    L.rc = solid(tex.reggie_closed, 2, 5);
+    L.ro = solid(tex.reggie_open, 2, 5);
+    L.disc = add(tex.disc, 24, 6, { flat: true });
+    L.ring = add(tex.ring, 160, 7, { flat: true });
+    L.beam = add(tex.beam, 32, 7, { flat: true });
+    L.halo = add(tex.halo, 4, 8, { center: true });
+    L.mirror = add(tex.fx_mirror, 24, 8, { center: true });
+    L.star = add(tex.fx_star, 700, 9, { center: true });
+    L.glow = add(tex.glow, 900, 9, { center: true });
+    L.eshot = add(tex.fx_shot, 240, 9, { center: true });
+
+    // 尺寸（高度，世界單位）
+    this.sz = {
+      phoebe: 1.95,
+      reggie: 2.15 / aspect.reggie_closed,
+      hum: 1.2, bat: 1.15, golem: 1.85, shooter: 1.25, boss: 5.0,
+    };
+  }
+
+  resize() {
+    const w = this.canvas.clientWidth || 800;
+    const h = this.canvas.clientHeight || 500;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    this.renderer.setPixelRatio(dpr);
+    this.renderer.setSize(w, h, false);
+    this.numsCanvas.width = Math.round(w * dpr);
+    this.numsCanvas.height = Math.round(h * dpr);
+    this.camera.aspect = w / h;
+    this.camera.updateProjectionMatrix();
+    this.camDist = 1.15 * Math.max(1, 1.62 / (w / h)) * clamp(500 / h, 0.85, 1.15);
+    this.w = w; this.h = h; this.dpr = dpr;
+  }
+
+  // ───────────────────────── 流程 ─────────────────────────
+  newRun() {
+    this.t = 0; this.kills = 0; this.fishEaten = 0;
+    this.p = {
+      x: 0, z: 0, hp: 100, maxhp: 100, face: 1, inv: 0, lvl: 1, xp: 0, need: xpNeed(1),
+      walk: 0, moving: false, prayer: 0, mode: null, modeT: 0, hurt: 0, regen: 0,
+    };
+    this.weapons = { star: 1 };
+    this.passives = {};
+    this.petSkills = { roar: 1 };
+    this.cd = { star: 0.4, ring: 0, litany: 2, field: 0, echo: 2.5, rain: 1.5 };
+    this.fieldT = 0;
+    this.ringAng = 0;
+    this.ringPos = [];
+    this.pet = {
+      x: -1.6, z: 0.9, vx: 0, vz: 0, face: 1, fullness: 0, full: false, fullT: 0, fullDur: 10,
+      roarCd: 4, slideCd: 5, pose: 0, poseFired: true, slide: 0, sdx: 1, sdz: 0, slideId: 0, back: 0, bob: 0, burp: 0,
+    };
+    this.enemies = []; this.shots = []; this.eshots = []; this.pickups = []; this.parts = [];
+    this.fxs = []; this.nums = []; this.strikes = []; this.waves = [];
+    this.spawnAcc = 0; this.bossIdx = 0; this.swarmIdx = 0; this.nextId = 1; this.pending = 0;
+    this.camPos.x = 0; this.camPos.z = 0;
+    this.shake = 0; this.won = false; this.boss = null; this.endless = false; this.pendingCards = null;
+    this.ui.setSlots(this);
+  }
+
+  start() {
+    this.newRun();
+    this.mode = 'play';
+    this.ui.hideScreen();
+    this.ui.showHud(true);
+    this.ui.banner('菲比啾比，出發！', '#ffd966');
+    sfx('chibi', 0.5);
+  }
+
+  pause() {
+    if (this.mode !== 'play') return;
+    this.mode = 'pause';
+    this.ui.pause();
+  }
+
+  resume() {
+    if (this.mode !== 'pause') return;
+    this.mode = 'play';
+    this.ui.hideScreen();
+  }
+
+  quit() {
+    this.die();
+  }
+
+  continueEndless() {
+    this.endless = true;
+    this.mode = 'play';
+    this.ui.hideScreen();
+    this.ui.banner('無盡模式', '#6fd0ff');
+  }
+
+  die() {
+    this.mode = 'over';
+    sfx('lose');
+    this.finish(false);
+  }
+
+  finish(win) {
+    const st = { time: this.t, kills: this.kills, lvl: this.p.lvl, fish: this.fishEaten, newBest: false };
+    let best = loadBest();
+    if (!best || this.t > best.time) {
+      best = { time: this.t, kills: this.kills };
+      st.newBest = true;
+      try { localStorage.setItem(BEST_KEY, JSON.stringify(best)); } catch { /* 無痕模式 */ }
+    }
+    this.ui.end(win, st, best);
+  }
+
+  // ───────────────────────── 派生屬性 ─────────────────────────
+  get absolve() { return this.p.mode === 'absolve'; }
+  get confess() { return this.p.mode === 'confess'; }
+  get atk() { return (1 + 0.12 * (this.passives.might || 0)) * (this.absolve ? 1.35 : 1); }
+  get cdm() { return Math.max(0.35, 1 - 0.08 * (this.passives.haste || 0)); }
+  get area() { return 1 + 0.12 * (this.passives.area || 0); }
+  get speed() { return 4.4 * (1 + 0.1 * (this.passives.speed || 0)); }
+  get magnet() { return 2.4 * (1 + 0.3 * (this.passives.magnet || 0)); }
+  get petAtk() {
+    const gl = this.petSkills.glutton || 0;
+    return (1 + 0.12 * (this.passives.might || 0)) * (this.confess ? 1.3 : 1) * (this.pet.full ? (gl >= 8 ? 2 : 1.5) : 1);
+  }
+
+  setMode(m) {
+    const p = this.p;
+    if (this.mode !== 'play' || p.mode || p.prayer < PRAYER_MAX) return;
+    p.mode = m; p.modeT = MODE_TIME; p.prayer = 0;
+    sfx('mode');
+    this.shake = Math.max(this.shake, 0.25);
+    if (m === 'absolve') {
+      this.ui.banner('赦罪 ・ 聖祷降臨', '#ffd966');
+      this.fxRing(p.x, p.z, 7, 0.7, [1, 0.85, 0.35]);
+      this.burst(p.x, 1, p.z, 40, { kind: 'star', color: [1, 0.85, 0.4], speed: 6, life: 0.9, size: 0.5 });
+    } else {
+      this.ui.banner('告解 ・ 默禱展開', '#6fd0ff');
+      this.fxRing(p.x, p.z, 11, 0.8, [0.5, 0.85, 1]);
+      this.burst(p.x, 1, p.z, 40, { kind: 'glow', color: [0.5, 0.85, 1], speed: 6, life: 0.9, size: 0.7 });
+      for (const e of this.enemies) if (!e.dead && d2(e.x, e.z, p.x, p.z) < 144) this.addFrazzle(e, 3);
+    }
+  }
+
+  // ───────────────────────── 升級 ─────────────────────────
+  addXp(v) {
+    const p = this.p;
+    p.xp += v;
+    while (p.xp >= p.need) { p.xp -= p.need; p.lvl++; p.need = xpNeed(p.lvl); this.pending++; }
+  }
+
+  makeCards() {
+    const pool = [];
+    const wOwned = Object.keys(this.weapons).length;
+    for (const [k, w] of Object.entries(WEAPONS)) {
+      const lv = this.weapons[k] || 0;
+      if (lv && lv < w.max) pool.push({ type: 'weapon', key: k, w: 1.4 });
+      else if (!lv && wOwned < 5) pool.push({ type: 'weapon', key: k, w: 1 });
+    }
+    const pOwned = Object.keys(this.passives).length;
+    for (const [k, w] of Object.entries(PASSIVES)) {
+      const lv = this.passives[k] || 0;
+      if (lv < w.max && (lv || pOwned < 6)) pool.push({ type: 'passive', key: k, w: lv ? 1 : 0.8 });
+    }
+    for (const [k, w] of Object.entries(PET)) {
+      const lv = this.petSkills[k] || 0;
+      if (lv < w.max) pool.push({ type: 'pet', key: k, w: lv ? 1.3 : 1.1 });
+    }
+    const out = [];
+    while (out.length < 3 && pool.length) {
+      const sum = pool.reduce((s, c) => s + c.w, 0);
+      let r = rnd() * sum; let i = 0;
+      for (; i < pool.length - 1; i++) { r -= pool[i].w; if (r <= 0) break; }
+      out.push(pool.splice(i, 1)[0]);
+    }
+    while (out.length < 3) out.push({ type: 'heal' });
+    return out.map((c) => this.describeCard(c));
+  }
+
+  describeCard(c) {
+    if (c.type === 'heal') return { ...c, icon: '🐟', name: '回復', lv: '', now: '回復 40 生命', desc: '大餐一頓！', kind: '' };
+    if (c.type === 'passive') {
+      const d = PASSIVES[c.key]; const lv = (this.passives[c.key] || 0) + 1;
+      return { ...c, icon: d.icon, name: d.name, lv: `Lv ${lv}`, now: d.desc, desc: `被動強化（${d.stat}）`, kind: '', isNew: lv === 1 };
+    }
+    const d = c.type === 'weapon' ? WEAPONS[c.key] : PET[c.key];
+    const cur = (c.type === 'weapon' ? this.weapons : this.petSkills)[c.key] || 0;
+    return { ...c, icon: d.icon, name: d.name, lv: `Lv ${cur + 1}`, now: d.lv[cur + 1], desc: d.desc, kind: c.type === 'pet' ? 'pet' : '', isNew: cur === 0 };
+  }
+
+  openLevelUp() {
+    this.mode = 'levelup';
+    this.pendingCards = this.makeCards();
+    sfx('level');
+    this.ui.levelup(this.p.lvl - this.pending + 1, this.pendingCards);
+  }
+
+  pick(i) {
+    if (this.mode !== 'levelup' || !this.pendingCards) return;
+    const c = this.pendingCards[i];
+    if (!c) return;
+    if (c.type === 'heal') this.p.hp = Math.min(this.p.maxhp, this.p.hp + 40);
+    else if (c.type === 'weapon') this.weapons[c.key] = (this.weapons[c.key] || 0) + 1;
+    else if (c.type === 'pet') this.petSkills[c.key] = (this.petSkills[c.key] || 0) + 1;
+    else {
+      this.passives[c.key] = (this.passives[c.key] || 0) + 1;
+      if (c.key === 'vital') { this.p.maxhp += 20; this.p.hp = Math.min(this.p.maxhp, this.p.hp + 20); }
+    }
+    this.pending--;
+    this.pendingCards = null;
+    this.ui.setSlots(this);
+    if (this.pending > 0) this.openLevelUp();
+    else { this.mode = 'play'; this.ui.hideScreen(); }
+  }
+
+  // ───────────────────────── 空間查詢 ─────────────────────────
+  buildGrid() {
+    const g = this.grid;
+    g.clear();
+    for (const e of this.enemies) {
+      if (e.dead) continue;
+      const k = Math.floor(e.x / CS) * 8192 + Math.floor(e.z / CS);
+      const a = g.get(k);
+      if (a) a.push(e); else g.set(k, [e]);
+    }
+  }
+
+  forNear(x, z, r, fn) {
+    const R = r + MAX_ENEMY_R;
+    const x0 = Math.floor((x - R) / CS); const x1 = Math.floor((x + R) / CS);
+    const z0 = Math.floor((z - R) / CS); const z1 = Math.floor((z + R) / CS);
+    for (let cx = x0; cx <= x1; cx++) {
+      for (let cz = z0; cz <= z1; cz++) {
+        const a = this.grid.get(cx * 8192 + cz);
+        if (!a) continue;
+        for (let i = 0; i < a.length; i++) {
+          const e = a[i];
+          if (e.dead) continue;
+          const rr = r + e.r;
+          if (d2(x, z, e.x, e.z) <= rr * rr) fn(e);
+        }
+      }
+    }
+  }
+
+  nearest(x, z, n, maxD) {
+    const out = [];
+    const md = maxD * maxD;
+    for (const e of this.enemies) {
+      if (e.dead) continue;
+      const d = d2(x, z, e.x, e.z);
+      if (d > md) continue;
+      if (out.length < n || d < out[out.length - 1].d) {
+        let i = out.length;
+        out.push(null);
+        while (i > 0 && out[i - 1].d > d) { out[i] = out[i - 1]; i--; }
+        out[i] = { e, d };
+        if (out.length > n) out.pop();
+      }
+    }
+    return out.map((o) => o.e);
+  }
+
+  // ───────────────────────── 傷害 ─────────────────────────
+  addFrazzle(e, n) {
+    const add = n * (this.confess ? 3 : 1);
+    const before = e.frz;
+    e.frz = Math.min(12, e.frz + add);
+    if (!before) e.frzT = 0.9;
+  }
+
+  /** 對敵人造成傷害。opts：mul 傷害倍率（預設玩家攻擊）、stacks 光噪層數、kx/kz 擊退方向、knock、stun */
+  hurt(e, base, opts = {}) {
+    if (e.dead) return;
+    const mul = opts.mul != null ? opts.mul : this.atk;
+    let d = base * mul;
+    if (e.frz > 0) d *= 1 + e.frz * (this.absolve ? 0.09 : 0.03);
+    if (this.confess) d *= 1.2;
+    const crit = rnd() < 0.08;
+    if (crit) d *= 1.8;
+    e.hp -= d;
+    e.flash = 0.09;
+    if (opts.stacks) this.addFrazzle(e, opts.stacks);
+    if (opts.knock && !e.boss) {
+      const k = opts.knock * (e.r > 0.7 ? 0.45 : 1);
+      e.kx += (opts.kx || 0) * k; e.kz += (opts.kz || 0) * k;
+    }
+    if (opts.stun && !e.boss) e.stun = Math.max(e.stun, opts.stun);
+    this.num(e.x, e.z, e.size * 0.9, Math.round(d), crit ? '#ffe36b' : '#ffffff', crit ? 1.35 : 1);
+    sfx('hit', 0.04);
+    if (e.hp <= 0) this.kill(e);
+  }
+
+  kill(e) {
+    if (e.dead) return;
+    e.dead = true;
+    this.kills++;
+    sfx('kill', 0.05);
+    this.burst(e.x, 0.5 * e.size, e.z, e.boss ? 60 : 6, { kind: 'glow', color: [0.85, 0.5, 1], speed: e.boss ? 8 : 3, life: 0.5, size: e.boss ? 1.2 : 0.4 });
+    const def = ENEMIES[e.type];
+    if (e.boss) {
+      this.drop('chest', e.x, e.z, 0);
+      for (let i = 0; i < 8; i++) this.drop('gold', e.x + (rnd() - 0.5) * 3, e.z + (rnd() - 0.5) * 3, 5);
+      for (let i = 0; i < 2; i++) this.drop('heart', e.x + (rnd() - 0.5) * 2, e.z + (rnd() - 0.5) * 2, 18);
+      this.boss = null;
+      this.shake = 0.6;
+      this.ui.banner('失序者 被擊敗！', '#ffd966');
+      sfx('boom');
+      sfx('chibi', 0.2);
+    } else if (def.fish >= 4) this.drop('gold', e.x, e.z, def.fish);
+    else {
+      for (let i = 0; i < def.fish; i++) this.drop('fish', e.x + (rnd() - 0.5) * 0.6, e.z + (rnd() - 0.5) * 0.6, 1);
+      if (rnd() < 0.012) this.drop('heart', e.x, e.z, 15);
+    }
+  }
+
+  drop(kind, x, z, v) {
+    let mag = false;
+    if (kind === 'fish' && this.pickups.length > 260) mag = true;
+    this.pickups.push({ kind, x, z, v, mag, vx: 0, vz: 0, t: rnd() * 6, y: 0 });
+  }
+
+  hurtPlayer(d) {
+    const p = this.p;
+    if (p.inv > 0 || this.mode !== 'play') return;
+    d *= 1 + this.t / 900;
+    p.hp -= d;
+    p.inv = 0.6; p.hurt = 0.25;
+    this.shake = Math.max(this.shake, 0.3);
+    sfx('hurt', 0.1);
+    this.num(p.x, p.z, 2.1, Math.round(d), '#ff6f8f', 1.3);
+    if (p.hp <= 0) { p.hp = 0; this.die(); }
+  }
+
+  // ───────────────────────── 特效輔助 ─────────────────────────
+  num(x, z, h, text, color, size = 1) {
+    if (size < 1.2 && this.nums.length > 40 && rnd() < 0.6) return;
+    if (this.nums.length > 70) this.nums.shift();
+    this.nums.push({ x: x + (rnd() - 0.5) * 0.4, z, h, text: String(text), color, size, t: 0, life: 0.75 });
+  }
+
+  popup(x, z, h, text, color) {
+    this.nums.push({ x, z, h, text, color, size: 1.8, t: 0, life: 1.1 });
+  }
+
+  fxRing(x, z, r, life, color, tex = 'ring') {
+    this.fxs.push({ kind: 'ring', x, z, r, t: 0, life, color, tex });
+  }
+
+  burst(x, y, z, n, o) {
+    const room = 900 - this.parts.length;
+    n = Math.min(n, room);
+    for (let i = 0; i < n; i++) {
+      const a = rnd() * TAU; const s = (0.3 + rnd() * 0.7) * (o.speed || 3);
+      this.parts.push({
+        x, y, z, vx: Math.cos(a) * s, vy: (o.up != null ? o.up : 1.5) * rnd() + 0.4, vz: Math.sin(a) * s,
+        t: 0, life: (o.life || 0.6) * (0.6 + rnd() * 0.6), size: (o.size || 0.4) * (0.6 + rnd() * 0.6), c: o.color || [1, 1, 1], kind: o.kind || 'glow', g: o.g != null ? o.g : 4,
+      });
+    }
+  }
+
+  // ───────────────────────── 更新 ─────────────────────────
+  update(dtRaw) {
+    this.clock += dtRaw;
+    this.lastDt = Math.min(dtRaw, 0.1);
+    if (this.mode !== 'play') return;
+    const dt = Math.min(dtRaw, 0.05);
+    this.t += dt;
+    const p = this.p;
+    if (this.bot) this.botInput();
+
+    // 移動
+    let ix = this.input.x; let iz = this.input.z;
+    const il = Math.hypot(ix, iz);
+    if (il > 1) { ix /= il; iz /= il; }
+    p.moving = il > 0.05;
+    p.x += ix * this.speed * dt; p.z += iz * this.speed * dt;
+    if (ix > 0.1) p.face = 1; else if (ix < -0.1) p.face = -1;
+    if (p.moving) p.walk += dt * (0.6 + il);
+    p.inv = Math.max(0, p.inv - dt); p.hurt = Math.max(0, p.hurt - dt);
+    p.hp = Math.min(p.maxhp, p.hp + (this.confess ? 2.25 : 0.25) * dt);
+
+    // 祈願
+    if (p.mode) { p.modeT -= dt; if (p.modeT <= 0) { p.mode = null; p.modeT = 0; } }
+    else p.prayer = Math.min(PRAYER_MAX, p.prayer + 5 * (1 + 0.2 * (this.passives.prayer || 0)) * dt);
+
+    this.buildGrid();
+    this.updateWeapons(dt);
+    this.updatePet(dt);
+    this.updateEnemies(dt);
+    this.updateShots(dt);
+    this.updateMisc(dt);
+    this.updatePickups(dt);
+    this.spawnTick(dt);
+
+    if (this.pending > 0 && this.mode === 'play') this.openLevelUp();
+    if (!this.won && !this.endless && this.t >= WIN_TIME && this.mode === 'play') {
+      this.won = true; this.mode = 'win'; sfx('win'); this.finish(true);
+    }
+  }
+
+  // ───────────────────────── 武器 ─────────────────────────
+  updateWeapons(dt) {
+    const p = this.p;
+    const W = this.weapons;
+    const cd = this.cd;
+    for (const k of Object.keys(W)) cd[k] -= dt;
+
+    if (W.star && cd.star <= 0) {
+      const lv = W.star;
+      const cnt = [0, 1, 2, 2, 3, 3, 4, 4, 5][lv];
+      const ts = this.nearest(p.x, p.z, cnt, 15);
+      if (ts.length) {
+        cd.star = (1.2 - lv * 0.06) * this.cdm * (this.absolve ? 0.8 : 1);
+        const dmg = 11 + 3.2 * lv;
+        const pierce = lv >= 8 ? 2 : lv >= 5 ? 1 : 0;
+        for (let i = 0; i < cnt; i++) {
+          const t = ts[i % ts.length];
+          let a = Math.atan2(t.z - p.z, t.x - p.x);
+          if (i >= ts.length) a += (i - ts.length + 1) * 0.16 * (i % 2 ? 1 : -1);
+          this.shots.push({ x: p.x, z: p.z, vx: Math.cos(a) * 10.5, vz: Math.sin(a) * 10.5, life: 2.4, dmg, pierce, hit: [], target: t });
+        }
+        sfx('shoot', 0.08);
+      } else cd.star = 0.25;
+    }
+
+    if (W.ring) {
+      const lv = W.ring;
+      const n = [0, 1, 1, 2, 2, 2, 3, 3, 4][lv];
+      const R = 2.1 * this.area * (lv >= 2 ? 1.12 : 1) * (lv >= 7 ? 1.12 : 1);
+      const hr = 0.8 * (lv >= 2 ? 1.1 : 1) * (lv >= 7 ? 1.1 : 1);
+      const dmg = 9 + 2.6 * lv + (lv >= 8 ? 6 : 0);
+      this.ringAng += dt * 2.4 * (lv >= 5 ? 1.3 : 1);
+      this.ringPos.length = 0;
+      for (let i = 0; i < n; i++) {
+        const a = this.ringAng + (i * TAU) / n;
+        const x = p.x + Math.cos(a) * R; const z = p.z + Math.sin(a) * R;
+        this.ringPos.push({ x, z, r: hr });
+        this.forNear(x, z, hr, (e) => {
+          if (e.ringCd > 0) return;
+          e.ringCd = 0.5;
+          const dx = e.x - p.x; const dz = e.z - p.z; const dl = Math.hypot(dx, dz) || 1;
+          this.hurt(e, dmg, { stacks: 1, knock: 3, kx: dx / dl, kz: dz / dl });
+        });
+        for (const s of this.eshots) {
+          if (!s.dead && d2(s.x, s.z, x, z) < (hr + 0.25) ** 2) { s.dead = true; this.burst(s.x, 0.6, s.z, 5, { kind: 'star', color: [1, 0.9, 0.5], speed: 3, life: 0.35, size: 0.4 }); }
+        }
+      }
+    } else this.ringPos.length = 0;
+
+    if (W.litany && cd.litany <= 0) {
+      const lv = W.litany;
+      const cnt = [0, 1, 1, 1, 2, 2, 2, 3, 3][lv];
+      const ts = this.nearest(p.x, p.z, cnt, 14);
+      if (ts.length) {
+        cd.litany = (4.8 - 0.25 * lv - (lv >= 3 ? 0.3 : 0) - (lv >= 6 ? 0.3 : 0)) * this.cdm;
+        const w = 1.1 * this.area * (lv >= 5 ? 1.35 : 1);
+        const dmg = 38 + 13 * lv;
+        for (let i = 0; i < cnt; i++) {
+          const t = ts[i % ts.length];
+          let a = Math.atan2(t.z - p.z, t.x - p.x);
+          if (i >= ts.length) a += 0.35 * (i % 2 ? 1 : -1);
+          this.fireBeam(a, w, dmg);
+        }
+        sfx('beam', 0.1);
+        this.shake = Math.max(this.shake, 0.12);
+      } else cd.litany = 0.3;
+    }
+
+    if (W.field) {
+      const lv = W.field;
+      const R = (1.9 + 0.28 * lv) * this.area * (this.confess ? 1.3 : 1);
+      this.fieldR = R;
+      this.fieldT -= dt;
+      if (this.fieldT <= 0) {
+        this.fieldT = 0.5;
+        const dmg = 3.2 + 1.4 * lv;
+        this.forNear(p.x, p.z, R, (e) => {
+          this.hurt(e, dmg, { stacks: 1 });
+          e.slowT = 0.7; e.slowMul = lv >= 4 ? 0.55 : 0.7;
+        });
+      }
+    }
+
+    if (W.echo && cd.echo <= 0) {
+      const lv = W.echo;
+      if (this.nearest(p.x, p.z, 1, 9).length) {
+        cd.echo = (5.4 - 0.2 * lv - (lv >= 3 ? 0.3 : 0) - (lv >= 6 ? 0.3 : 0)) * this.cdm;
+        const max = Math.min(11, (5.2 + 0.5 * lv) * this.area);
+        const dmg = 22 + 8 * lv + (lv >= 4 ? 6 : 0) + (lv >= 7 ? 8 : 0);
+        this.waves.push({ x: p.x, z: p.z, r: 0.5, max, dmg, id: ++this.nextId, delay: 0 });
+        if (lv >= 8) this.waves.push({ x: p.x, z: p.z, r: 0.5, max, dmg, id: ++this.nextId, delay: 0.4 });
+        sfx('echo', 0.1);
+      } else cd.echo = 0.3;
+    }
+
+    if (W.rain && cd.rain <= 0) {
+      const lv = W.rain;
+      const pool = this.nearest(p.x, p.z, 18, 11);
+      if (pool.length) {
+        cd.rain = (4.4 - 0.18 * lv - (lv >= 8 ? 0.5 : 0)) * this.cdm;
+        const n = [0, 1, 1, 2, 2, 3, 3, 4, 4][lv];
+        for (let i = 0; i < n; i++) {
+          const t = pool[Math.floor(rnd() * pool.length)];
+          this.strikes.push({ x: t.x + (rnd() - 0.5) * 0.8, z: t.z + (rnd() - 0.5) * 0.8, t: 0.85, max: 0.85, dmg: 34 + 11 * lv + (lv >= 7 ? 12 : 0), r: 1.5 * this.area * (lv >= 4 ? 1.3 : 1) });
+        }
+        sfx('rain', 0.1);
+      } else cd.rain = 0.3;
+    }
+  }
+
+  fireBeam(a, w, dmg) {
+    const p = this.p;
+    const dx = Math.cos(a); const dz = Math.sin(a);
+    const len = 15;
+    this.fxs.push({ kind: 'beam', x: p.x, z: p.z, dx, dz, len, w, t: 0, life: 0.42 });
+    this.burst(p.x + dx, 1, p.z + dz, 14, { kind: 'star', color: [1, 0.9, 0.5], speed: 5, life: 0.5, size: 0.5 });
+    for (const e of this.enemies) {
+      if (e.dead) continue;
+      const rx = e.x - p.x; const rz = e.z - p.z;
+      const along = rx * dx + rz * dz;
+      if (along < -0.5 || along > len) continue;
+      const perp = Math.abs(rx * dz - rz * dx);
+      if (perp > w / 2 + e.r) continue;
+      this.hurt(e, dmg * (1 + 0.14 * e.frz), { stacks: 2, knock: 1.5, kx: dx, kz: dz });
+    }
+  }
+
+  updateShots(dt) {
+    const p = this.p;
+    for (const s of this.shots) {
+      if (s.target && s.target.dead) s.target = this.nearest(s.x, s.z, 1, 8)[0] || null;
+      if (s.target) {
+        const want = Math.atan2(s.target.z - s.z, s.target.x - s.x);
+        let cur = Math.atan2(s.vz, s.vx);
+        let df = want - cur;
+        while (df > Math.PI) df -= TAU;
+        while (df < -Math.PI) df += TAU;
+        cur += clamp(df, -7 * dt, 7 * dt);
+        s.vx = Math.cos(cur) * 10.5; s.vz = Math.sin(cur) * 10.5;
+      }
+      s.x += s.vx * dt; s.z += s.vz * dt;
+      s.life -= dt;
+      if (s.life <= 0) { s.dead = true; continue; }
+      this.forNear(s.x, s.z, 0.4, (e) => {
+        if (s.dead || s.hit.includes(e.id)) return;
+        s.hit.push(e.id);
+        const l = Math.hypot(s.vx, s.vz) || 1;
+        this.hurt(e, s.dmg, { stacks: 1, knock: 1.2, kx: s.vx / l, kz: s.vz / l });
+        this.burst(s.x, 0.8, s.z, 4, { kind: 'star', color: [1, 0.9, 0.5], speed: 3, life: 0.3, size: 0.35 });
+        if (s.pierce > 0) s.pierce--; else s.dead = true;
+      });
+    }
+    this.shots = this.shots.filter((s) => !s.dead);
+
+    for (const s of this.eshots) {
+      s.x += s.vx * dt; s.z += s.vz * dt; s.life -= dt;
+      if (s.life <= 0) s.dead = true;
+      else if (d2(s.x, s.z, p.x, p.z) < 0.5 * 0.5) { s.dead = true; this.hurtPlayer(s.dmg); }
+    }
+    this.eshots = this.eshots.filter((s) => !s.dead);
+  }
+
+  updateMisc(dt) {
+    const p = this.p;
+    for (const w of this.waves) {
+      if (w.delay > 0) { w.delay -= dt; continue; }
+      const prev = w.r;
+      w.r += 9 * dt;
+      w.x += (p.x - w.x) * Math.min(1, dt * 3);
+      w.z += (p.z - w.z) * Math.min(1, dt * 3);
+      for (const e of this.enemies) {
+        if (e.dead || e.echoId === w.id) continue;
+        const d = Math.hypot(e.x - w.x, e.z - w.z);
+        if (d + e.r >= prev - 0.2 && d - e.r <= w.r + 0.2) {
+          e.echoId = w.id;
+          this.hurt(e, w.dmg, { stacks: 2, knock: 5, kx: (e.x - w.x) / (d || 1), kz: (e.z - w.z) / (d || 1) });
+        }
+      }
+      if (w.r >= w.max) w.dead = true;
+    }
+    this.waves = this.waves.filter((w) => !w.dead);
+
+    for (const s of this.strikes) {
+      s.t -= dt;
+      if (s.t <= 0) {
+        s.dead = true;
+        this.forNear(s.x, s.z, s.r, (e) => {
+          const dd = Math.hypot(e.x - s.x, e.z - s.z) || 1;
+          this.hurt(e, s.dmg, { stacks: 2, knock: 3, kx: (e.x - s.x) / dd, kz: (e.z - s.z) / dd });
+        });
+        this.fxRing(s.x, s.z, s.r * 1.5, 0.4, [1, 0.9, 0.5]);
+        this.burst(s.x, 0.4, s.z, 18, { kind: 'star', color: [1, 0.9, 0.5], speed: 5, life: 0.6, size: 0.55 });
+        sfx('boom', 0.06);
+        this.shake = Math.max(this.shake, 0.1);
+      }
+    }
+    this.strikes = this.strikes.filter((s) => !s.dead);
+
+    for (const f of this.fxs) { f.t += dt; if (f.t >= f.life) f.dead = true; }
+    this.fxs = this.fxs.filter((f) => !f.dead);
+    for (const q of this.parts) {
+      q.t += dt; q.x += q.vx * dt; q.y += q.vy * dt; q.z += q.vz * dt; q.vy -= q.g * dt;
+      if (q.y < 0.05) { q.y = 0.05; q.vy *= -0.3; }
+    }
+    this.parts = this.parts.filter((q) => q.t < q.life);
+    for (const n of this.nums) n.t += dt;
+    this.nums = this.nums.filter((n) => n.t < n.life);
+    this.shake = Math.max(0, this.shake - dt * 1.5);
+
+    // 祈願模式的特效
+    if (p.mode && rnd() < dt * 20) {
+      const a = rnd() * TAU;
+      this.parts.push({ x: p.x + Math.cos(a) * 0.9, y: 0.1, z: p.z + Math.sin(a) * 0.9, vx: 0, vy: 1.6, vz: 0, t: 0, life: 0.8, size: 0.35, c: p.mode === 'absolve' ? [1, 0.85, 0.4] : [0.5, 0.85, 1], kind: 'star', g: -0.5 });
+    }
+  }
+
+  // ───────────────────────── 瑞吉 ─────────────────────────
+  updatePet(dt) {
+    const pt = this.pet; const p = this.p;
+    const lv = this.petSkills;
+    const gl = lv.glutton || 0;
+
+    // 吃飽
+    const need = 12 - (gl >= 2 ? 2 : 0) - (gl >= 5 ? 2 : 0);
+    const dur = 10 + (gl >= 3 ? 2 : 0) + (gl >= 7 ? 3 : 0);
+    pt.need = need; pt.fullDur = dur;
+    if (!pt.full && pt.fullness >= need) {
+      pt.full = true; pt.fullT = dur; pt.fullness = 0; pt.burp = 0.9;
+      this.ui.banner('瑞吉吃飽了！', '#ffd966');
+      sfx('burp');
+      this.fxRing(pt.x, pt.z, 4, 0.5, [1, 0.85, 0.4]);
+      this.popup(pt.x, pt.z, 2.6, '嗝！', '#ffe58a');
+      this.forNear(pt.x, pt.z, 3.6, (e) => {
+        const d = Math.hypot(e.x - pt.x, e.z - pt.z) || 1;
+        this.hurt(e, 40, { mul: this.petAtk, knock: 5, kx: (e.x - pt.x) / d, kz: (e.z - pt.z) / d, stun: 0.6 });
+      });
+    }
+    if (pt.full) { pt.fullT -= dt; if (pt.fullT <= 0) { pt.full = false; pt.fullness = 0; } }
+    pt.burp = Math.max(0, pt.burp - dt);
+    const fm = pt.full ? 0.6 : 1;
+
+    pt.roarCd -= dt * 1; pt.slideCd -= dt;
+    pt.bob += dt;
+
+    let tx; let tz; let sp = 6.2;
+    const busy = pt.pose > 0 || pt.slide > 0;
+
+    if (pt.slide > 0) {
+      pt.slide -= dt;
+      const sl = lv.slide || 1;
+      const dir = pt.back > 0 && pt.slide < 0.35 ? -1 : 1;
+      pt.x += pt.sdx * 15 * dt * dir; pt.z += pt.sdz * 15 * dt * dir;
+      pt.face = pt.sdx * dir >= 0 ? 1 : -1;
+      const hr = (1.0 + (sl >= 4 ? 0.3 : 0) + (sl >= 7 ? 0.3 : 0));
+      const dmg = 20 + 8 * sl + (sl >= 5 ? 8 : 0);
+      this.forNear(pt.x, pt.z, hr, (e) => {
+        if (e.slideId === pt.slideId) return;
+        e.slideId = pt.slideId;
+        this.hurt(e, dmg, { mul: this.petAtk, stacks: 1, knock: 4, kx: pt.sdx * dir, kz: pt.sdz * dir });
+      });
+      if (rnd() < 0.8) this.burst(pt.x, 0.3, pt.z, 2, { kind: 'glow', color: [0.5, 0.8, 1], speed: 1.5, life: 0.5, size: 0.5, up: 2.5 });
+      if (pt.slide <= 0 && pt.back > 0) { pt.back = 0; }
+    } else if (pt.pose > 0) {
+      // 張嘴吼：先蓄力，再放出聲波
+      const r = lv.roar || 1;
+      pt.pose -= dt;
+      const total = 0.85;
+      if (!pt.poseFired && pt.pose <= total - 0.4) {
+        pt.poseFired = true;
+        const R = (2.9 + 0.35 * r) * this.area * (pt.full ? 1.2 : 1);
+        const dmg = 24 + 9 * r + (r >= 8 ? 14 : 0) + (r >= 4 ? 5 : 0);
+        const stun = r >= 6 ? 1.5 : 0.9;
+        this.forNear(pt.x, pt.z, R, (e) => {
+          const d = Math.hypot(e.x - pt.x, e.z - pt.z) || 1;
+          this.hurt(e, dmg, { mul: this.petAtk, knock: 6, kx: (e.x - pt.x) / d, kz: (e.z - pt.z) / d, stun, stacks: 1 });
+        });
+        this.fxRing(pt.x, pt.z, R, 0.45, [0.7, 0.9, 1]);
+        this.fxRing(pt.x, pt.z, R * 0.7, 0.35, [1, 1, 1]);
+        this.popup(pt.x, pt.z, 2.7, '嗷！', '#bfe6ff');
+        this.shake = Math.max(this.shake, 0.22);
+        sfx('roar', 0.2);
+      }
+    } else {
+      // 跟隨玩家，並且去吃附近的小魚
+      const gr = 3.2 + (gl >= 1 ? 1.2 : 0) + (gl >= 4 ? 1.4 : 0);
+      let best = null; let bd = gr * gr;
+      for (const f of this.pickups) {
+        if (f.kind !== 'fish' && f.kind !== 'gold') continue;
+        const d = d2(f.x, f.z, pt.x, pt.z);
+        if (d < bd && d2(f.x, f.z, p.x, p.z) < 100) { bd = d; best = f; }
+      }
+      if (best) { tx = best.x; tz = best.z; sp = 8.5; } else {
+        tx = p.x - p.face * 1.7; tz = p.z + 0.9 + Math.sin(pt.bob * 1.5) * 0.25;
+      }
+      const dx = tx - pt.x; const dz = tz - pt.z; const d = Math.hypot(dx, dz);
+      if (d > 0.08) {
+        const s = Math.min(d * 5, sp * (d > 8 ? 2.2 : 1)) * dt;
+        pt.x += (dx / d) * s; pt.z += (dz / d) * s;
+        if (Math.abs(dx) > 0.15) pt.face = dx > 0 ? 1 : -1;
+      }
+      if (d2(pt.x, pt.z, p.x, p.z) > 144) { pt.x = p.x - 2; pt.z = p.z + 1; }
+    }
+
+    if (!busy) {
+      const r = lv.roar || 1;
+      if (pt.roarCd <= 0) {
+        const R = (2.9 + 0.35 * r) * this.area;
+        let near = 0;
+        this.forNear(pt.x, pt.z, R + 1.2, () => { near++; });
+        if (near >= 2) {
+          pt.pose = 0.85; pt.poseFired = false;
+          pt.roarCd = (6.2 - 0.45 * r) * this.cdm * fm;
+          pt.face = (this.nearest(pt.x, pt.z, 1, 12)[0]?.x ?? pt.x + pt.face) >= pt.x ? 1 : -1;
+        } else pt.roarCd = 0.4;
+      } else if (lv.slide && pt.slideCd <= 0) {
+        const sl = lv.slide;
+        const cand = this.nearest(pt.x, pt.z, 14, 11);
+        if (cand.length >= 3) {
+          let best = cand[0]; let bs = -1;
+          for (const c of cand) {
+            let s = 0;
+            for (const o of cand) if (d2(c.x, c.z, o.x, o.z) < 6) s++;
+            if (s > bs) { bs = s; best = c; }
+          }
+          const dx = best.x - pt.x; const dz = best.z - pt.z; const d = Math.hypot(dx, dz) || 1;
+          pt.sdx = dx / d; pt.sdz = dz / d; pt.slide = 0.7; pt.slideId = ++this.nextId;
+          pt.back = sl >= 8 ? 1 : 0;
+          if (pt.back) { pt.slide = 1.1; }
+          pt.slideCd = (6.2 - 0.5 * sl) * this.cdm * fm;
+          sfx('echo', 0.2);
+        } else pt.slideCd = 0.5;
+      }
+    }
+  }
+
+  // ───────────────────────── 敵人 ─────────────────────────
+  pickType() {
+    const tab = spawnTable(this.t);
+    const sum = tab.reduce((s, x) => s + x[1], 0);
+    let r = rnd() * sum;
+    for (const [k, w] of tab) { r -= w; if (r <= 0) return k; }
+    return 'hum';
+  }
+
+  makeEnemy(type, x, z) {
+    const d = ENEMIES[type];
+    const hpMul = 1 + this.t * 0.0075 + (this.t / 300) ** 2 * 0.5;
+    const e = {
+      id: ++this.nextId, type, x, z, kx: 0, kz: 0, hp: d.hp * hpMul, maxhp: d.hp * hpMul, r: d.r, speed: d.speed * (1 + this.t / 1800),
+      dmg: d.dmg, size: d.size, frz: 0, frzT: 0, flash: 0, stun: 0, slowT: 0, slowMul: 1, ringCd: 0, boss: !!d.boss, dead: false,
+      shootT: 1 + rnd() * 1.5, ph: rnd() * TAU, atkT: 4, state: 0, echoId: 0, slideId: 0,
+    };
+    this.enemies.push(e);
+    return e;
+  }
+
+  spawnAround(type, dist) {
+    const a = rnd() * TAU;
+    return this.makeEnemy(type, this.p.x + Math.cos(a) * dist, this.p.z + Math.sin(a) * dist * 0.75);
+  }
+
+  spawnTick(dt) {
+    const t = this.t;
+    const cap = Math.min(340, 70 + t * 0.75);
+    this.spawnAcc += (1.9 + 0.03 * t) * dt;
+    while (this.spawnAcc >= 1) {
+      this.spawnAcc--;
+      if (this.enemies.length < cap) this.spawnAround(this.pickType(), 13 + rnd() * 3);
+    }
+    const bt = this.bossIdx < 3 ? [180, 360, 540][this.bossIdx] : 540 + 150 * (this.bossIdx - 2);
+    if (t >= bt) {
+      this.bossIdx++;
+      const e = this.spawnAround('boss', 12);
+      e.hp = e.maxhp = ENEMIES.boss.hp * (1 + 0.9 * (this.bossIdx - 1)) * (1 + t / 600);
+      this.boss = e;
+      this.ui.banner('⚠ 失序者 出現！', '#ff6ad5');
+      sfx('boss');
+      this.shake = 0.5;
+    }
+    const sw = [240, 480][this.swarmIdx];
+    if (sw != null && t >= sw) {
+      this.swarmIdx++;
+      this.ui.banner('噪音包圍！', '#ff9ac8');
+      for (let i = 0; i < 40; i++) {
+        const a = (i / 40) * TAU;
+        this.makeEnemy(i % 4 === 0 ? 'bat' : 'hum', this.p.x + Math.cos(a) * 11, this.p.z + Math.sin(a) * 8.5);
+      }
+    }
+  }
+
+  updateEnemies(dt) {
+    const p = this.p;
+    for (const e of this.enemies) {
+      if (e.dead) continue;
+      e.flash = Math.max(0, e.flash - dt);
+      e.ringCd = Math.max(0, e.ringCd - dt);
+      e.slowT = Math.max(0, e.slowT - dt);
+      const dx = p.x - e.x; const dz = p.z - e.z;
+      const d = Math.hypot(dx, dz) || 1;
+      let vx = 0; let vz = 0;
+      if (e.stun > 0) e.stun -= dt;
+      else {
+        let sp = e.speed * (e.slowT > 0 ? e.slowMul : 1);
+        let ux = dx / d; let uz = dz / d;
+        if (e.type === 'shooter') {
+          if (d < 4.6) { ux = -ux; uz = -uz; } else if (d < 6.8) { const t = ux; ux = -uz * 0.8; uz = t * 0.8; }
+          e.shootT -= dt;
+          if (e.shootT <= 0 && d < 11) {
+            e.shootT = 2.4;
+            this.eshots.push({ x: e.x, z: e.z, vx: (dx / d) * 5, vz: (dz / d) * 5, life: 4, dmg: 6 });
+          }
+        } else if (e.type === 'bat') {
+          const w = Math.sin(this.t * 5 + e.ph) * 0.9;
+          const px = -uz; const pz = ux;
+          ux += px * w; uz += pz * w;
+        } else if (e.boss) {
+          e.atkT -= dt;
+          if (e.state === 1) { sp *= 5.5; e.stateT -= dt; if (e.stateT <= 0) e.state = 0; }
+          else if (e.state === 2) { sp = 0; e.stateT -= dt; if (e.stateT <= 0) { e.state = 1; e.stateT = 0.9; } }
+          else if (e.atkT <= 0) {
+            e.atkT = 5.5;
+            if (rnd() < 0.5) {
+              for (let i = 0; i < 14; i++) { const a = (i / 14) * TAU + e.ph; this.eshots.push({ x: e.x, z: e.z, vx: Math.cos(a) * 3.8, vz: Math.sin(a) * 3.8, life: 5, dmg: 7 }); }
+              e.ph += 0.2; sfx('echo', 0.2);
+            } else { e.state = 2; e.stateT = 0.8; this.fxRing(e.x, e.z, 3, 0.8, [1, 0.4, 0.8]); }
+          }
+        }
+        vx = ux * sp; vz = uz * sp;
+      }
+      e.x += (vx + e.kx) * dt; e.z += (vz + e.kz) * dt;
+      const k = Math.exp(-7 * dt);
+      e.kx *= k; e.kz *= k;
+
+      if (e.frz > 0) {
+        e.frzT -= dt;
+        if (e.frzT <= 0) {
+          e.frzT = 0.9;
+          const dmg = (1.6 + e.frz * 1.4) * this.atk;
+          e.hp -= dmg; e.flash = 0.05;
+          this.num(e.x, e.z, e.size * 0.6, Math.round(dmg), '#ffd34d', 0.75);
+          e.frz = Math.max(0, e.frz - 1);
+          if (e.hp <= 0) { this.kill(e); continue; }
+        }
+      }
+
+      if (d < e.r + 0.38) this.hurtPlayer(e.dmg);
+      if (d > 30) { const a = rnd() * TAU; e.x = p.x + Math.cos(a) * 14; e.z = p.z + Math.sin(a) * 10.5; }
+    }
+
+    // 敵人互相推開
+    for (const e of this.enemies) {
+      if (e.dead || e.boss) continue;
+      this.forNear(e.x, e.z, e.r, (o) => {
+        if (o === e) return;
+        const dx = e.x - o.x; const dz = e.z - o.z;
+        const dd = Math.hypot(dx, dz) || 0.01;
+        const min = (e.r + o.r) * 0.85;
+        if (dd < min) {
+          const push = (min - dd) * 0.5 * (o.boss ? 1 : 0.5);
+          e.x += (dx / dd) * push; e.z += (dz / dd) * push;
+        }
+      });
+    }
+    this.enemies = this.enemies.filter((e) => !e.dead);
+  }
+
+  // ───────────────────────── 掉落物 ─────────────────────────
+  updatePickups(dt) {
+    const p = this.p; const pt = this.pet;
+    const mr = this.magnet;
+    const gl = this.petSkills.glutton || 0;
+    for (const f of this.pickups) {
+      f.t += dt;
+      const dp = Math.hypot(p.x - f.x, p.z - f.z);
+      if (f.kind === 'chest') {
+        if (dp < 0.9) { f.dead = true; this.pending++; this.ui.banner('寶箱！額外升級', '#ffd966'); sfx('level'); }
+        continue;
+      }
+      if (f.kind === 'heart') {
+        if (dp < mr * 0.5) { f.mag = true; }
+      } else if (dp < mr) f.mag = true;
+      if (f.mag) {
+        const sp = 9 + (3 - Math.min(3, dp)) * 4;
+        f.x += ((p.x - f.x) / (dp || 1)) * sp * dt; f.z += ((p.z - f.z) / (dp || 1)) * sp * dt;
+      }
+      if (dp < 0.55) {
+        f.dead = true;
+        if (f.kind === 'heart') { p.hp = Math.min(p.maxhp, p.hp + f.v); this.num(p.x, p.z, 2.2, `+${f.v}`, '#7dffb0', 1.1); sfx('fish', 0.05); } else { this.addXp(f.v); sfx('fish', 0.04); }
+        continue;
+      }
+      // 瑞吉吃魚
+      if ((f.kind === 'fish' || f.kind === 'gold') && !f.dead && d2(f.x, f.z, pt.x, pt.z) < 0.9 * 0.9 && !(pt.pose > 0)) {
+        f.dead = true;
+        this.addXp(f.v);
+        this.fishEaten++;
+        if (!pt.full) pt.fullness += f.kind === 'gold' ? 2 : 1;
+        if (gl >= 6) p.hp = Math.min(p.maxhp, p.hp + 0.6);
+        pt.eat = 0.25;
+        sfx('fish', 0.04);
+        this.burst(pt.x + pt.face * 0.8, 0.9, pt.z, 3, { kind: 'star', color: [0.6, 0.9, 1], speed: 2, life: 0.4, size: 0.3 });
+      }
+    }
+    this.pickups = this.pickups.filter((f) => !f.dead);
+    pt.eat = Math.max(0, (pt.eat || 0) - dt);
+  }
+
+  // ───────────────────────── 測試用機器人 ─────────────────────────
+  botInput() {
+    const p = this.p;
+    let x = 0; let z = 0;
+    for (const e of this.enemies) {
+      const dx = p.x - e.x; const dz = p.z - e.z; const d = Math.hypot(dx, dz);
+      if (d < 4.5) { const w = (4.5 - d) / 4.5; x += (dx / (d || 1)) * w * 2; z += (dz / (d || 1)) * w * 2; }
+    }
+    let best = null; let bd = 64;
+    for (const f of this.pickups) { const d = d2(f.x, f.z, p.x, p.z); if (d < bd) { bd = d; best = f; } }
+    if (best) { const d = Math.sqrt(bd) || 1; x += ((best.x - p.x) / d) * 0.6; z += ((best.z - p.z) / d) * 0.6; }
+    x += Math.cos(this.t * 0.3) * 0.2; z += Math.sin(this.t * 0.27) * 0.2;
+    this.input.x = x; this.input.z = z;
+    if (!p.mode && p.prayer >= PRAYER_MAX) this.setMode(Math.floor(this.t / 40) % 2 ? 'confess' : 'absolve');
+  }
+
+  // ───────────────────────── 渲染 ─────────────────────────
+  render() {
+    const cam = this.camera;
+    const p = this.p;
+    const { L } = this;
+    const t = this.clock;
+
+    // 鏡頭
+    const lerp = 1 - Math.exp(-9 * (this.lastDt || 0.016));
+    this.camPos.x += (p.x - this.camPos.x) * lerp;
+    this.camPos.z += (p.z - this.camPos.z) * lerp;
+    const sx = (rnd() - 0.5) * this.shake * 0.8; const sz = (rnd() - 0.5) * this.shake * 0.8;
+    const cx = this.camPos.x + sx; const cz = this.camPos.z + sz;
+    cam.position.set(cx, 14.5 * this.camDist, cz + 9.4 * this.camDist);
+    cam.lookAt(cx, 0, cz);
+    cam.updateMatrixWorld();
+    Layer.camQuat.copy(cam.quaternion);
+
+    this.ground.position.set(Math.round(cx / 12) * 12, 0, Math.round(cz / 12) * 12);
+
+    for (const k of Object.keys(L)) L[k].begin();
+    this.drawDecor(cx, cz);
+
+    const sh = L.shadow;
+    // 敵人
+    for (const e of this.enemies) {
+      const layer = L[e.type];
+      const h = this.sz[e.type] * (e.boss ? 1 : 1);
+      const w = Math.sin(t * (e.type === 'bat' ? 14 : 7) + e.ph);
+      let sxs = 1; let sy = 1; let roll = 0; let y = 0;
+      if (e.type === 'bat') { sxs = 1 + w * 0.12; sy = 1 - w * 0.08; y = 0.7 + Math.sin(t * 3 + e.ph) * 0.12; }
+      else if (e.type === 'hum') { sy = 1 + w * 0.06; sxs = 1 - w * 0.05; roll = w * 0.05; }
+      else if (e.type === 'shooter') { y = 0.35 + Math.sin(t * 2.2 + e.ph) * 0.1; roll = w * 0.03; }
+      else if (e.type === 'golem') { roll = w * 0.04; sy = 1 + Math.abs(w) * 0.03; }
+      else { sy = 1 + w * 0.02; }
+      const asp = this.assets.aspect[`enemy_${e.type}`];
+      const f = e.flash > 0 ? 2.6 : 1;
+      let r = f; let g = f; let b = f;
+      if (!f || f === 1) {
+        if (e.frz > 0) { const q = Math.min(1, e.frz / 8); r = 1 + 0.5 * q; g = 1 + 0.25 * q; b = 1 - 0.3 * q; }
+        if (e.stun > 0) { r = 0.8; g = 0.9; b = 1.5; }
+      }
+      layer.add(e.x, y, e.z, h * asp * sxs, h * sy, roll, r, g, b, e.x > p.x && e.type !== 'hum' && e.type !== 'boss');
+      sh.add(e.x, 0.02, e.z + 0.02, h * asp * 0.8, h * asp * 0.45, 0, 1, 1, 1);
+      if (e.frz > 0) L.star.add(e.x, h * 1.08 + y, e.z, 0.3 + e.frz * 0.035, 0.3 + e.frz * 0.035, t * 2, 1, 0.85, 0.35);
+    }
+
+    // 掉落物
+    for (const f of this.pickups) {
+      const bob = Math.sin(f.t * 4) * 0.06;
+      if (f.kind === 'fish') L.fish.add(f.x, 0.12 + bob, f.z, 0.62, 0.62 / this.assets.aspect.fish_blue, Math.sin(f.t * 3) * 0.2, 1, 1, 1);
+      else if (f.kind === 'gold') L.gold.add(f.x, 0.14 + bob, f.z, 0.9, 0.9 / this.assets.aspect.fish_gold, Math.sin(f.t * 3) * 0.2, 1, 1, 1);
+      else if (f.kind === 'heart') L.heart.add(f.x, 0.25 + bob, f.z, 0.62, 0.62, 0, 1, 1, 1);
+      else if (f.kind === 'chest') { L.chest.add(f.x, 0.05, f.z, 1.15, 1.15 / this.assets.aspect.chest, 0, 1, 1, 1); L.glow.add(f.x, 0.6, f.z, 2 + Math.sin(f.t * 5) * 0.3, 2 + Math.sin(f.t * 5) * 0.3, 0, 1, 0.8, 0.3); }
+      if (f.kind !== 'chest') sh.add(f.x, 0.02, f.z, 0.5, 0.3, 0, 1, 1, 1);
+    }
+
+    this.drawPlayer(t);
+    this.drawPet(t);
+    this.drawEffects(t);
+
+    for (const k of Object.keys(L)) L[k].end();
+    this.renderer.render(this.scene, cam);
+    this.drawNums();
+  }
+
+  drawDecor(cx, cz) {
+    const C = 2.6; const R = 17;
+    const i0 = Math.floor((cx - R) / C); const i1 = Math.floor((cx + R) / C);
+    const j0 = Math.floor((cz - R * 0.8) / C); const j1 = Math.floor((cz + R * 0.8) / C);
+    const asp = this.assets.aspect;
+    for (let i = i0; i <= i1; i++) {
+      for (let j = j0; j <= j1; j++) {
+        let h = Math.imul(i, 374761393) ^ Math.imul(j, 668265263);
+        h = Math.imul(h ^ (h >>> 13), 1274126177);
+        h ^= h >>> 16;
+        const u = (h & 1023) / 1023;
+        if (u > 0.2) continue;
+        const x = (i + ((h >>> 10) & 255) / 255) * C; const z = (j + ((h >>> 18) & 255) / 255) * C;
+        if (u < 0.07) this.L.decorA.add(x, 0, z, 0.7, 0.7 / asp.decor_crystal, 0, 0.85, 0.85, 0.9);
+        else this.L.decorB.add(x, 0, z, 0.62, 0.62 / asp.decor_grass, 0, 0.8, 0.85, 0.85);
+      }
+    }
+  }
+
+  drawPlayer(t) {
+    const p = this.p; const L = this.L;
+    const hh = this.sz.phoebe; const asp = this.assets.aspect.phoebe;
+    const w = p.moving ? Math.sin(p.walk * 11) : Math.sin(t * 2.5) * 0.25;
+    const bob = p.moving ? Math.abs(w) * 0.12 : (w + 1) * 0.02;
+    const blink = p.inv > 0 && Math.floor(t * 20) % 2 === 0;
+    let r = 1; let g = 1; let b = 1;
+    if (p.hurt > 0) { r = 2; g = 0.8; b = 0.8; }
+    if (blink) { r *= 0.6; g *= 0.6; b *= 0.6; }
+    L.phoebe.add(p.x, bob, p.z, hh * asp * (1 - w * 0.03), hh * (1 + Math.abs(w) * 0.03), p.moving ? w * 0.06 : 0, r, g, b, p.face < 0);
+    L.shadow.add(p.x, 0.02, p.z + 0.05, 1.5, 0.8, 0, 1, 1, 1);
+    if (p.mode) {
+      const c = p.mode === 'absolve' ? [1, 0.82, 0.3] : [0.45, 0.85, 1];
+      L.halo.add(p.x, hh + 0.12 + Math.sin(t * 3) * 0.05, p.z, 1.5, 0.56, 0, c[0], c[1], c[2]);
+      L.glow.add(p.x, 1, p.z, 3.4, 3.4, 0, c[0] * 0.35, c[1] * 0.35, c[2] * 0.35);
+    }
+  }
+
+  drawPet(t) {
+    const pt = this.pet; const L = this.L;
+    const gl = this.petSkills.glutton || 0;
+    const base = this.sz.reggie;
+    let s = pt.full ? 1.2 : 1;
+    if (pt.burp > 0) s *= 1 + Math.sin((pt.burp / 0.9) * Math.PI) * 0.15;
+    let sx = 1; let sy = 1; let roll = 0; let y = 0;
+    const open = pt.pose > 0 || pt.eat > 0;
+    if (pt.slide > 0) { sy = 0.72; sx = 1.12; roll = -pt.sdz * 0.15; }
+    else if (pt.pose > 0) {
+      const q = 1 - pt.pose / 0.85;
+      const pulse = q < 0.45 ? 1 + q * 0.5 : 1.22 - (q - 0.45) * 0.4;
+      sx = pulse; sy = pulse; roll = -0.12 * pt.face * (q < 0.45 ? 1 : 0.2);
+    } else {
+      const hop = Math.abs(Math.sin(pt.bob * 5));
+      const moving = d2(pt.x, pt.z, this.p.x, this.p.z) > 3 || this.p.moving;
+      y = moving ? hop * 0.1 : 0;
+      sy = 1 + (moving ? Math.sin(pt.bob * 10) * 0.025 : Math.sin(pt.bob * 2) * 0.015);
+    }
+    const layer = open ? L.ro : L.rc;
+    const asp = this.assets.aspect[open ? 'reggie_open' : 'reggie_closed'];
+    const h = base * s;
+    const tint = pt.full ? [1.25, 1.12, 0.95] : [1, 1, 1];
+    layer.add(pt.x, y, pt.z, h * asp * sx, h * sy, roll, tint[0], tint[1], tint[2], pt.face < 0);
+    L.shadow.add(pt.x, 0.02, pt.z + 0.05, 2.2 * s, 0.9 * s, 0, 1, 1, 1);
+    if (pt.full) L.glow.add(pt.x, 0.9, pt.z, 3.2 * s, 3.2 * s, 0, 0.5, 0.38, 0.12);
+    if (gl >= 0 && pt.pose > 0 && pt.pose > 0.45) {
+      const q = 1 - (pt.pose - 0.45) / 0.4;
+      L.glow.add(pt.x + pt.face * 1.5, 1, pt.z, 1.2 + q * 0.6, 1.2 + q * 0.6, 0, 0.6 * q, 0.8 * q, 1 * q);
+    }
+  }
+
+  drawEffects(t) {
+    const L = this.L; const p = this.p;
+
+    // 默禱領域
+    if (this.weapons.field) {
+      const R = this.fieldR || 2;
+      const c = this.confess ? [0.5, 0.85, 1] : this.absolve ? [1, 0.85, 0.4] : [1, 0.9, 0.55];
+      const k = 0.6 + Math.sin(t * 3) * 0.1;
+      L.disc.add(p.x, 0.03, p.z, R * 2, R * 2, t * 0.3, c[0] * k, c[1] * k, c[2] * k);
+      L.ring.add(p.x, 0.035, p.z, R * 2, R * 2, -t * 0.5, c[0] * 0.5, c[1] * 0.5, c[2] * 0.5);
+    }
+
+    // 鏡之環
+    for (let i = 0; i < this.ringPos.length; i++) {
+      const rp = this.ringPos[i];
+      L.mirror.add(rp.x, 0.9, rp.z, rp.r * 2.1, rp.r * 2.1, t * 2, 1, 1, 1);
+      L.glow.add(rp.x, 0.9, rp.z, rp.r * 3, rp.r * 3, 0, 0.35, 0.3, 0.12);
+    }
+
+    // 光環、聲波
+    for (const f of this.fxs) {
+      const q = f.t / f.life;
+      if (f.kind === 'ring') {
+        const r = f.r * (0.15 + 0.85 * (1 - (1 - q) ** 2));
+        const a = (1 - q) * 1.2;
+        L.ring.add(f.x, 0.05, f.z, r * 2, r * 2, 0, f.color[0] * a, f.color[1] * a, f.color[2] * a);
+      } else if (f.kind === 'beam') {
+        const a = (1 - q) ** 0.6;
+        const ang = Math.atan2(-f.dz, f.dx);
+        const w = f.w * (1.2 - q * 0.5);
+        L.beam.add(f.x + f.dx * f.len * 0.5, 0.06, f.z + f.dz * f.len * 0.5, f.len, w * 1.6, ang, 1 * a, 0.9 * a, 0.5 * a);
+        for (let i = 0; i < 3; i++) {
+          const d = ((t * 14 + i * 5) % f.len);
+          L.star.add(f.x + f.dx * d, 0.9, f.z + f.dz * d, 0.7 * a, 0.7 * a, t * 4, a, a * 0.9, a * 0.5);
+        }
+        L.glow.add(f.x + f.dx * 0.8, 1, f.z + f.dz * 0.8, 2.4 * a, 2.4 * a, 0, a, 0.85 * a, 0.4 * a);
+      }
+    }
+    for (const w of this.waves) {
+      if (w.delay > 0) continue;
+      const a = 1 - w.r / w.max;
+      L.ring.add(w.x, 0.05, w.z, w.r * 2, w.r * 2, 0, 0.9 * a + 0.1, 0.75 * a + 0.1, 0.45 * a);
+      L.ring.add(w.x, 0.05, w.z, w.r * 1.85, w.r * 1.85, 0, 0.5 * a, 0.4 * a, 0.25 * a);
+    }
+
+    // 星屑雨預告與墜落
+    for (const s of this.strikes) {
+      const q = 1 - s.t / s.max;
+      L.disc.add(s.x, 0.04, s.z, s.r * 2 * (0.5 + 0.5 * q), s.r * 2 * (0.5 + 0.5 * q), 0, 1 * (0.4 + q), 0.8 * (0.4 + q), 0.3);
+      L.ring.add(s.x, 0.045, s.z, s.r * 2, s.r * 2, 0, 0.9, 0.7, 0.3);
+      const y = 12 * (1 - q) ** 2;
+      L.star.add(s.x, y + 0.3, s.z, 1.1, 1.1, t * 5, 1, 0.9, 0.55);
+      L.glow.add(s.x, y + 0.3, s.z, 2.2, 2.2, 0, 0.8, 0.6, 0.2);
+    }
+
+    // 星輝彈
+    for (const s of this.shots) {
+      L.star.add(s.x, 0.9, s.z, 0.95, 0.95, this.clock * 6 + s.x, 1, 1, 1);
+      L.glow.add(s.x, 0.9, s.z, 1.3, 1.3, 0, 0.3, 0.24, 0.08);
+    }
+    for (const s of this.eshots) L.eshot.add(s.x, 0.7, s.z, 0.8, 0.8, 0, 1, 1, 1);
+
+    // 粒子
+    for (const q of this.parts) {
+      const a = 1 - q.t / q.life;
+      const layer = q.kind === 'star' ? L.star : L.glow;
+      const s = q.size * (0.4 + a * 0.8);
+      layer.add(q.x, q.y, q.z, s, s, q.t * 4, q.c[0] * a, q.c[1] * a, q.c[2] * a);
+    }
+  }
+
+  drawNums() {
+    const ctx = this.nctx;
+    const { dpr } = this;
+    ctx.clearRect(0, 0, this.numsCanvas.width, this.numsCanvas.height);
+    if (!this.nums.length) return;
+    const v = new THREE.Vector3();
+    ctx.textAlign = 'center';
+    ctx.lineJoin = 'round';
+    for (const n of this.nums) {
+      const q = n.t / n.life;
+      v.set(n.x, n.h + q * 0.9, n.z).project(this.camera);
+      const x = (v.x * 0.5 + 0.5) * this.numsCanvas.width;
+      const y = (-v.y * 0.5 + 0.5) * this.numsCanvas.height;
+      const size = (13 + 5 * n.size) * dpr * (q < 0.12 ? 0.6 + q * 3.3 : 1);
+      ctx.font = `900 ${size}px system-ui, sans-serif`;
+      ctx.globalAlpha = q > 0.65 ? 1 - (q - 0.65) / 0.35 : 1;
+      ctx.lineWidth = 4 * dpr;
+      ctx.strokeStyle = 'rgba(20,10,40,0.9)';
+      ctx.strokeText(n.text, x, y);
+      ctx.fillStyle = n.color;
+      ctx.fillText(n.text, x, y);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // ───────────────────────── HUD ─────────────────────────
+  hud() {
+    const p = this.p; const pt = this.pet;
+    this.ui.update({
+      hp: p.hp, maxhp: p.maxhp, xp: p.xp, xpNeed: p.need, lvl: p.lvl, time: this.t, kills: this.kills, fish: this.fishEaten,
+      prayer: p.prayer, prayerMax: PRAYER_MAX, mode: p.mode, modeLeft: p.modeT,
+      pet: { fullness: Math.min(pt.fullness, pt.need || 12), need: pt.need || 12, full: pt.full, left: pt.fullT, dur: pt.fullDur },
+      boss: this.boss ? { hp: this.boss.hp, maxhp: this.boss.maxhp, name: ENEMIES.boss.name } : null,
+    });
+  }
+}

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" data-theme="cyber">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <title>菲比啾比的星光倖存</title>
+  <link rel="stylesheet" href="./style.css">
+  <script type="module" src="./src/main.js"></script>
+</head>
+<body>
+  <div id="app" tabindex="0">
+    <canvas id="gl" aria-label="遊戲畫面"></canvas>
+    <canvas id="nums"></canvas>
+    <div id="hud" hidden>
+      <div id="xp"><i id="xp-fill"></i><span id="xp-text">Lv 1</span></div>
+      <div class="hud-left">
+        <div class="bar hp"><i id="hp-fill"></i><span id="hp-text">100</span></div>
+        <div class="bar prayer"><i id="pr-fill"></i><span id="pr-text">祈願</span></div>
+        <div class="bar pet"><i id="pet-fill"></i><span id="pet-text">瑞吉 肚子餓餓</span></div>
+        <div class="slots" id="slots"></div>
+      </div>
+      <div class="hud-center">
+        <div id="time">00:00</div>
+        <div class="bar boss" id="boss-bar" hidden><i id="boss-fill"></i><span id="boss-name">失序者</span></div>
+      </div>
+      <div class="hud-right">
+        <div class="counter"><span>☠</span><b id="kills">0</b><span>🐟</span><b id="fish">0</b></div>
+        <div class="btns">
+          <button type="button" id="btn-mute" aria-label="音效">🔊</button>
+          <button type="button" id="btn-pause" aria-label="暫停">⏸</button>
+        </div>
+      </div>
+      <div class="modes" id="modes" hidden>
+        <button type="button" id="mode-q" class="mode absolve"><kbd>Q</kbd><b>赦罪</b><small>輸出強化</small></button>
+        <button type="button" id="mode-e" class="mode confess"><kbd>E</kbd><b>告解</b><small>疊光噪・輔助</small></button>
+      </div>
+      <div class="modestate" id="modestate" hidden></div>
+      <div id="banner" hidden></div>
+      <div id="stick" hidden><i></i></div>
+    </div>
+    <div id="screen" hidden></div>
+    <div id="loading">載入中…</div>
+  </div>
+</body>
+</html>

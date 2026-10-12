@@ -1,0 +1,10 @@
+{
+  "id": "pie-phoebe",
+  "name": "菲比啾比星光倖存",
+  "kind": "free",
+  "multiplayer": false,
+  "author": "Pie-ye",
+  "entry": "index.html",
+  "description": "three.js 類吸血鬼倖存：帶著海獅瑞吉，用光噪、赦罪與告解撐過十二分鐘。",
+  "tags": ["動作", "倖存", "3D", "單人"]
+}

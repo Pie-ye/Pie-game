@@ -88,6 +88,7 @@ Docker 只在容器啟動時解析一次 bind 來源，綁 `live` 連結本身�
 - `coin-flip` 猜硬幣（金幣）
 - `lucky-wheel` 幸運轉盤（金幣）
 - `tic-tac-toe` 井字棋（多人）
+- `pie-phoebe` 菲比啾比星光倖存（一般，three.js 類吸血鬼倖存；美術由 Grok 生成，見 `tools/pie-phoebe/`）
 
 ## 授權
 
