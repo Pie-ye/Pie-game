@@ -1,16 +1,17 @@
 import * as T from '../../pie-phoebe/vendor/three.module.js';
 import PieGame from '../../../../sdk/pie-game-sdk.js';
-import {makeEgg} from './models.js';
-import {makeAnimePhoebe,makeAnimeReggie} from './anime-actors.js';
+import {makeEgg,preloadEgg} from './models.js';
+import {makeGeneratedPhoebe as makeAnimePhoebe,makeGeneratedReggie as makeAnimeReggie} from './model-actors.js';
 import {buildWorld} from './world.js';
 import {Game,ATTACKS} from './game.js';
 import {CAMP,NEST,PLATFORM,RAMP,ROCKS,CLIMBS,ground} from './rules.js';
 import * as audio from './audio.js';
+import {makeEffects} from './effects.js';
 
 const $=id=>document.getElementById(id),app=$('app'),canvas=$('world');
 const game=new Game(()=>{},audio.play),keys=new Set();
 let yaw=0,pitch=.51,zoom=10,drag=null,stick={id:null,x:0,z:0},touchUse=false,touchRun=false;
-let renderer,scene,camera,phoebe,reggie,world,dropped,telegraph,sweepArea,chargeLine,shock;
+let renderer,scene,camera,phoebe,reggie,world,dropped,telegraph,sweepArea,chargeLine,shock,effects;
 let last=performance.now(),accumulator=0,visualTime=0,lastMode='',minimapClock=0;
 let best=0;try{best=Number(localStorage.getItem('pg-phoebe-egg-best'))||0;}catch{}
 const readInput=()=>{
@@ -98,6 +99,7 @@ function drawMap(){
 }
 
 function visual(dt){
+  effects.update(dt,game);
   if(game.mode==='play'||game.mode==='title')visualTime+=dt;
   const p=game.player,e=game.enemy;
   phoebe.root.position.set(p.x,p.y,p.z);phoebe.root.rotation.y=p.angle;phoebe.animate(p,visualTime);
@@ -137,7 +139,7 @@ try{
   renderer=new T.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
   renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.1;
   scene=new T.Scene();camera=new T.PerspectiveCamera(48,1,.1,250);camera.position.set(25,23,35);
-  world=buildWorld(scene);[phoebe,reggie]=await Promise.all([makeAnimePhoebe(scene),makeAnimeReggie(scene)]);dropped=makeEgg(scene,1.12);
+  await preloadEgg();[world,[phoebe,reggie]]=await Promise.all([buildWorld(scene),Promise.all([makeAnimePhoebe(scene),makeAnimeReggie(scene)])]);effects=makeEffects(scene);dropped=makeEgg(scene,1.12);
   const markerMaterial=new T.MeshBasicMaterial({color:0xf04f37,transparent:true,opacity:.3,side:T.DoubleSide,depthWrite:false});
   telegraph=new T.Mesh(new T.CircleGeometry(1,64),markerMaterial);telegraph.rotation.x=-Math.PI/2;scene.add(telegraph);
   const halfSweep=Math.acos(-.25);
@@ -145,7 +147,7 @@ try{
   chargeLine=new T.Mesh(new T.PlaneGeometry(4,17),markerMaterial.clone());scene.add(chargeLine);
   shock=new T.Mesh(new T.RingGeometry(.93,1,64),new T.MeshBasicMaterial({color:0xffd491,transparent:true,side:T.DoubleSide,depthWrite:false}));shock.rotation.x=-Math.PI/2;scene.add(shock);
   new ResizeObserver(resize).observe(app);resize();$('loading').hidden=true;
-  window.__egg={game,scene,camera,renderer,start,readInput,actors:{phoebe,reggie}};
+  window.__egg={game,scene,camera,renderer,start,readInput,effects,actors:{phoebe,reggie}};
   canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();game.mode='pause';$('loading').hidden=false;$('loading').textContent='繪圖連線已中斷，請重新整理頁面後再開始。';});
   requestAnimationFrame(frame);
 }catch(error){$('loading').textContent=`無法啟動 3D 場景：${error.message}。請使用支援 WebGL 2 的瀏覽器並開啟硬體加速。`;console.error(error);}
