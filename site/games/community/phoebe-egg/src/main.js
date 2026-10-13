@@ -1,6 +1,7 @@
 import * as T from '../../pie-phoebe/vendor/three.module.js';
 import PieGame from '../../../../sdk/pie-game-sdk.js';
-import {makePhoebe,makeReggie,makeEgg} from './models.js';
+import {makeEgg} from './models.js';
+import {makeAnimePhoebe,makeAnimeReggie} from './anime-actors.js';
 import {buildWorld} from './world.js';
 import {Game,ATTACKS} from './game.js';
 import {CAMP,NEST,PLATFORM,RAMP,ROCKS,CLIMBS,ground} from './rules.js';
@@ -136,7 +137,7 @@ try{
   renderer=new T.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
   renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.1;
   scene=new T.Scene();camera=new T.PerspectiveCamera(48,1,.1,250);camera.position.set(25,23,35);
-  world=buildWorld(scene);phoebe=makePhoebe(scene);reggie=makeReggie(scene);dropped=makeEgg(scene,1.12);
+  world=buildWorld(scene);[phoebe,reggie]=await Promise.all([makeAnimePhoebe(scene),makeAnimeReggie(scene)]);dropped=makeEgg(scene,1.12);
   const markerMaterial=new T.MeshBasicMaterial({color:0xf04f37,transparent:true,opacity:.3,side:T.DoubleSide,depthWrite:false});
   telegraph=new T.Mesh(new T.CircleGeometry(1,64),markerMaterial);telegraph.rotation.x=-Math.PI/2;scene.add(telegraph);
   const halfSweep=Math.acos(-.25);
@@ -144,7 +145,7 @@ try{
   chargeLine=new T.Mesh(new T.PlaneGeometry(4,17),markerMaterial.clone());scene.add(chargeLine);
   shock=new T.Mesh(new T.RingGeometry(.93,1,64),new T.MeshBasicMaterial({color:0xffd491,transparent:true,side:T.DoubleSide,depthWrite:false}));shock.rotation.x=-Math.PI/2;scene.add(shock);
   new ResizeObserver(resize).observe(app);resize();$('loading').hidden=true;
-  window.__egg={game,scene,camera,renderer,start,readInput};
+  window.__egg={game,scene,camera,renderer,start,readInput,actors:{phoebe,reggie}};
   canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();game.mode='pause';$('loading').hidden=false;$('loading').textContent='繪圖連線已中斷，請重新整理頁面後再開始。';});
   requestAnimationFrame(frame);
 }catch(error){$('loading').textContent=`無法啟動 3D 場景：${error.message}。請使用支援 WebGL 2 的瀏覽器並開啟硬體加速。`;console.error(error);}

@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>動漫角色 · 模型檢視</title><link rel="stylesheet" href="./model-preview.css"></head>
+<body>
+  <header><div><span>PHOEBE & REGGIE</span><h1>動漫角色 · 模型檢視</h1></div><a href="./index.html">返回搬蛋任務 →</a></header>
+  <main><section class="viewport"><canvas id="preview" aria-label="可旋轉的真實三維角色模型"></canvas><div id="loading">正在載入 GLB 模型…</div><div class="view-buttons"><button data-angle="0">正面</button><button data-angle="1.5708">側面</button><button data-angle="3.14159">背面</button><button data-angle="0.55">斜側</button></div><p class="gesture">拖曳旋轉 · 滾輪縮放 · 模型為 GLB 網格</p></section>
+  <aside><div class="tabs"><button id="select-phoebe" class="selected">菲比啾比</button><button id="select-reggie">瑞吉</button></div><img id="reference" src="../pie-phoebe/assets/phoebe.png" alt="原始角色造型參考"><p>原始圖片參考</p><label>動作<select id="pose"><option value="idle">待機</option><option value="walk">行走</option><option value="carry">抱蛋</option><option value="climb">攀爬</option><option value="attack">瑞吉吼叫</option></select></label><label><input type="checkbox" id="rotate"> 自動旋轉</label><label><input type="checkbox" id="wireframe"> 顯示網格</label><a id="download" href="./assets/anime/phoebe.glb" download>下載菲比 GLB 模型</a><div id="asset-info"></div></aside></main>
+  <script type="module" src="./src/model-preview.js"></script>
+</body></html>
