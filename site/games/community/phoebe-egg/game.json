@@ -1,0 +1,10 @@
+{
+  "id": "phoebe-egg",
+  "name": "菲比啾比搬蛋大作戰",
+  "kind": "free",
+  "multiplayer": false,
+  "author": "Pie-ye",
+  "entry": "index.html",
+  "description": "抱好蛋，躲開瑞吉！在立體海岸山谷攀爬、翻滾，將三顆蛋安全送回營地。",
+  "tags": ["3D", "動作", "搬蛋", "單人"]
+}

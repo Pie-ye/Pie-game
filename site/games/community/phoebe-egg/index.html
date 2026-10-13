@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#183f3c">
+  <title>菲比啾比 · 搬蛋大作戰</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main id="app" tabindex="0">
+    <canvas id="world" aria-label="三維搬蛋遊戲場景"></canvas>
+    <div id="loading">正在準備海岸營地…</div>
+    <section id="hud" hidden aria-label="任務資訊">
+      <div class="vitals panel"><span class="eyebrow">PHOEBE · 菲比啾比</span><label>生命 <meter id="hp" min="0" max="100" value="100"></meter></label><label>耐力 <meter id="stamina" min="0" max="100" value="100"></meter></label><span id="egg-status">空手 · 前往蛋巢</span></div>
+      <div class="mission panel"><span class="eyebrow">海岸搬運委託</span><strong id="deliveries">0 / 3</strong><span id="timer">06:00</span></div>
+      <div class="tools"><button id="mute" aria-label="切換音效">音效 開</button><button id="pause" aria-label="暫停遊戲">暫停</button></div>
+      <div id="alert" role="status"></div>
+      <div id="toast" role="status"></div>
+      <div id="interaction"><span id="hint"></span><progress id="deposit" max="1" value="0" hidden></progress></div>
+      <aside class="radar"><canvas id="map" width="300" height="300" aria-label="圓形小地圖：白色玩家、紅色瑞吉、金色蛋巢、綠色營地"></canvas><span>白 玩家 · 紅 瑞吉 · 金 蛋 · 綠 營地</span></aside>
+      <div class="controls">WASD 移動 <b>Shift</b> 衝刺 <b>Space</b> 翻滾 <b>E</b> 互動 <b>滑鼠右鍵拖曳</b> 鏡頭</div>
+      <div id="touch"><div id="joystick" aria-label="拖曳移動"><i></i></div><div class="touch-actions"><button id="touch-run">衝刺</button><button id="touch-roll">翻滾</button><button id="touch-use">互動</button></div></div>
+    </section>
+    <section id="menu" class="overlay" hidden>
+      <div class="menu-card">
+        <span class="eyebrow">COASTAL DELIVERY · 海岸特別委託</span>
+        <h1>菲比啾比<br><em>搬蛋大作戰</em></h1>
+        <p>抱好你的蛋。瑞吉已經發現你了。</p>
+        <div class="brief"><span><b>任務</b> 6 分鐘內，將 3 顆蛋送回營地</span><span><b>路線</b> 穿越河谷，或攀上岩台走捷徑</span><span><b>生存</b> 看清紅色預告，翻滾躲開瑞吉</span></div>
+        <button id="start" class="primary">接受委託 <span>→</span></button>
+        <p class="fine">WASD 移動 · Space 翻滾 · E 取蛋／攀爬<br>抱蛋回到綠色營地，按住 E 交付。</p>
+        <span id="best" class="fine"></span>
+      </div>
+    </section>
+    <section id="modal" class="overlay" hidden><div class="menu-card compact"><span class="eyebrow">COASTAL DELIVERY</span><h2 id="modal-title"></h2><p id="modal-copy"></p><button id="resume" class="primary">繼續任務</button><button id="restart">重新開始</button><button id="home">返回標題</button></div></section>
+  </main>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
