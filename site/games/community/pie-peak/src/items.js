@@ -1,0 +1,98 @@
+// Item catalogue. `use(g)` gets the Game facade (see game.js) and returns false when the item cannot be used right now.
+// weight: stamina-cap units while carried. charges: uses before the item is gone.
+export const ITEMS = {
+  // ---- food ----
+  apple:         { name: '蘋果', icon: '🍎', model: 'apple', weight: 0.5, kind: 'food', desc: '安全的小點心。飢餓 -12，恢復 15 體力。',
+    use: (g) => { g.v.add('hunger', -12); g.v.restore(15); g.toast('脆甜！飢餓 -12'); return true; } },
+  berries:       { name: '野莓', icon: '🫐', model: 'berries', weight: 0.4, kind: 'food', desc: '看起來可疑。35% 會中毒。',
+    use: (g) => { g.v.add('hunger', -8); if (g.rng() < 0.35) { g.v.poisonTicks = 7; g.toast('糟了，是毒莓！', 'bad'); } else g.toast('好吃！飢餓 -8'); return true; } },
+  mushroom_red:  { name: '紅蘑菇', icon: '🍄', model: 'mushroom_red', weight: 0.4, kind: 'food', desc: '鮮豔的紅傘白點。多半有毒，運氣好會有力量。',
+    use: (g) => { if (g.rng() < 0.6) { g.v.poisonTicks = 10; g.v.add('poison', 6); g.toast('蘑菇有毒！', 'bad'); } else { g.v.grant('boost', 20); g.toast('全身充滿力量！體力消耗 -60%', 'good'); } return true; } },
+  mushroom_brown:{ name: '褐蘑菇', icon: '🍄', model: 'mushroom_brown', weight: 0.4, kind: 'food', desc: '可食用的厚傘蘑菇。飢餓 -10，恢復 20 體力。',
+    use: (g) => { g.v.add('hunger', -10); g.v.restore(20); g.toast('香噴噴'); return true; } },
+  banana:        { name: '香蕉', icon: '🍌', model: 'banana', weight: 0.4, kind: 'food', desc: '飢餓 -10，恢復 30 體力。猴子最愛。',
+    use: (g) => { g.v.add('hunger', -10); g.v.restore(30); g.toast('香蕉補充能量'); return true; } },
+  coconut:       { name: '椰子', icon: '🥥', model: 'coconut', weight: 1.0, kind: 'food', desc: '沉但解渴。飢餓 -6，恢復 25 體力，並降暑 10。',
+    use: (g) => { g.v.add('hunger', -6); g.v.add('hot', -10); g.v.restore(25); g.toast('椰子汁冰涼'); return true; } },
+  snack_pack:    { name: '航空小餅乾', icon: '🍘', model: 'snack_pack', weight: 0.3, kind: 'food', desc: '最安全的食物。飢餓 -18。',
+    use: (g) => { g.v.add('hunger', -18); g.toast('飢餓 -18'); return true; } },
+  energy_drink:  { name: '能量飲料', icon: '⚡', model: 'energy_drink', weight: 0.4, kind: 'food', desc: '25 秒內體力消耗 -60%、移動變快；之後糖分崩潰會睡著。',
+    use: (g) => { g.v.grant('boost', 25); g.v.grant('fast', 25); g.v.restore(30); g.toast('衝啊！25 秒爆發', 'good'); return true; } },
+  lollipop:      { name: '彩虹棒棒糖', icon: '🍭', model: 'lollipop', weight: 0.2, kind: 'food', desc: '12 秒內無限體力，但之後睏倦。',
+    use: (g) => { g.v.grant('infinite', 12); g.toast('無限體力 12 秒！', 'good'); return true; } },
+  honey_jar:     { name: '蜂蜜罐', icon: '🍯', model: 'honey_jar', weight: 0.8, kind: 'food', desc: '恢復 40 體力、受傷 -10、飢餓 -10。',
+    use: (g) => { g.v.restore(40); g.v.add('injury', -10); g.v.add('hunger', -10); g.toast('甜蜜療癒'); return true; } },
+  fish_skewer:   { name: '烤魚串', icon: '🐟', model: 'fish_skewer', weight: 0.7, kind: 'food', desc: '扎實的一餐。飢餓 -26，受傷 -5。',
+    use: (g) => { g.v.add('hunger', -26); g.v.add('injury', -5); g.toast('吃得飽飽'); return true; } },
+  cookie:        { name: '巧克力餅乾', icon: '🍪', model: 'cookie', weight: 0.2, kind: 'food', desc: '飢餓 -8，恢復 12 體力。',
+    use: (g) => { g.v.add('hunger', -8); g.v.restore(12); g.toast('餅乾！'); return true; } },
+  // ---- medicine ----
+  first_aid:     { name: '急救箱', icon: '🧰', model: 'first_aid', weight: 1.2, kind: 'med', desc: '受傷 -50。',
+    use: (g) => { if (g.v.aff.injury < 1) return g.refuse('沒有受傷'); g.v.add('injury', -50); g.toast('傷口處理好了', 'good'); return true; } },
+  bandage:       { name: '繃帶', icon: '🩹', model: 'bandage', weight: 0.3, kind: 'med', desc: '受傷 -20。',
+    use: (g) => { if (g.v.aff.injury < 1) return g.refuse('沒有受傷'); g.v.add('injury', -20); g.toast('包紮完成', 'good'); return true; } },
+  antidote:      { name: '解毒劑', icon: '🧪', model: 'antidote', weight: 0.4, kind: 'med', desc: '清除中毒。',
+    use: (g) => { g.v.poisonTicks = 0; g.v.add('poison', -100); g.toast('毒解了', 'good'); return true; } },
+  cure_all:      { name: '萬能藥', icon: '🌈', model: 'cure_all', weight: 0.4, kind: 'med', desc: '清除中毒、寒冷、灼熱、睏倦，受傷 -30。',
+    use: (g) => { g.v.poisonTicks = 0; for (const k of ['poison', 'cold', 'hot', 'drowsy']) g.v.add(k, -100); g.v.add('injury', -30); g.toast('神清氣爽！', 'good'); return true; } },
+  heat_pack:     { name: '暖暖包', icon: '🔥', model: 'heat_pack', weight: 0.3, kind: 'med', desc: '寒冷 -40，並在 90 秒內不再受凍。',
+    use: (g) => { g.v.add('cold', -40); g.v.grant('warmed', 90); g.toast('暖呼呼', 'good'); return true; } },
+  cool_pack:     { name: '冰敷袋', icon: '🧊', model: 'cool_pack', weight: 0.3, kind: 'med', desc: '灼熱 -40，並在 90 秒內不再中暑。',
+    use: (g) => { g.v.add('hot', -40); g.v.grant('cooled', 90); g.toast('涼爽！', 'good'); return true; } },
+  revive_star:   { name: '復活星星', icon: '⭐', model: 'revive_star', weight: 0.2, kind: 'passive', desc: '放在背包裡。昏倒時自動復活一次。',
+    use: (g) => g.refuse('昏倒時會自動使用') },
+  // ---- climbing tools ----
+  rope_spool:    { name: '登山繩', icon: '🪢', model: 'rope_spool', weight: 1.5, kind: 'tool', desc: '在目前位置垂下一條 14 公尺的繩子，可低耗體力攀爬、也能當逃生路線。',
+    use: (g) => g.placeRope() },
+  piton:         { name: '岩釘', icon: '📌', model: 'piton', weight: 0.6, kind: 'tool', charges: 3, desc: '攀爬時釘入岩壁：掛在釘上不耗體力，並成為永久休息點。（3 次）',
+    use: (g) => g.placePiton() },
+  ice_axe:       { name: '冰斧', icon: '⛏️', model: 'ice_axe', weight: 1.2, kind: 'passive', desc: '背著就生效：可攀爬冰壁、冰面耗體力減半、不再下滑。',
+    use: (g) => g.refuse('背在身上就生效') },
+  spike_boots:   { name: '冰爪', icon: '👢', model: 'spike_boots', weight: 1.0, kind: 'passive', desc: '背著就生效：冰雪地面不打滑，爬冰壁不下滑。',
+    use: (g) => g.refuse('背在身上就生效') },
+  climb_gloves:  { name: '止滑手套', icon: '🧤', model: 'climb_gloves', weight: 0.4, kind: 'passive', desc: '背著就生效：攀爬耗體力 -22%，濕滑苔蘚不再打滑。',
+    use: (g) => g.refuse('背在身上就生效') },
+  backpack:      { name: '大背包', icon: '🎒', model: 'backpack', weight: 1.0, kind: 'passive', desc: '背著就生效：增加 3 個道具欄位。',
+    use: (g) => g.refuse('背在身上就生效') },
+  grapple_gun:   { name: '鏈條發射槍', icon: '🪝', model: 'grapple_gun', weight: 1.6, kind: 'tool', charges: 3, desc: '朝準星發射鉤爪，把自己拉到目標岩壁。（3 次，射程 24 公尺）',
+    use: (g) => g.fireGrapple() },
+  grapple_hook:  { name: '備用鉤爪', icon: '⚓', model: 'grapple_hook', weight: 0.8, kind: 'tool', desc: '為鏈條發射槍補充 2 發。',
+    use: (g) => g.reloadGrapple(2) },
+  glider_umbrella:{ name: '滑翔傘', icon: '☂️', model: 'glider_umbrella', weight: 1.4, kind: 'tool', charges: 3, desc: '在空中撐開：緩降並可轉向，最長 14 秒。（3 次）',
+    use: (g) => g.startGlide() },
+  blowdart:      { name: '吹箭', icon: '🎯', model: 'blowdart', weight: 0.5, kind: 'tool', charges: 5, desc: '射向準星方向的捕蠅草或蜂群，使其沉睡 20 秒。（5 發）',
+    use: (g) => g.fireDart() },
+  lantern_camp:  { name: '露營提燈', icon: '🏮', model: 'lantern_camp', weight: 1.0, kind: 'tool', desc: '開關提燈：山洞與濃霧中照亮周圍，並微微取暖。',
+    use: (g) => g.toggleLantern() },
+  flare:         { name: '信號彈', icon: '🧨', model: 'flare', weight: 0.4, kind: 'tool', desc: '丟出去照亮 40 秒，並趕走蜂群。',
+    use: (g) => g.throwFlare() },
+  compass:       { name: '指北針', icon: '🧭', model: 'compass', weight: 0.3, kind: 'passive', desc: '背著就生效：畫面上顯示通往下一座祭壇的方向。',
+    use: (g) => g.refuse('背在身上就生效') },
+  binoculars:    { name: '望遠鏡', icon: '🔭', model: 'binoculars', weight: 0.6, kind: 'tool', desc: '偵測 70 公尺內的行李箱、祭壇與補給（標記 40 秒）。',
+    use: (g) => g.useBinoculars() },
+  portable_stove:{ name: '攜帶爐', icon: '♨️', model: 'portable_stove', weight: 1.4, kind: 'tool', charges: 2, desc: '原地架起爐子 90 秒：範圍內取暖、緩慢恢復受傷與體力。（2 次）',
+    use: (g) => g.placeStove() },
+  bedroll:       { name: '睡袋', icon: '🛏️', model: 'bedroll', weight: 1.2, kind: 'tool', desc: '站穩時睡一覺：體力全滿、受傷 -15，但飢餓 +14。',
+    use: (g) => g.sleepBedroll() },
+  dynamite:      { name: '炸藥', icon: '🧨', model: 'dynamite_bundle', weight: 1.0, kind: 'tool', charges: 2, desc: '丟出後 3 秒爆炸：炸開落石堵塞與脆弱岩壁，離遠一點！（2 次）',
+    use: (g) => g.throwDynamite() },
+  cheese:        { name: '誘餌起司', icon: '🧀', model: 'bomb_cheese', weight: 0.4, kind: 'tool', desc: '丟下誘餌 25 秒：把捕蠅草與蜜蜂引開。',
+    use: (g) => g.dropBait() },
+  scout_badge:   { name: '童軍徽章', icon: '🏅', model: 'scout_badge', weight: 0, kind: 'badge', desc: '收集品。每枚結算加 500 分。',
+    use: (g) => g.refuse('收集品不能使用') },
+};
+export const ITEM_IDS = Object.keys(ITEMS);
+
+// Loot tables per biome: [itemId, weight]
+const COMMON = [['snack_pack', 10], ['apple', 7], ['bandage', 6], ['cookie', 5], ['coconut', 4], ['rope_spool', 4], ['piton', 5], ['energy_drink', 3], ['heat_pack', 3], ['antidote', 3]];
+export const LOOT = {
+  shore:   [...COMMON, ['banana', 8], ['berries', 6], ['lollipop', 3], ['climb_gloves', 2], ['backpack', 2], ['compass', 2], ['glider_umbrella', 1.5], ['cool_pack', 4], ['fish_skewer', 3]],
+  jungle:  [...COMMON, ['berries', 8], ['mushroom_red', 5], ['mushroom_brown', 6], ['banana', 7], ['honey_jar', 4], ['blowdart', 3], ['cheese', 3], ['first_aid', 3], ['grapple_gun', 2], ['lantern_camp', 3], ['cure_all', 1.5], ['binoculars', 2], ['climb_gloves', 2]],
+  alpine:  [...COMMON, ['heat_pack', 8], ['ice_axe', 3], ['spike_boots', 3], ['portable_stove', 3], ['first_aid', 4], ['honey_jar', 4], ['cure_all', 2], ['fish_skewer', 4], ['grapple_gun', 2.5], ['bedroll', 3], ['flare', 3], ['glider_umbrella', 2], ['grapple_hook', 3]],
+  volcano: [...COMMON, ['cool_pack', 8], ['dynamite', 4], ['first_aid', 5], ['cure_all', 3], ['honey_jar', 4], ['revive_star', 2.5], ['grapple_gun', 3], ['glider_umbrella', 3], ['flare', 3], ['bedroll', 3], ['energy_drink', 4], ['grapple_hook', 3]],
+};
+export const RARE = [['revive_star', 3], ['cure_all', 4], ['grapple_gun', 3], ['glider_umbrella', 3], ['first_aid', 5], ['scout_badge', 6]];
+
+export function itemWeightTotal(slots) {
+  return slots.reduce((s, it) => s + (it ? ITEMS[it.id].weight : 0), 0);
+}
