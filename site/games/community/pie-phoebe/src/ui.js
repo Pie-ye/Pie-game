@@ -1,10 +1,18 @@
 // DOM 介面：HUD、標題、升級選單、暫停、結算。
 import { WEAPONS, PASSIVES, PET, SYNERGIES } from './data.js';
 import { isMuted } from './audio.js';
+import { skillSummary } from './skills.js';
 
 const $ = (id) => document.getElementById(id);
 const fmt = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 export { fmt };
+
+function damageReport(damage = {}) {
+  const entries = Object.entries(damage).sort((a, b) => b[1] - a[1]);
+  if (!entries.length) return '';
+  const total = entries.reduce((sum, [, n]) => sum + n, 0) || 1;
+  return `<details class="skill-guide"><summary>本局傷害貢獻</summary><div class="damage-report">${entries.map(([key, n]) => `<div><span>${WEAPONS[key]?.name || ({ pet: '瑞吉', prayer: '祈願爆發', frazzle: '光噪持續傷害' })[key] || key}</span><b>${Math.round(n).toLocaleString()} · ${Math.round(n / total * 100)}%</b></div>`).join('')}</div></details>`;
+}
 
 export class UI {
   constructor(h) {
@@ -117,18 +125,23 @@ export class UI {
     this.screen.hidden = false;
     this.screen.innerHTML = `
       <div class="card-wrap">
-        <div class="logo">菲比啾比<br>星光亂鬥 v1.2</div>
-        <p class="sub">帶著海獅瑞吉，撐過十二分鐘並擊敗三位頭目！</p>
+        <div class="logo">菲比啾比<br>星光亂鬥 v1.3</div>
+        <p class="sub">黎那汐塔・啟明廣場｜鏡環折射 × 光噪爆發<br>帶著瑞吉，撐過十二分鐘並擊敗三位頭目。</p>
         <div class="duo"><img src="./assets/phoebe.png" alt="菲比啾比"><img class="pet" src="./assets/reggie_open.png" alt="海獅瑞吉"></div>
         <button type="button" class="screen-btn" id="go">開始 <small>(Enter)</small></button>
         <div class="tips">
           <div><b>移動</b> WASD／方向鍵，或在畫面上按住拖曳。攻擊會自動施放。</div>
-          <div><b>祈願</b> 充滿後按 <b>Q 赦罪</b>（輸出強化）或 <b>E 告解</b>（光噪疊 3 倍、全場易傷）。</div>
+          <div><b>祈願</b> 充滿後按 <b>Q 赦罪</b>（重擊／碎鏡爆發）或 <b>E 告解</b>（光噪疊 3 倍、持續傷害 ×1.6）。發動時立即造成範圍傷害。</div>
           <div><b>瑞吉</b> 會張嘴吼、肚皮滑行，還會去吃你打出來的小魚——吃飽就變胖變強。</div>
           <div><b>走位</b> 紅線衝鋒往側面躲、紅圈落雷要離開；環形彈幕沿青色缺口逃出。</div>
-          <div><b>連攜</b> 星輝＋雷光、聖祷＋冰晶、光痕＋滑行，各 Lv3 啟動。最多攜帶 5 種角色技能。</div>
+          <div><b>搭配</b> 鏡環聚怪 → 聖光折射 → 星輝重擊；默禱疊層 → 迴響清場。最多攜帶 5 種角色技能。</div>
           <div>P／Esc 暫停　M 靜音　升級時按 1・2・3 選卡</div>
         </div>
+        <details class="skill-guide"><summary>技能圖鑑與連攜（v1.3）</summary>
+          <p>以鳴潮菲比機制改編為自動施法；以下是本作 Lv1 基礎數值，未含成長、被動、暴擊與形態加成。</p>
+          ${Object.entries(WEAPONS).map(([k, w]) => `<article><b>${w.icon} ${w.name}</b><p>${w.desc}</p><small>${skillSummary(k, 1)}</small></article>`).join('')}
+          ${SYNERGIES.map((s) => `<p><b>${s.name}</b>：${s.desc}</p>`).join('')}
+        </details>
         ${best ? `<div class="best">最佳存活 ${fmt(best.time)}　擊殺 ${best.kills}</div>` : ''}
       </div>`;
     $('go').addEventListener('click', () => this.h.onStart());
@@ -139,6 +152,7 @@ export class UI {
     this.screen.innerHTML = `
       <div class="card-wrap">
         <h2 class="title-h">升級！ Lv ${level}</h2>
+        <p class="sub">數值為基礎傷害／冷卻；兩項各 Lv3 自動啟動連攜。</p>
         <div class="cards">${cards.map((c, i) => `
           <button type="button" class="card ${c.kind || ''} ${c.isNew ? 'new' : ''}" data-i="${i}">
             <kbd>${i + 1}</kbd>
@@ -153,13 +167,14 @@ export class UI {
     if (first) first.focus({ preventScroll: true });
   }
 
-  pause() {
+  pause(g) {
     this.screen.hidden = false;
     this.screen.innerHTML = `
       <div class="card-wrap">
         <h2 class="title-h">暫停</h2>
         <button type="button" class="screen-btn" id="resume">繼續 <small>(P)</small></button>
         <button type="button" class="screen-btn ghost" id="quit">放棄這局</button>
+        ${damageReport(g?.damageBySkill)}
       </div>`;
     $('resume').addEventListener('click', () => this.h.onResume());
     $('quit').addEventListener('click', () => this.h.onQuit());
@@ -178,6 +193,7 @@ export class UI {
           <div><b>Lv ${st.lvl}</b><span>等級</span></div>
           <div><b>${st.fish}</b><span>吃到的小魚</span></div>
         </div>
+        ${damageReport(st.damageBySkill)}
         ${best ? `<div class="best">${st.newBest ? '新紀錄！ ' : ''}最佳存活 ${fmt(best.time)}　擊殺 ${best.kills}</div>` : ''}
         <div>
           ${win ? '<button type="button" class="screen-btn" id="cont">繼續無盡模式</button>' : ''}

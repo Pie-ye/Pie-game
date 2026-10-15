@@ -29,6 +29,7 @@ export class Layer {
       blending: opts.additive ? THREE.AdditiveBlending : THREE.NormalBlending,
       side: THREE.DoubleSide,
       toneMapped: false,
+      opacity: opts.opacity ?? 1,
       fog: false,
     });
     this.mesh = new THREE.InstancedMesh(geo, mat, max);

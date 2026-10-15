@@ -6,7 +6,7 @@ const NAMES = [
   'phoebe', 'reggie_closed', 'reggie_open',
   'enemy_hum', 'enemy_bat', 'enemy_golem', 'enemy_shooter', 'enemy_boss',
   'fish_blue', 'fish_gold', 'heart', 'chest', 'decor_crystal', 'decor_grass',
-  'fx_star', 'fx_mirror', 'fx_shot', 'ground',
+  'fx_star', 'fx_mirror', 'fx_shot', 'ground', 'rinascita-plaza',
 ];
 
 function loadImage(name) {
@@ -36,5 +36,8 @@ export async function loadAssets() {
   tex.beam = makeTexture(FX.beam());
   tex.shadow = makeTexture(FX.shadow());
   tex.halo = makeTexture(FX.halo());
+  tex.sigil = makeTexture(FX.sigil());
+  tex.prism = makeTexture(FX.prism());
+  tex.pillar = makeTexture(FX.pillar());
   return { tex, aspect, images: imgs };
 }

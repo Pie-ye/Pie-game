@@ -63,3 +63,43 @@ export function halo() {
   ctx.beginPath(); ctx.ellipse(128, 48, 100, 28, 0, 0, 7); ctx.stroke();
   return c;
 }
+
+// 白色透明底特效，由實例顏色切換赦罪金色／告解青色。
+export function sigil() {
+  const [c, ctx] = mk(512, 512);
+  ctx.translate(256, 256); ctx.strokeStyle = 'rgba(255,255,255,.75)';
+  for (const r of [176, 211, 238]) {
+    ctx.lineWidth = r === 211 ? 2 : 4;
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
+  }
+  for (let i = 0; i < 8; i++) {
+    ctx.save(); ctx.rotate(i * Math.PI / 4);
+    ctx.beginPath(); ctx.moveTo(0, -237); ctx.lineTo(20, -207); ctx.lineTo(0, -177); ctx.lineTo(-20, -207); ctx.closePath(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, -142); ctx.lineTo(28, -28); ctx.lineTo(142, 0); ctx.lineTo(28, 28); ctx.stroke();
+    ctx.restore();
+  }
+  return c;
+}
+
+export function prism() {
+  const [c, ctx] = mk(128, 256);
+  ctx.beginPath(); ctx.moveTo(64, 8); ctx.lineTo(111, 69); ctx.lineTo(99, 188); ctx.lineTo(64, 248); ctx.lineTo(29, 188); ctx.lineTo(17, 69); ctx.closePath();
+  const g = ctx.createLinearGradient(16, 0, 112, 0);
+  g.addColorStop(0, 'rgba(255,255,255,.12)'); g.addColorStop(.5, 'rgba(255,255,255,.65)'); g.addColorStop(1, 'rgba(255,255,255,.15)');
+  ctx.fillStyle = g; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = '#fff'; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(64, 8); ctx.lineTo(64, 248); ctx.moveTo(17, 69); ctx.lineTo(99, 188); ctx.moveTo(111, 69); ctx.lineTo(29, 188); ctx.stroke();
+  return c;
+}
+
+export function pillar() {
+  const [c, ctx] = mk(128, 512);
+  const g = ctx.createLinearGradient(0, 0, 128, 0);
+  g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(.42, 'rgba(255,255,255,.12)');
+  g.addColorStop(.5, 'rgba(255,255,255,.85)'); g.addColorStop(.58, 'rgba(255,255,255,.12)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 128, 512);
+  ctx.globalCompositeOperation = 'destination-in';
+  const fade = ctx.createLinearGradient(0, 0, 0, 512);
+  fade.addColorStop(0, 'rgba(0,0,0,0)'); fade.addColorStop(.4, '#000'); fade.addColorStop(1, '#000');
+  ctx.fillStyle = fade; ctx.fillRect(0, 0, 128, 512);
+  return c;
+}

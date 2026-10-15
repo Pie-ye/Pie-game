@@ -2,6 +2,7 @@
 import { THREE, Layer } from './gfx.js';
 import { WEAPONS, PASSIVES, PET, ENEMIES, SYNERGIES, WIN_TIME, xpNeed, spawnTable } from './data.js';
 import { sfx } from './audio.js';
+import { skillStats, skillSummary, clampArena, ARENA_RADIUS } from './skills.js';
 
 const TAU = Math.PI * 2;
 const rnd = Math.random;
@@ -49,13 +50,18 @@ export class Game {
     const { tex, aspect } = this.assets;
     const sc = this.scene;
     const g = new THREE.Mesh(
-      new THREE.PlaneGeometry(168, 168),
-      new THREE.MeshBasicMaterial({ map: tex.ground, toneMapped: false, color: new THREE.Color(0.3, 0.34, 0.46) }),
+      new THREE.PlaneGeometry(58, 58),
+      new THREE.MeshBasicMaterial({ map: tex['rinascita-plaza'], toneMapped: false, color: new THREE.Color(0.62, 0.69, 0.78) }),
     );
     tex.ground.repeat.set(28, 28);
     g.rotation.x = -Math.PI / 2;
     this.ground = g;
     sc.add(g);
+    const sea = new THREE.Mesh(new THREE.PlaneGeometry(240, 240), new THREE.MeshBasicMaterial({ color: 0x123c50 }));
+    sea.rotation.x = -Math.PI / 2; sea.position.y = -0.05; sc.add(sea);
+    const edge = new THREE.Mesh(new THREE.RingGeometry(ARENA_RADIUS - .06, ARENA_RADIUS, 128),
+      new THREE.MeshBasicMaterial({ color: 0x83b8c8, transparent: true, opacity: .5, depthWrite: false, side: THREE.DoubleSide }));
+    edge.rotation.x = -Math.PI / 2; edge.position.y = .025; sc.add(edge);
 
     const solid = (t, max, order) => new Layer(sc, t, max, { alphaTest: 0.45, order });
     const add = (t, max, order, extra = {}) => new Layer(sc, t, max, { additive: true, order, ...extra });
@@ -75,13 +81,19 @@ export class Game {
     L.phoebe = solid(tex.phoebe, 2, 5);
     L.rc = solid(tex.reggie_closed, 2, 5);
     L.ro = solid(tex.reggie_open, 2, 5);
-    L.disc = add(tex.disc, 160, 6, { flat: true });
-    L.ring = add(tex.ring, 160, 7, { flat: true });
-    L.beam = add(tex.beam, 180, 7, { flat: true });
+    L.disc = add(tex.disc, 160, 6, { flat: true, opacity: .3 });
+    L.ring = add(tex.ring, 160, 7, { flat: true, opacity: .45 });
+    L.beam = add(tex.beam, 180, 7, { flat: true, opacity: .55 });
+    L.sigil = add(tex.sigil, 90, 7, { flat: true, opacity: .45 });
+    L.prism = add(tex.prism, 180, 8, { center: true, opacity: .65 });
+    L.pillar = add(tex.pillar, 70, 8, { opacity: .45 });
+    // 獨立危險圖層最後繪製，避免技能亮光遮住頭目預警。
+    L.dangerRing = add(tex.ring, 64, 11, { flat: true });
+    L.dangerBeam = add(tex.beam, 180, 11, { flat: true });
     L.halo = add(tex.halo, 4, 8, { center: true });
     L.mirror = add(tex.fx_mirror, 24, 8, { center: true });
     L.star = add(tex.fx_star, 700, 9, { center: true });
-    L.glow = add(tex.glow, 900, 9, { center: true });
+    L.glow = add(tex.glow, 900, 9, { center: true, opacity: .45 });
     L.eshot = add(tex.fx_shot, 600, 9, { center: true });
 
     // 尺寸（高度，世界單位）
@@ -118,9 +130,8 @@ export class Game {
     this.petSkills = { roar: 1 };
     this.cd = { star: 0.4, ring: 0, litany: 2, field: 0, echo: 2.5, rain: 1.5, chain: 1, frost: 2, trail: 0 };
     this.hazards = []; this.trails = []; this.petTrailCd = 0; this.bossKills = 0;
+    this.mirrorZone = null; this.starStage = 0; this.damageBySkill = {};
     this.fieldT = 0;
-    this.ringAng = 0;
-    this.ringPos = [];
     this.pet = {
       x: -1.6, z: 0.9, vx: 0, vz: 0, face: 1, fullness: 0, full: false, fullT: 0, fullDur: 10,
       roarCd: 4, slideCd: 5, pose: 0, poseFired: true, slide: 0, sdx: 1, sdz: 0, slideId: 0, back: 0, bob: 0, burp: 0,
@@ -145,7 +156,7 @@ export class Game {
   pause() {
     if (this.mode !== 'play') return;
     this.mode = 'pause';
-    this.ui.pause();
+    this.ui.pause(this);
   }
 
   resume() {
@@ -172,7 +183,7 @@ export class Game {
   }
 
   finish(win) {
-    const st = { time: this.t, kills: this.kills, lvl: this.p.lvl, fish: this.fishEaten, newBest: false };
+    const st = { time: this.t, kills: this.kills, lvl: this.p.lvl, fish: this.fishEaten, newBest: false, damageBySkill: this.damageBySkill };
     let best = loadBest();
     if (!best || this.t > best.time) {
       best = { time: this.t, kills: this.kills };
@@ -185,7 +196,7 @@ export class Game {
   // ───────────────────────── 派生屬性 ─────────────────────────
   get absolve() { return this.p.mode === 'absolve'; }
   get confess() { return this.p.mode === 'confess'; }
-  get atk() { return (1 + 0.12 * (this.passives.might || 0)) * (this.absolve ? 1.35 : 1); }
+  get atk() { return (1 + Math.min(.9, (this.p.lvl - 1) * .025)) * (1 + 0.12 * (this.passives.might || 0)) * (this.absolve ? 1.35 : 1); }
   get cdm() { return Math.max(0.35, 1 - 0.08 * (this.passives.haste || 0)); }
   get area() { return 1 + 0.12 * (this.passives.area || 0); }
   get speed() { return 4.4 * (1 + 0.1 * (this.passives.speed || 0)); }
@@ -199,6 +210,9 @@ export class Game {
     const p = this.p;
     if (this.mode !== 'play' || p.mode || p.prayer < PRAYER_MAX) return;
     p.mode = m; p.modeT = MODE_TIME; p.prayer = 0;
+    this.buildGrid();
+    this.forNear(p.x, p.z, 7, (e) => this.hurt(e, m === 'absolve' ? 90 : 40, { stacks: m === 'absolve' ? 1 : 3, source: 'prayer' }));
+    this.sigilFx(p.x, p.z, 7, 'liberation');
     sfx('mode');
     this.shake = Math.max(this.shake, 0.25);
     if (m === 'absolve') {
@@ -256,9 +270,11 @@ export class Game {
     }
     const d = c.type === 'weapon' ? WEAPONS[c.key] : PET[c.key];
     const cur = (c.type === 'weapon' ? this.weapons : this.petSkills)[c.key] || 0;
-    const combo = SYNERGIES.find((s) => s.a === c.key || s.b === c.key);
+    const combo = SYNERGIES.find((s) => (s.a === c.key || s.b === c.key) && ((s.a === c.key ? (s.pet ? this.petSkills : this.weapons)[s.b] : this.weapons[s.a]) || 0) > 0)
+      || SYNERGIES.find((s) => s.a === c.key || s.b === c.key);
     const hint = combo ? `｜連攜 ${combo.desc}（目前 ${this.weapons[combo.a] || 0}/${(combo.pet ? this.petSkills : this.weapons)[combo.b] || 0}）` : '';
-    return { ...c, icon: d.icon, name: d.name, lv: `Lv ${cur + 1}`, now: d.lv[cur + 1], desc: d.desc + hint, kind: c.type === 'pet' ? 'pet' : '', isNew: cur === 0 };
+    const now = c.type === 'weapon' ? `${cur ? skillSummary(c.key, cur) + ' → ' : ''}${skillSummary(c.key, cur + 1)}` : d.lv[cur + 1];
+    return { ...c, icon: d.icon, name: d.name, lv: `Lv ${cur + 1}`, now, desc: d.desc + hint, kind: c.type === 'pet' ? 'pet' : '', isNew: cur === 0 };
   }
 
   openLevelUp() {
@@ -349,9 +365,13 @@ export class Game {
     let d = base * mul;
     if (e.frz > 0) d *= 1 + e.frz * (this.absolve ? 0.09 : 0.03);
     if (this.confess) d *= 1.2;
+    if (e.exposed > 0) d *= 1.2;
     const crit = rnd() < 0.08;
     if (crit) d *= 1.8;
+    const applied = Math.min(e.hp, d);
     e.hp -= d;
+    const source = opts.source || 'pet';
+    this.damageBySkill[source] = (this.damageBySkill[source] || 0) + Math.max(0, applied);
     e.flash = 0.09;
     if (opts.stacks) this.addFrazzle(e, opts.stacks);
     if (opts.knock && !e.boss) {
@@ -397,6 +417,7 @@ export class Game {
   }
 
   drop(kind, x, z, v) {
+    ({ x, z } = clampArena(x, z, ARENA_RADIUS - .5));
     let mag = false;
     if (kind === 'fish' && this.pickups.length > 260) mag = true;
     this.pickups.push({ kind, x, z, v, mag, vx: 0, vz: 0, t: rnd() * 6, y: 0 });
@@ -457,6 +478,7 @@ export class Game {
     if (il > 1) { ix /= il; iz /= il; }
     p.moving = il > 0.05;
     p.x += ix * this.speed * dt; p.z += iz * this.speed * dt;
+    Object.assign(p, clampArena(p.x, p.z));
     if (ix > 0.1) p.face = 1; else if (ix < -0.1) p.face = -1;
     if (p.moving) p.walk += dt * (0.6 + il);
     p.inv = Math.max(0, p.inv - dt); p.hurt = Math.max(0, p.hurt - dt);
@@ -469,6 +491,7 @@ export class Game {
     this.buildGrid();
     this.updateWeapons(dt);
     this.updatePet(dt);
+    Object.assign(this.pet, clampArena(this.pet.x, this.pet.z, ARENA_RADIUS + 1));
     this.updateEnemies(dt);
     this.updateHazards(dt);
     this.updateShots(dt);
@@ -483,68 +506,89 @@ export class Game {
   }
 
   // ───────────────────────── 武器 ─────────────────────────
+  sigilFx(x, z, r, style = 'starflash') {
+    if (this.fxs.length > 140) return;
+    this.fxs.push({ kind: 'sigil', style, x, z, r, t: 0, life: style === 'liberation' ? 1.1 : .65, color: this.confess ? [.35, .85, 1] : [1, .8, .3] });
+  }
+
+  updateMirror(dt) {
+    const lv = this.weapons.ring;
+    if (!lv) { this.mirrorZone = null; return; }
+    const s = skillStats('ring', lv);
+    if (this.cd.ring <= 0) {
+      const e = this.nearest(this.p.x, this.p.z, 1, 10)[0];
+      if (e) {
+        this.cd.ring = s.cooldown * this.cdm;
+        this.mirrorZone = { x: e.x, z: e.z, r: s.radius * this.area, life: s.duration, tick: 0, refract: 0 };
+        this.sigilFx(e.x, e.z, this.mirrorZone.r, 'mirror');
+        this.forNear(e.x, e.z, this.mirrorZone.r, (o) => this.hurt(o, s.damage, { stacks: 1, stun: .7, source: 'ring' }));
+        if (lv >= 3 && this.weapons.litany >= 3) {
+          this.strikes.push({ x: e.x, z: e.z, r: this.mirrorZone.r, t: .35, max: .35,
+            dmg: skillStats('litany', this.weapons.litany).damage * .6, source: 'litany', style: 'starflash' });
+        }
+      } else this.cd.ring = .2;
+    }
+    const m = this.mirrorZone;
+    if (!m) return;
+    m.life -= dt; m.tick -= dt; m.refract = Math.max(0, m.refract - dt);
+    if (m.life <= 0) { this.mirrorZone = null; return; }
+    if (m.tick <= 0) {
+      m.tick = s.tick * this.cdm;
+      this.forNear(m.x, m.z, m.r, (e) => {
+        const dx = m.x - e.x; const dz = m.z - e.z; const d = Math.hypot(dx, dz) || 1;
+        this.hurt(e, s.damage, { stacks: 1, knock: Math.min(3, d * 2), kx: dx / d, kz: dz / d, source: 'ring' });
+      });
+    }
+    // 攔截範圍固定於鏡環邊緣；場外彈幕仍需走位。
+    for (const b of this.eshots) {
+      if (!b.dead && Math.abs(Math.hypot(b.x - m.x, b.z - m.z) - m.r) < .4) b.dead = true;
+    }
+  }
+
   updateWeapons(dt) {
     const p = this.p;
     const W = this.weapons;
     const cd = this.cd;
     for (const k of Object.keys(W)) cd[k] -= dt;
     this.updateNewWeapons(dt);
+    this.updateMirror(dt);
 
     if (W.star && cd.star <= 0) {
       const lv = W.star;
-      const cnt = [0, 1, 2, 2, 3, 3, 4, 4, 5][lv];
+      const stats = skillStats('star', lv);
+      const cnt = stats.count;
       const ts = this.nearest(p.x, p.z, cnt, 15);
       if (ts.length) {
-        cd.star = (1.2 - lv * 0.06) * this.cdm * (this.absolve ? 0.8 : 1);
-        const dmg = 11 + 3.2 * lv;
-        const pierce = lv >= 8 ? 2 : lv >= 5 ? 1 : 0;
+        cd.star = stats.cooldown * this.cdm * (this.absolve ? 0.8 : 1);
+        this.starStage = (this.starStage + 1) % 3;
+        const empowered = this.mirrorZone && d2(p.x, p.z, this.mirrorZone.x, this.mirrorZone.z) <= this.mirrorZone.r ** 2;
+        const dmg = stats.damage * (this.starStage === 0 ? 1.5 : 1) * (empowered ? 1.35 : 1);
+        const pierce = stats.pierce;
         for (let i = 0; i < cnt; i++) {
           const t = ts[i % ts.length];
           let a = Math.atan2(t.z - p.z, t.x - p.x);
           if (i >= ts.length) a += (i - ts.length + 1) * 0.16 * (i % 2 ? 1 : -1);
-          this.shots.push({ x: p.x, z: p.z, vx: Math.cos(a) * 10.5, vz: Math.sin(a) * 10.5, life: 2.4, dmg, pierce, hit: [], target: t });
+          this.shots.push({ x: p.x, z: p.z, vx: Math.cos(a) * 10.5, vz: Math.sin(a) * 10.5, life: 2.4, dmg, pierce, hit: [], target: t, empowered: empowered || this.starStage === 0 });
         }
         sfx('shoot', 0.08);
       } else cd.star = 0.25;
     }
 
-    if (W.ring) {
-      const lv = W.ring;
-      const n = [0, 1, 1, 2, 2, 2, 3, 3, 4][lv];
-      const R = 2.1 * this.area * (lv >= 2 ? 1.12 : 1) * (lv >= 7 ? 1.12 : 1);
-      const hr = 0.8 * (lv >= 2 ? 1.1 : 1) * (lv >= 7 ? 1.1 : 1);
-      const dmg = 9 + 2.6 * lv + (lv >= 8 ? 6 : 0);
-      this.ringAng += dt * 2.4 * (lv >= 5 ? 1.3 : 1);
-      this.ringPos.length = 0;
-      for (let i = 0; i < n; i++) {
-        const a = this.ringAng + (i * TAU) / n;
-        const x = p.x + Math.cos(a) * R; const z = p.z + Math.sin(a) * R;
-        this.ringPos.push({ x, z, r: hr });
-        this.forNear(x, z, hr, (e) => {
-          if (e.ringCd > 0) return;
-          e.ringCd = 0.5;
-          const dx = e.x - p.x; const dz = e.z - p.z; const dl = Math.hypot(dx, dz) || 1;
-          this.hurt(e, dmg, { stacks: 1, knock: 3, kx: dx / dl, kz: dz / dl });
-        });
-        for (const s of this.eshots) {
-          if (!s.dead && d2(s.x, s.z, x, z) < (hr + 0.25) ** 2) { s.dead = true; this.burst(s.x, 0.6, s.z, 5, { kind: 'star', color: [1, 0.9, 0.5], speed: 3, life: 0.35, size: 0.4 }); }
-        }
-      }
-    } else this.ringPos.length = 0;
-
     if (W.litany && cd.litany <= 0) {
       const lv = W.litany;
-      const cnt = [0, 1, 1, 1, 2, 2, 2, 3, 3][lv];
+      const stats = skillStats('litany', lv);
+      const cnt = stats.count;
       const ts = this.nearest(p.x, p.z, cnt, 14);
       if (ts.length) {
-        cd.litany = (4.8 - 0.25 * lv - (lv >= 3 ? 0.3 : 0) - (lv >= 6 ? 0.3 : 0)) * this.cdm;
-        const w = 1.1 * this.area * (lv >= 5 ? 1.35 : 1);
-        const dmg = 38 + 13 * lv;
+        cd.litany = stats.cooldown * this.cdm;
+        const w = stats.width * this.area;
+        const dmg = stats.damage;
         for (let i = 0; i < cnt; i++) {
           const t = ts[i % ts.length];
           let a = Math.atan2(t.z - p.z, t.x - p.x);
           if (i >= ts.length) a += 0.35 * (i % 2 ? 1 : -1);
-          this.fireBeam(a, w, dmg);
+          this.fireBeam(a, w, dmg * (i ? .55 : 1));
+          this.sigilFx(t.x, t.z, w, 'starflash');
         }
         sfx('beam', 0.1);
         this.shake = Math.max(this.shake, 0.12);
@@ -553,15 +597,16 @@ export class Game {
 
     if (W.field) {
       const lv = W.field;
-      const R = (1.9 + 0.28 * lv) * this.area * (this.confess ? 1.3 : 1);
+      const stats = skillStats('field', lv);
+      const R = stats.radius * this.area * (this.confess ? 1.3 : 1);
       this.fieldR = R;
       this.fieldT -= dt;
       if (this.fieldT <= 0) {
-        this.fieldT = 0.5;
-        const dmg = 3.2 + 1.4 * lv;
+        this.fieldT = stats.cooldown * this.cdm;
+        const dmg = stats.damage;
         this.forNear(p.x, p.z, R, (e) => {
-          this.hurt(e, dmg, { stacks: 1 });
-          e.slowT = 0.7; e.slowMul = lv >= 4 ? 0.55 : 0.7;
+          this.hurt(e, dmg, { stacks: 1, source: 'field' });
+          this.slow(e, .7, lv >= 4 ? .55 : .7);
         });
       }
     }
@@ -569,9 +614,11 @@ export class Game {
     if (W.echo && cd.echo <= 0) {
       const lv = W.echo;
       if (this.nearest(p.x, p.z, 1, 9).length) {
-        cd.echo = (5.4 - 0.2 * lv - (lv >= 3 ? 0.3 : 0) - (lv >= 6 ? 0.3 : 0)) * this.cdm;
-        const max = Math.min(11, (5.2 + 0.5 * lv) * this.area);
-        const dmg = 22 + 8 * lv + (lv >= 4 ? 6 : 0) + (lv >= 7 ? 8 : 0);
+        const stats = skillStats('echo', lv);
+        cd.echo = stats.cooldown * this.cdm;
+        const max = Math.min(11, stats.radius * this.area);
+        const dmg = stats.damage;
+        this.sigilFx(p.x, p.z, 2.5, 'echo');
         this.waves.push({ x: p.x, z: p.z, r: 0.5, max, dmg, id: ++this.nextId, delay: 0 });
         if (lv >= 8) this.waves.push({ x: p.x, z: p.z, r: 0.5, max, dmg, id: ++this.nextId, delay: 0.4 });
         sfx('echo', 0.1);
@@ -582,11 +629,12 @@ export class Game {
       const lv = W.rain;
       const pool = this.nearest(p.x, p.z, 18, 11);
       if (pool.length) {
-        cd.rain = (4.4 - 0.18 * lv - (lv >= 8 ? 0.5 : 0)) * this.cdm;
-        const n = [0, 1, 1, 2, 2, 3, 3, 4, 4][lv];
+        const stats = skillStats('rain', lv);
+        cd.rain = stats.cooldown * this.cdm;
+        const n = stats.count;
         for (let i = 0; i < n; i++) {
-          const t = pool[Math.floor(rnd() * pool.length)];
-          this.strikes.push({ x: t.x + (rnd() - 0.5) * 0.8, z: t.z + (rnd() - 0.5) * 0.8, t: 0.85, max: 0.85, dmg: 34 + 11 * lv + (lv >= 7 ? 12 : 0), r: 1.5 * this.area * (lv >= 4 ? 1.3 : 1) });
+          const t = pool[i % pool.length];
+          this.strikes.push({ x: t.x, z: t.z, t: .65 + i * .18, max: .65 + i * .18, dmg: stats.damage, r: stats.radius * this.area, source: 'rain', style: 'liberation' });
         }
         sfx('rain', 0.1);
       } else cd.rain = 0.3;
@@ -596,35 +644,40 @@ export class Game {
   updateNewWeapons(dt) {
     const W = this.weapons; const p = this.p;
     if (W.chain && this.cd.chain <= 0) {
-      this.cd.chain = (3.3 - W.chain * 0.15) * this.cdm;
+      const stats = skillStats('chain', W.chain);
+      this.cd.chain = stats.cooldown * this.cdm;
       let x = p.x; let z = p.z;
       const hit = new Set();
-      const count = 3 + Math.floor(W.chain / 2) + (W.star >= 3 && W.chain >= 3 ? 2 : 0);
+      const count = stats.count + (W.star >= 3 && W.chain >= 3 ? 2 : 0);
       for (let i = 0; i < count; i++) {
-        const e = this.nearest(x, z, count + 1, i ? (W.chain >= 8 ? 6 : 4) : 10).find((o) => !hit.has(o.id));
+        const e = this.nearest(x, z, count + 1, i ? stats.reach : 10).find((o) => !hit.has(o.id));
         if (!e) break;
         hit.add(e.id);
         const len = Math.hypot(e.x - x, e.z - z) || 0.01;
-        this.fxs.push({ kind: 'beam', x, z, dx: (e.x - x) / len, dz: (e.z - z) / len, len, w: 0.25, t: 0, life: 0.25 });
-        this.hurt(e, 18 + W.chain * 6, { stacks: 1 });
+        this.fxs.push({ kind: 'beam', x, z, dx: (e.x - x) / len, dz: (e.z - z) / len, len, w: 0.18, t: 0, life: 0.3, refract: true });
+        this.sigilFx(e.x, e.z, .65, 'refraction');
+        this.hurt(e, stats.damage, { stacks: 1, source: 'chain' });
         x = e.x; z = e.z;
       }
       if (hit.size) sfx('beam', 0.3);
+      else this.cd.chain = .2;
     }
     if (W.frost && this.cd.frost <= 0) {
-      this.cd.frost = (5.5 - W.frost * 0.25) * this.cdm;
+      const stats = skillStats('frost', W.frost);
+      this.cd.frost = stats.cooldown * this.cdm;
       const target = this.nearest(p.x, p.z, 1, 10)[0];
       if (target) {
-        const r = (1.8 + W.frost * 0.18) * this.area;
-        this.fxRing(target.x, target.z, r, 0.6, [0.4, 0.85, 1]);
+        const r = stats.radius * this.area;
+        this.sigilFx(target.x, target.z, r, 'stasis');
         this.forNear(target.x, target.z, r, (e) => {
-          this.hurt(e, 16 + W.frost * 5, { stacks: 1, stun: 0.7 });
-          e.slowT = W.frost >= 8 ? 3 : 2; e.slowMul = e.boss ? 0.8 : 0.4;
+          this.hurt(e, stats.damage, { stacks: 2, stun: .8, source: 'frost' });
+          e.exposed = stats.duration;
+          this.slow(e, stats.duration, .4);
         });
-      }
+      } else this.cd.frost = .2;
     }
     if (W.trail && p.moving && this.cd.trail <= 0) {
-      this.cd.trail = 0.45;
+      this.cd.trail = skillStats('trail', W.trail).cooldown * this.cdm;
       this.leaveTrail(p.x, p.z, 1);
     }
     this.petTrailCd -= dt;
@@ -635,12 +688,12 @@ export class Game {
     for (const f of this.trails) {
       f.life -= dt; f.tick -= dt;
       if (f.tick <= 0) {
-        f.tick = 0.5;
+        f.tick = .45 * this.cdm;
         this.forNear(f.x, f.z, f.r, (e) => {
           // 重疊光痕每半秒只命中一次，避免原地繞圈傷害無限堆疊。
           if ((e.trailHit || -1) > this.t) return;
-          e.trailHit = this.t + 0.48;
-          this.hurt(e, f.dmg, { stacks: 1 });
+          e.trailHit = this.t + f.tick - .01;
+          this.hurt(e, f.dmg, { stacks: 1, source: 'trail' });
         });
       }
     }
@@ -649,8 +702,28 @@ export class Game {
 
   leaveTrail(x, z, mul) {
     const lv = this.weapons.trail;
+    const stats = skillStats('trail', lv);
     if (this.trails.length >= 60) this.trails.shift();
-    this.trails.push({ x, z, r: (0.7 + lv * 0.08) * this.area, life: 2.5 + lv * 0.25, tick: 0, dmg: (5 + lv * 3) * mul });
+    this.trails.push({ x, z, r: stats.radius * this.area, life: stats.duration, tick: 0, dmg: stats.damage * mul });
+  }
+
+  slow(e, duration, multiplier) {
+    const mul = e.boss ? Math.max(.8, multiplier) : multiplier;
+    e.slows ||= {};
+    e.slows[mul] = Math.max(e.slows[mul] || 0, duration);
+    this.updateSlow(e, 0);
+  }
+
+  updateSlow(e, dt) {
+    if (!e.slows) { e.slowT = Math.max(0, e.slowT - dt); return; }
+    e.slowT = 0; e.slowMul = 1;
+    for (const [mul, duration] of Object.entries(e.slows)) {
+      const left = duration - dt;
+      if (left <= 0) { delete e.slows[mul]; continue; }
+      e.slows[mul] = left;
+      e.slowT = Math.max(e.slowT, left);
+      e.slowMul = Math.min(e.slowMul, Number(mul));
+    }
   }
 
   fireBeam(a, w, dmg) {
@@ -667,7 +740,7 @@ export class Game {
       const perp = Math.abs(rx * dz - rz * dx);
       if (perp > w / 2 + e.r) continue;
       const shatter = this.weapons.frost >= 3 && this.weapons.litany >= 3 && e.slowT > 0;
-      this.hurt(e, dmg * (1 + 0.14 * e.frz) * (shatter ? 1.6 : 1), { stacks: 2, knock: 1.5, kx: dx, kz: dz });
+      this.hurt(e, dmg * (1 + 0.04 * e.frz) * (shatter ? 1.4 : 1) * (this.absolve && e.frz > 0 ? 1.4 : 1), { stacks: this.confess ? 2 : 1, knock: 1.5, kx: dx, kz: dz, source: 'litany' });
     }
   }
 
@@ -691,9 +764,15 @@ export class Game {
         if (s.dead || s.hit.includes(e.id)) return;
         s.hit.push(e.id);
         const l = Math.hypot(s.vx, s.vz) || 1;
-        this.hurt(e, s.dmg, { stacks: 1, knock: 1.2, kx: s.vx / l, kz: s.vz / l });
+        this.hurt(e, s.dmg, { stacks: 1, knock: 1.2, kx: s.vx / l, kz: s.vz / l, source: 'star' });
+        const m = this.mirrorZone;
+        if (m && m.refract <= 0 && d2(e.x, e.z, m.x, m.z) <= m.r ** 2) {
+          m.refract = .5;
+          this.sigilFx(m.x, m.z, m.r, 'refraction');
+          this.forNear(m.x, m.z, m.r, (o) => this.hurt(o, s.dmg * .35, { stacks: 1, source: 'ring' }));
+        }
         this.burst(s.x, 0.8, s.z, 4, { kind: 'star', color: [1, 0.9, 0.5], speed: 3, life: 0.3, size: 0.35 });
-        if (s.pierce > 0) s.pierce--; else s.dead = true;
+        if (s.pierce > 0) { s.pierce--; s.dmg *= .65; } else s.dead = true;
       });
     }
     this.shots = this.shots.filter((s) => !s.dead);
@@ -711,18 +790,21 @@ export class Game {
     const p = this.p;
     for (const w of this.waves) {
       if (w.delay > 0) { w.delay -= dt; continue; }
+      w.hit ||= new Set();
       const prev = w.r;
       w.r += 9 * dt;
       w.x += (p.x - w.x) * Math.min(1, dt * 3);
       w.z += (p.z - w.z) * Math.min(1, dt * 3);
       for (const e of this.enemies) {
-        if (e.dead || e.echoId === w.id) continue;
+        if (e.dead || w.hit.has(e.id)) continue;
         const d = Math.hypot(e.x - w.x, e.z - w.z);
         if (d + e.r >= prev - 0.2 && d - e.r <= w.r + 0.2) {
-          e.echoId = w.id;
-          this.hurt(e, w.dmg, { stacks: 2, knock: 5, kx: (e.x - w.x) / (d || 1), kz: (e.z - w.z) / (d || 1) });
+          w.hit.add(e.id);
+          const combo = this.weapons.echo >= 3 && this.weapons.field >= 3 && e.frz >= 4;
+          this.hurt(e, w.dmg * (combo ? 1.5 : 1), { stacks: 2, knock: 5, kx: (e.x - w.x) / (d || 1), kz: (e.z - w.z) / (d || 1), source: 'echo' });
         }
       }
+      for (const b of this.eshots) if (!b.dead && d2(b.x, b.z, w.x, w.z) <= w.r ** 2) b.dead = true;
       if (w.r >= w.max) w.dead = true;
     }
     this.waves = this.waves.filter((w) => !w.dead);
@@ -733,8 +815,10 @@ export class Game {
         s.dead = true;
         this.forNear(s.x, s.z, s.r, (e) => {
           const dd = Math.hypot(e.x - s.x, e.z - s.z) || 1;
-          this.hurt(e, s.dmg, { stacks: 2, knock: 3, kx: (e.x - s.x) / dd, kz: (e.z - s.z) / dd });
+          this.hurt(e, s.dmg * (this.absolve && s.source === 'rain' ? 1.5 : 1), { stacks: this.confess ? 3 : 2, knock: 3, kx: (e.x - s.x) / dd, kz: (e.z - s.z) / dd, source: s.source || 'rain' });
         });
+        this.sigilFx(s.x, s.z, s.r, s.style || 'liberation');
+        if (s.source === 'rain') for (const b of this.eshots) if (d2(b.x, b.z, s.x, s.z) <= s.r ** 2) b.dead = true;
         this.fxRing(s.x, s.z, s.r * 1.5, 0.4, [1, 0.9, 0.5]);
         this.burst(s.x, 0.4, s.z, 18, { kind: 'star', color: [1, 0.9, 0.5], speed: 5, life: 0.6, size: 0.55 });
         sfx('boom', 0.06);
@@ -927,15 +1011,24 @@ export class Game {
     const e = {
       id: ++this.nextId, type, x, z, kx: 0, kz: 0, hp: d.hp * hpMul, maxhp: d.hp * hpMul, r: d.r, speed: d.speed * (1 + this.t / 1800),
       dmg: d.dmg, size: d.size, frz: 0, frzT: 0, flash: 0, stun: 0, slowT: 0, slowMul: 1, ringCd: 0, boss: !!d.boss, dead: false,
-      shootT: 1 + rnd() * 1.5, ph: rnd() * TAU, atkT: 4, state: 0, echoId: 0, slideId: 0,
+      shootT: type === 'fan' ? 2.4 + rnd() * 2.4 : 1 + rnd() * 1.5, ph: rnd() * TAU, atkT: 4, state: 0, slideId: 0, exposed: 0,
     };
     this.enemies.push(e);
     return e;
   }
 
   spawnAround(type, dist) {
-    const a = rnd() * TAU;
-    return this.makeEnemy(type, this.p.x + Math.cos(a) * dist, this.p.z + Math.sin(a) * dist * 0.75);
+    let point;
+    for (let i = 0; i < 16; i++) {
+      const a = rnd() * TAU;
+      point = clampArena(this.p.x + Math.cos(a) * dist, this.p.z + Math.sin(a) * dist * .75, ARENA_RADIUS + 1);
+      if (d2(point.x, point.z, this.p.x, this.p.z) >= 64) break;
+    }
+    if (d2(point.x, point.z, this.p.x, this.p.z) < 64) {
+      const a = Math.atan2(this.p.z, this.p.x) + Math.PI;
+      point = { x: Math.cos(a) * (ARENA_RADIUS + 1), z: Math.sin(a) * (ARENA_RADIUS + 1) };
+    }
+    return this.makeEnemy(type, point.x, point.z);
   }
 
   spawnTick(dt) {
@@ -965,7 +1058,10 @@ export class Game {
       this.ui.banner('噪音包圍！', '#ff9ac8');
       for (let i = 0; i < 40; i++) {
         const a = (i / 40) * TAU;
-        this.makeEnemy(i % 4 === 0 ? 'bat' : 'hum', this.p.x + Math.cos(a) * 11, this.p.z + Math.sin(a) * 8.5);
+        const type = i % 4 === 0 ? 'bat' : 'hum';
+        const point = clampArena(this.p.x + Math.cos(a) * 11, this.p.z + Math.sin(a) * 8.5, ARENA_RADIUS + 1);
+        if (d2(point.x, point.z, this.p.x, this.p.z) < 64) this.spawnAround(type, 13);
+        else this.makeEnemy(type, point.x, point.z);
       }
     }
   }
@@ -976,7 +1072,8 @@ export class Game {
       if (e.dead) continue;
       e.flash = Math.max(0, e.flash - dt);
       e.ringCd = Math.max(0, e.ringCd - dt);
-      e.slowT = Math.max(0, e.slowT - dt);
+      this.updateSlow(e, dt);
+      e.exposed = Math.max(0, e.exposed - dt);
       const dx = p.x - e.x; const dz = p.z - e.z;
       const d = Math.hypot(dx, dz) || 1;
       let vx = 0; let vz = 0;
@@ -988,7 +1085,7 @@ export class Game {
           if (d < 4.6) { ux = -ux; uz = -uz; } else if (d < 6.8) { const t = ux; ux = -uz * 0.8; uz = t * 0.8; }
           e.shootT -= dt;
           if (e.shootT <= 0 && d < 11) {
-            e.shootT = 2.4;
+            e.shootT = e.type === 'fan' ? 4.8 : 2.4;
             this.enemyFan(e, Math.atan2(dz, dx), e.type === 'fan' ? 5 : 1, 0.9);
           }
         } else if (e.type === 'mortar') {
@@ -1050,6 +1147,7 @@ export class Game {
         vx = ux * sp; vz = uz * sp;
       }
       e.x += (vx + e.kx) * dt; e.z += (vz + e.kz) * dt;
+      Object.assign(e, clampArena(e.x, e.z, ARENA_RADIUS + 1));
       const k = Math.exp(-7 * dt);
       e.kx *= k; e.kz *= k;
 
@@ -1057,7 +1155,8 @@ export class Game {
         e.frzT -= dt;
         if (e.frzT <= 0) {
           e.frzT = 0.9;
-          const dmg = (1.6 + e.frz * 1.4) * this.atk;
+          const dmg = (3 + e.frz * 2.2) * this.atk * (this.confess ? 1.6 : 1);
+          this.damageBySkill.frazzle = (this.damageBySkill.frazzle || 0) + Math.min(e.hp, dmg);
           e.hp -= dmg; e.flash = 0.05;
           this.num(e.x, e.z, e.size * 0.6, Math.round(dmg), '#ffd34d', 0.75);
           e.frz = Math.max(0, e.frz - 1);
@@ -1066,7 +1165,10 @@ export class Game {
       }
 
       if (d2(e.x, e.z, p.x, p.z) < (e.r + 0.38) ** 2) this.hurtPlayer(e.dmg);
-      if (d > 30 && !e.state) { const a = rnd() * TAU; e.x = p.x + Math.cos(a) * 14; e.z = p.z + Math.sin(a) * 10.5; }
+      if (d > 30 && !e.state) {
+        const a = rnd() * TAU;
+        Object.assign(e, clampArena(p.x + Math.cos(a) * 14, p.z + Math.sin(a) * 10.5, ARENA_RADIUS + 1));
+      }
     }
 
     // 敵人互相推開
@@ -1160,10 +1262,9 @@ export class Game {
     cam.updateMatrixWorld();
     Layer.camQuat.copy(cam.quaternion);
 
-    this.ground.position.set(Math.round(cx / 12) * 12, 0, Math.round(cz / 12) * 12);
+    this.ground.position.set(0, 0, 0);
 
     for (const k of Object.keys(L)) L[k].begin();
-    this.drawDecor(cx, cz);
 
     const sh = L.shadow;
     // 敵人
@@ -1284,20 +1385,22 @@ export class Game {
     const L = this.L; const p = this.p;
     for (const h of this.hazards) {
       const q = clamp(1 - h.left / h.max, 0, 1);
-      L.ring.add(h.x, 0.065, h.z, h.r * 2, h.r * 2, 0, 1.4, 0.12, 0.25);
+      L.dangerRing.add(h.x, 0.065, h.z, h.r * 2, h.r * 2, 0, 1.4, 0.12, 0.25);
       L.disc.add(h.x, 0.06, h.z, h.r * 2 * q, h.r * 2 * q, 0, 0.7, 0.04, 0.12);
     }
     for (const e of this.enemies) {
       if (e.state === 2) {
         const len = e.chargeSpeed * 0.85;
-        L.beam.add(e.x + e.cdx * len / 2, 0.07, e.z + e.cdz * len / 2, len, e.r * 2 + 0.76, Math.atan2(-e.cdz, e.cdx), 1.2, 0.1, 0.25);
+        L.dangerBeam.add(e.x + e.cdx * len / 2, 0.07, e.z + e.cdz * len / 2, len, e.r * 2 + 0.76, Math.atan2(-e.cdz, e.cdx), 1.2, 0.1, 0.25);
       } else if (e.state === 4) {
-        L.ring.add(e.x, 0.07, e.z, 6, 6, 0, 1, 0.15, 0.35);
-        L.beam.add(e.x + Math.cos(e.gap) * 4, 0.08, e.z + Math.sin(e.gap) * 4, 8, 1.4, -e.gap, 0.1, 0.9, 1);
+        L.dangerRing.add(e.x, 0.07, e.z, 6, 6, 0, 1, 0.15, 0.35);
+        L.dangerBeam.add(e.x + Math.cos(e.gap) * 4, 0.08, e.z + Math.sin(e.gap) * 4, 8, 1.4, -e.gap, 0.1, 0.9, 1);
       }
     }
     for (const f of this.trails) {
-      L.disc.add(f.x, 0.04, f.z, f.r * 2, f.r * 2, 0, 0.25, 0.45 * Math.min(1, f.life), 0.8 * Math.min(1, f.life));
+      const fade = Math.min(1, f.life);
+      L.sigil.add(f.x, 0.04, f.z, f.r * 2, f.r * 2, t * .1, .5 * fade, .4 * fade, .18 * fade);
+      L.prism.add(f.x, .2 + Math.sin(t * 2 + f.x) * .1, f.z, .15, .5, 0, .8 * fade, .7 * fade, .3 * fade);
     }
 
     // 默禱領域
@@ -1307,19 +1410,40 @@ export class Game {
       const k = 0.6 + Math.sin(t * 3) * 0.1;
       L.disc.add(p.x, 0.03, p.z, R * 2, R * 2, t * 0.3, c[0] * k, c[1] * k, c[2] * k);
       L.ring.add(p.x, 0.035, p.z, R * 2, R * 2, -t * 0.5, c[0] * 0.5, c[1] * 0.5, c[2] * 0.5);
+      L.sigil.add(p.x, .04, p.z, R * 1.85, R * 1.85, t * .12, c[0] * .55, c[1] * .55, c[2] * .55);
     }
 
     // 鏡之環
-    for (let i = 0; i < this.ringPos.length; i++) {
-      const rp = this.ringPos[i];
-      L.mirror.add(rp.x, 0.9, rp.z, rp.r * 2.1, rp.r * 2.1, t * 2, 1, 1, 1);
-      L.glow.add(rp.x, 0.9, rp.z, rp.r * 3, rp.r * 3, 0, 0.35, 0.3, 0.12);
+    if (this.mirrorZone) {
+      const m = this.mirrorZone; const fade = Math.min(1, m.life);
+      const c = this.confess ? [.3, .8, 1] : [1, .75, .25];
+      L.sigil.add(m.x, .055, m.z, m.r * 2, m.r * 2, -t * .12, c[0] * fade, c[1] * fade, c[2] * fade);
+      for (let i = 0; i < 6; i++) {
+        const a = i * TAU / 6 + t * .22;
+        const x = m.x + Math.cos(a) * m.r; const z = m.z + Math.sin(a) * m.r;
+        L.prism.add(x, 1 + Math.sin(t * 2 + i) * .15, z, .6, 1.7, Math.sin(a) * .16, c[0] * fade, c[1] * fade, c[2] * fade);
+      }
     }
 
     // 光環、聲波
     for (const f of this.fxs) {
       const q = f.t / f.life;
-      if (f.kind === 'ring') {
+      if (f.kind === 'sigil') {
+        const a = Math.sin(Math.PI * q) * .8;
+        const c = f.style === 'stasis' ? [.45, .8, 1] : f.color;
+        const r = f.r * (.85 + q * .25);
+        L.sigil.add(f.x, .06, f.z, r * 2, r * 2, q * .25, c[0] * a, c[1] * a, c[2] * a);
+        if (f.style === 'starflash' || f.style === 'liberation') {
+          const height = f.style === 'liberation' ? 7 : 5;
+          L.pillar.add(f.x, .1, f.z, r * 1.2, height * (1 - q * .25), 0, c[0] * a, c[1] * a, c[2] * a);
+        }
+        const n = f.style === 'refraction' ? 3 : 8;
+        for (let i = 0; i < n; i++) {
+          const angle = i * TAU / n + q * .7;
+          const rad = r * (f.style === 'liberation' ? q : .75);
+          L.prism.add(f.x + Math.cos(angle) * rad, .4 + q * 1.5, f.z + Math.sin(angle) * rad, .18 + a * .2, .5 + a * .7, angle, c[0] * a, c[1] * a, c[2] * a);
+        }
+      } else if (f.kind === 'ring') {
         const r = f.r * (0.15 + 0.85 * (1 - (1 - q) ** 2));
         const a = (1 - q) * 1.2;
         L.ring.add(f.x, 0.05, f.z, r * 2, r * 2, 0, f.color[0] * a, f.color[1] * a, f.color[2] * a);
@@ -1327,12 +1451,12 @@ export class Game {
         const a = (1 - q) ** 0.6;
         const ang = Math.atan2(-f.dz, f.dx);
         const w = f.w * (1.2 - q * 0.5);
-        L.beam.add(f.x + f.dx * f.len * 0.5, 0.06, f.z + f.dz * f.len * 0.5, f.len, w * 1.6, ang, 1 * a, 0.9 * a, 0.5 * a);
+        L.beam.add(f.x + f.dx * f.len * 0.5, 0.06, f.z + f.dz * f.len * 0.5, f.len, w, ang, .7 * a, .58 * a, .28 * a);
         for (let i = 0; i < 3; i++) {
           const d = ((t * 14 + i * 5) % f.len);
           L.star.add(f.x + f.dx * d, 0.9, f.z + f.dz * d, 0.7 * a, 0.7 * a, t * 4, a, a * 0.9, a * 0.5);
         }
-        L.glow.add(f.x + f.dx * 0.8, 1, f.z + f.dz * 0.8, 2.4 * a, 2.4 * a, 0, a, 0.85 * a, 0.4 * a);
+        if (!f.refract) L.glow.add(f.x + f.dx * 0.8, 1, f.z + f.dz * 0.8, 1.4 * a, 1.4 * a, 0, a * .5, .4 * a, .15 * a);
       }
     }
     for (const w of this.waves) {
@@ -1345,17 +1469,18 @@ export class Game {
     // 星屑雨預告與墜落
     for (const s of this.strikes) {
       const q = 1 - s.t / s.max;
-      L.disc.add(s.x, 0.04, s.z, s.r * 2 * (0.5 + 0.5 * q), s.r * 2 * (0.5 + 0.5 * q), 0, 1 * (0.4 + q), 0.8 * (0.4 + q), 0.3);
+      L.sigil.add(s.x, 0.04, s.z, s.r * 2, s.r * 2, -q * .3, .7, .55, .2);
       L.ring.add(s.x, 0.045, s.z, s.r * 2, s.r * 2, 0, 0.9, 0.7, 0.3);
-      const y = 12 * (1 - q) ** 2;
-      L.star.add(s.x, y + 0.3, s.z, 1.1, 1.1, t * 5, 1, 0.9, 0.55);
-      L.glow.add(s.x, y + 0.3, s.z, 2.2, 2.2, 0, 0.8, 0.6, 0.2);
+      const y = 4 * (1 - q) ** 2;
+      L.prism.add(s.x, y + 1, s.z, 1.8, 2.8, q * .35, 1, .85, .5);
+      L.pillar.add(s.x, .1, s.z, .6, y + 1, 0, .4 * q, .3 * q, .1 * q);
     }
 
     // 星輝彈
     for (const s of this.shots) {
-      L.star.add(s.x, 0.9, s.z, 0.95, 0.95, this.clock * 6 + s.x, 1, 1, 1);
-      L.glow.add(s.x, 0.9, s.z, 1.3, 1.3, 0, 0.3, 0.24, 0.08);
+      const size = s.empowered ? .85 : .55;
+      L.prism.add(s.x, .9, s.z, size * .6, size, -Math.atan2(s.vz, s.vx), 1, .85, .4);
+      L.glow.add(s.x - s.vx * .025, .9, s.z - s.vz * .025, size, size, 0, .3, .22, .05);
     }
     for (const s of this.eshots) L.eshot.add(s.x, 0.7, s.z, 0.8, 0.8, 0, 1, 1, 1);
 

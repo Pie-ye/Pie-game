@@ -29,6 +29,7 @@ html, body {
   background: #0b1026;
 }
 @media (display-mode: fullscreen) { #app { height: 100vh; } }
+@media (max-width: 600px) { #app { height: clamp(420px, 100svh, 720px); } }
 canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 #gl, #hud { touch-action: none; }
 #nums { pointer-events: none; }
@@ -59,6 +60,14 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
 .slot.pet { border-color: rgba(111, 208, 255, .6); }
 .slot.passive { opacity: .85; }
 .slot.combo { width: auto; padding: 0 6px; font-size: .75em; color: var(--gold); border-color: var(--gold); }
+.skill-guide { margin: 18px auto 8px; max-width: 680px; text-align: left; font-size: 13px; color: var(--muted); }
+.skill-guide summary { cursor: pointer; padding: 10px; color: var(--gold); border-bottom: 1px solid var(--line); }
+.skill-guide article { padding: 12px 4px; border-bottom: 1px solid var(--line); }
+.skill-guide article b { color: var(--ink); }
+.skill-guide article p { margin: 5px 0; }
+.skill-guide small { color: var(--blue); }
+.damage-report > div { display: flex; justify-content: space-between; gap: 16px; padding: 7px 0; }
+.damage-report b { color: var(--gold); font-variant-numeric: tabular-nums; }
 .slot b { position: absolute; right: 1px; bottom: -1px; font-size: .62em; color: var(--gold); text-shadow: 0 1px 2px #000; }
 .hud-center { position: absolute; left: 50%; top: calc(clamp(14px, 2vw, 20px) + 6px); transform: translateX(-50%); display: grid; justify-items: center; }
 #time { font-size: clamp(18px, 3vw, 30px); font-weight: 800; letter-spacing: .08em; text-shadow: 0 2px 6px #000, 0 0 16px rgba(120, 190, 255, .6); font-variant-numeric: tabular-nums; }
