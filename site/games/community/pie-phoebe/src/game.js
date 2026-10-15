@@ -1,6 +1,6 @@
 // 遊戲核心：世界狀態、武器、瑞吉、敵人、渲染。
 import { THREE, Layer } from './gfx.js';
-import { WEAPONS, PASSIVES, PET, ENEMIES, WIN_TIME, xpNeed, spawnTable } from './data.js';
+import { WEAPONS, PASSIVES, PET, ENEMIES, SYNERGIES, WIN_TIME, xpNeed, spawnTable } from './data.js';
 import { sfx } from './audio.js';
 
 const TAU = Math.PI * 2;
@@ -65,8 +65,8 @@ export class Game {
     L.shadow = new Layer(sc, tex.shadow, 700, { flat: true, order: 2 });
     L.hum = solid(tex.enemy_hum, 500, 3);
     L.bat = solid(tex.enemy_bat, 400, 3);
-    L.golem = solid(tex.enemy_golem, 160, 3);
-    L.shooter = solid(tex.enemy_shooter, 160, 3);
+    L.golem = solid(tex.enemy_golem, 400, 3);
+    L.shooter = solid(tex.enemy_shooter, 400, 3);
     L.boss = solid(tex.enemy_boss, 4, 3);
     L.fish = solid(tex.fish_blue, 400, 4);
     L.gold = solid(tex.fish_gold, 120, 4);
@@ -75,14 +75,14 @@ export class Game {
     L.phoebe = solid(tex.phoebe, 2, 5);
     L.rc = solid(tex.reggie_closed, 2, 5);
     L.ro = solid(tex.reggie_open, 2, 5);
-    L.disc = add(tex.disc, 24, 6, { flat: true });
+    L.disc = add(tex.disc, 160, 6, { flat: true });
     L.ring = add(tex.ring, 160, 7, { flat: true });
-    L.beam = add(tex.beam, 32, 7, { flat: true });
+    L.beam = add(tex.beam, 180, 7, { flat: true });
     L.halo = add(tex.halo, 4, 8, { center: true });
     L.mirror = add(tex.fx_mirror, 24, 8, { center: true });
     L.star = add(tex.fx_star, 700, 9, { center: true });
     L.glow = add(tex.glow, 900, 9, { center: true });
-    L.eshot = add(tex.fx_shot, 240, 9, { center: true });
+    L.eshot = add(tex.fx_shot, 600, 9, { center: true });
 
     // 尺寸（高度，世界單位）
     this.sz = {
@@ -116,7 +116,8 @@ export class Game {
     this.weapons = { star: 1 };
     this.passives = {};
     this.petSkills = { roar: 1 };
-    this.cd = { star: 0.4, ring: 0, litany: 2, field: 0, echo: 2.5, rain: 1.5 };
+    this.cd = { star: 0.4, ring: 0, litany: 2, field: 0, echo: 2.5, rain: 1.5, chain: 1, frost: 2, trail: 0 };
+    this.hazards = []; this.trails = []; this.petTrailCd = 0; this.bossKills = 0;
     this.fieldT = 0;
     this.ringAng = 0;
     this.ringPos = [];
@@ -255,7 +256,9 @@ export class Game {
     }
     const d = c.type === 'weapon' ? WEAPONS[c.key] : PET[c.key];
     const cur = (c.type === 'weapon' ? this.weapons : this.petSkills)[c.key] || 0;
-    return { ...c, icon: d.icon, name: d.name, lv: `Lv ${cur + 1}`, now: d.lv[cur + 1], desc: d.desc, kind: c.type === 'pet' ? 'pet' : '', isNew: cur === 0 };
+    const combo = SYNERGIES.find((s) => s.a === c.key || s.b === c.key);
+    const hint = combo ? `｜連攜 ${combo.desc}（目前 ${this.weapons[combo.a] || 0}/${(combo.pet ? this.petSkills : this.weapons)[combo.b] || 0}）` : '';
+    return { ...c, icon: d.icon, name: d.name, lv: `Lv ${cur + 1}`, now: d.lv[cur + 1], desc: d.desc + hint, kind: c.type === 'pet' ? 'pet' : '', isNew: cur === 0 };
   }
 
   openLevelUp() {
@@ -369,10 +372,12 @@ export class Game {
     this.burst(e.x, 0.5 * e.size, e.z, e.boss ? 60 : 6, { kind: 'glow', color: [0.85, 0.5, 1], speed: e.boss ? 8 : 3, life: 0.5, size: e.boss ? 1.2 : 0.4 });
     const def = ENEMIES[e.type];
     if (e.boss) {
+      this.bossKills++;
+      this.hazards = this.hazards.filter((h) => h.owner !== e.id);
       this.drop('chest', e.x, e.z, 0);
       for (let i = 0; i < 8; i++) this.drop('gold', e.x + (rnd() - 0.5) * 3, e.z + (rnd() - 0.5) * 3, 5);
       for (let i = 0; i < 2; i++) this.drop('heart', e.x + (rnd() - 0.5) * 2, e.z + (rnd() - 0.5) * 2, 18);
-      this.boss = null;
+      this.boss = this.enemies.find((o) => o.boss && !o.dead) || null;
       this.shake = 0.6;
       this.ui.banner('失序者 被擊敗！', '#ffd966');
       sfx('boom');
@@ -381,6 +386,13 @@ export class Game {
     else {
       for (let i = 0; i < def.fish; i++) this.drop('fish', e.x + (rnd() - 0.5) * 0.6, e.z + (rnd() - 0.5) * 0.6, 1);
       if (rnd() < 0.012) this.drop('heart', e.x, e.z, 15);
+    }
+    if (e.type === 'splitter' && this.enemies.length < 335) {
+      for (let i = 0; i < 3; i++) {
+        const a = i * TAU / 3;
+        const child = this.makeEnemy('bat', e.x + Math.cos(a), e.z + Math.sin(a));
+        child.hp *= 0.5; child.maxhp = child.hp;
+      }
     }
   }
 
@@ -458,13 +470,14 @@ export class Game {
     this.updateWeapons(dt);
     this.updatePet(dt);
     this.updateEnemies(dt);
+    this.updateHazards(dt);
     this.updateShots(dt);
     this.updateMisc(dt);
     this.updatePickups(dt);
     this.spawnTick(dt);
 
     if (this.pending > 0 && this.mode === 'play') this.openLevelUp();
-    if (!this.won && !this.endless && this.t >= WIN_TIME && this.mode === 'play') {
+    if (!this.won && !this.endless && this.t >= WIN_TIME && this.bossKills >= 3 && !this.enemies.some((e) => e.boss && !e.dead) && this.mode === 'play') {
       this.won = true; this.mode = 'win'; sfx('win'); this.finish(true);
     }
   }
@@ -475,6 +488,7 @@ export class Game {
     const W = this.weapons;
     const cd = this.cd;
     for (const k of Object.keys(W)) cd[k] -= dt;
+    this.updateNewWeapons(dt);
 
     if (W.star && cd.star <= 0) {
       const lv = W.star;
@@ -491,7 +505,6 @@ export class Game {
           this.shots.push({ x: p.x, z: p.z, vx: Math.cos(a) * 10.5, vz: Math.sin(a) * 10.5, life: 2.4, dmg, pierce, hit: [], target: t });
         }
         sfx('shoot', 0.08);
-        sfx('chibi', 0.15);
       } else cd.star = 0.25;
     }
 
@@ -534,7 +547,6 @@ export class Game {
           this.fireBeam(a, w, dmg);
         }
         sfx('beam', 0.1);
-        sfx('chibi', 0.15);
         this.shake = Math.max(this.shake, 0.12);
       } else cd.litany = 0.3;
     }
@@ -563,7 +575,6 @@ export class Game {
         this.waves.push({ x: p.x, z: p.z, r: 0.5, max, dmg, id: ++this.nextId, delay: 0 });
         if (lv >= 8) this.waves.push({ x: p.x, z: p.z, r: 0.5, max, dmg, id: ++this.nextId, delay: 0.4 });
         sfx('echo', 0.1);
-        sfx('chibi', 0.15);
       } else cd.echo = 0.3;
     }
 
@@ -578,9 +589,68 @@ export class Game {
           this.strikes.push({ x: t.x + (rnd() - 0.5) * 0.8, z: t.z + (rnd() - 0.5) * 0.8, t: 0.85, max: 0.85, dmg: 34 + 11 * lv + (lv >= 7 ? 12 : 0), r: 1.5 * this.area * (lv >= 4 ? 1.3 : 1) });
         }
         sfx('rain', 0.1);
-        sfx('chibi', 0.15);
       } else cd.rain = 0.3;
     }
+  }
+
+  updateNewWeapons(dt) {
+    const W = this.weapons; const p = this.p;
+    if (W.chain && this.cd.chain <= 0) {
+      this.cd.chain = (3.3 - W.chain * 0.15) * this.cdm;
+      let x = p.x; let z = p.z;
+      const hit = new Set();
+      const count = 3 + Math.floor(W.chain / 2) + (W.star >= 3 && W.chain >= 3 ? 2 : 0);
+      for (let i = 0; i < count; i++) {
+        const e = this.nearest(x, z, count + 1, i ? (W.chain >= 8 ? 6 : 4) : 10).find((o) => !hit.has(o.id));
+        if (!e) break;
+        hit.add(e.id);
+        const len = Math.hypot(e.x - x, e.z - z) || 0.01;
+        this.fxs.push({ kind: 'beam', x, z, dx: (e.x - x) / len, dz: (e.z - z) / len, len, w: 0.25, t: 0, life: 0.25 });
+        this.hurt(e, 18 + W.chain * 6, { stacks: 1 });
+        x = e.x; z = e.z;
+      }
+      if (hit.size) sfx('beam', 0.3);
+    }
+    if (W.frost && this.cd.frost <= 0) {
+      this.cd.frost = (5.5 - W.frost * 0.25) * this.cdm;
+      const target = this.nearest(p.x, p.z, 1, 10)[0];
+      if (target) {
+        const r = (1.8 + W.frost * 0.18) * this.area;
+        this.fxRing(target.x, target.z, r, 0.6, [0.4, 0.85, 1]);
+        this.forNear(target.x, target.z, r, (e) => {
+          this.hurt(e, 16 + W.frost * 5, { stacks: 1, stun: 0.7 });
+          e.slowT = W.frost >= 8 ? 3 : 2; e.slowMul = e.boss ? 0.8 : 0.4;
+        });
+      }
+    }
+    if (W.trail && p.moving && this.cd.trail <= 0) {
+      this.cd.trail = 0.45;
+      this.leaveTrail(p.x, p.z, 1);
+    }
+    this.petTrailCd -= dt;
+    if (W.trail >= 3 && this.petSkills.slide >= 3 && this.pet.slide > 0 && this.petTrailCd <= 0) {
+      this.petTrailCd = 0.18;
+      this.leaveTrail(this.pet.x, this.pet.z, 1.5);
+    }
+    for (const f of this.trails) {
+      f.life -= dt; f.tick -= dt;
+      if (f.tick <= 0) {
+        f.tick = 0.5;
+        this.forNear(f.x, f.z, f.r, (e) => {
+          // 重疊光痕每半秒只命中一次，避免原地繞圈傷害無限堆疊。
+          if ((e.trailHit || -1) > this.t) return;
+          e.trailHit = this.t + 0.48;
+          this.hurt(e, f.dmg, { stacks: 1 });
+        });
+      }
+    }
+    this.trails = this.trails.filter((f) => f.life > 0);
+  }
+
+  leaveTrail(x, z, mul) {
+    const lv = this.weapons.trail;
+    if (this.trails.length >= 60) this.trails.shift();
+    this.trails.push({ x, z, r: (0.7 + lv * 0.08) * this.area, life: 2.5 + lv * 0.25, tick: 0, dmg: (5 + lv * 3) * mul });
   }
 
   fireBeam(a, w, dmg) {
@@ -596,7 +666,8 @@ export class Game {
       if (along < -0.5 || along > len) continue;
       const perp = Math.abs(rx * dz - rz * dx);
       if (perp > w / 2 + e.r) continue;
-      this.hurt(e, dmg * (1 + 0.14 * e.frz), { stacks: 2, knock: 1.5, kx: dx, kz: dz });
+      const shatter = this.weapons.frost >= 3 && this.weapons.litany >= 3 && e.slowT > 0;
+      this.hurt(e, dmg * (1 + 0.14 * e.frz) * (shatter ? 1.6 : 1), { stacks: 2, knock: 1.5, kx: dx, kz: dz });
     }
   }
 
@@ -628,6 +699,7 @@ export class Game {
     this.shots = this.shots.filter((s) => !s.dead);
 
     for (const s of this.eshots) {
+      if (s.dead) continue;
       s.x += s.vx * dt; s.z += s.vz * dt; s.life -= dt;
       if (s.life <= 0) s.dead = true;
       else if (d2(s.x, s.z, p.x, p.z) < 0.5 * 0.5) { s.dead = true; this.hurtPlayer(s.dmg); }
@@ -809,6 +881,38 @@ export class Game {
   }
 
   // ───────────────────────── 敵人 ─────────────────────────
+  warnBlast(e, x, z, r = 2, delay = 1.2) {
+    if (this.hazards.length >= 48) return;
+    this.hazards.push({ owner: e.id, x, z, r, left: delay, max: delay, dmg: e.dmg, fired: false });
+  }
+
+  updateHazards(dt) {
+    for (const h of this.hazards) {
+      h.left -= dt;
+      if (h.left <= 0 && !h.fired) {
+        h.fired = true;
+        if (d2(h.x, h.z, this.p.x, this.p.z) <= (h.r + 0.38) ** 2) this.hurtPlayer(h.dmg);
+        this.fxRing(h.x, h.z, h.r, 0.35, [1, 0.15, 0.35]);
+        sfx('boom', 0.2);
+      }
+    }
+    this.hazards = this.hazards.filter((h) => h.left > -0.3);
+  }
+
+  enemyFan(e, angle, count, spread, speed = 4.2) {
+    for (let i = 0; i < count && this.eshots.length < 560; i++) {
+      const a = angle + (i / Math.max(1, count - 1) - 0.5) * spread;
+      this.eshots.push({ x: e.x, z: e.z, vx: Math.cos(a) * speed, vz: Math.sin(a) * speed, life: 4, dmg: e.dmg * 0.65 });
+    }
+  }
+
+  charge(e, dx, dz) {
+    const d = Math.hypot(dx, dz) || 1;
+    e.cdx = dx / d; e.cdz = dz / d;
+    e.state = 2; e.stateT = e.boss ? 1.15 : 0.9;
+    e.chargeSpeed = e.boss ? 9 : 8;
+  }
+
   pickType() {
     const tab = spawnTable(this.t);
     const sum = tab.reduce((s, x) => s + x[1], 0);
@@ -842,13 +946,16 @@ export class Game {
       this.spawnAcc--;
       if (this.enemies.length < cap) this.spawnAround(this.pickType(), 13 + rnd() * 3);
     }
-    const bt = this.bossIdx < 3 ? [180, 360, 540][this.bossIdx] : 540 + 150 * (this.bossIdx - 2);
+    const bt = this.bossIdx < 3 ? [180, 360, 540][this.bossIdx] : this.endless ? 540 + 150 * (this.bossIdx - 2) : Infinity;
     if (t >= bt) {
       this.bossIdx++;
       const e = this.spawnAround('boss', 12);
       e.hp = e.maxhp = ENEMIES.boss.hp * (1 + 0.9 * (this.bossIdx - 1)) * (1 + t / 600);
       this.boss = e;
-      this.ui.banner('⚠ 失序者 出現！', '#ff6ad5');
+      e.rank = this.bossIdx;
+      e.name = ['破陣者', '織音者', '終曲指揮'][Math.min(2, e.rank - 1)];
+      e.pattern = 0;
+      this.ui.banner(`⚠ ${e.name}：避開紅色預警，尋找彈幕缺口！`, '#ff6ad5');
       sfx('boss');
       this.shake = 0.5;
     }
@@ -877,27 +984,67 @@ export class Game {
       else {
         let sp = e.speed * (e.slowT > 0 ? e.slowMul : 1);
         let ux = dx / d; let uz = dz / d;
-        if (e.type === 'shooter') {
+        if (e.type === 'shooter' || e.type === 'fan') {
           if (d < 4.6) { ux = -ux; uz = -uz; } else if (d < 6.8) { const t = ux; ux = -uz * 0.8; uz = t * 0.8; }
           e.shootT -= dt;
           if (e.shootT <= 0 && d < 11) {
             e.shootT = 2.4;
-            this.eshots.push({ x: e.x, z: e.z, vx: (dx / d) * 5, vz: (dz / d) * 5, life: 4, dmg: 6 });
+            this.enemyFan(e, Math.atan2(dz, dx), e.type === 'fan' ? 5 : 1, 0.9);
           }
+        } else if (e.type === 'mortar') {
+          if (d < 7) sp = 0;
+          e.atkT -= dt;
+          if (e.atkT <= 0 && d < 12) {
+            e.atkT = 4.5;
+            this.warnBlast(e, p.x, p.z, 1.7, 1.35);
+          }
+        } else if (e.type === 'charger') {
+          e.atkT -= dt;
+          if (!e.state && e.atkT <= 0 && d < 10) { this.charge(e, dx, dz); e.atkT = 5; }
         } else if (e.type === 'bat') {
           const w = Math.sin(this.t * 5 + e.ph) * 0.9;
           const px = -uz; const pz = ux;
           ux += px * w; uz += pz * w;
         } else if (e.boss) {
           e.atkT -= dt;
-          if (e.state === 1) { sp *= 5.5; e.stateT -= dt; if (e.stateT <= 0) e.state = 0; }
-          else if (e.state === 2) { sp = 0; e.stateT -= dt; if (e.stateT <= 0) { e.state = 1; e.stateT = 0.9; } }
-          else if (e.atkT <= 0) {
-            e.atkT = 5.5;
-            if (rnd() < 0.5) {
-              for (let i = 0; i < 14; i++) { const a = (i / 14) * TAU + e.ph; this.eshots.push({ x: e.x, z: e.z, vx: Math.cos(a) * 3.8, vz: Math.sin(a) * 3.8, life: 5, dmg: 7 }); }
-              e.ph += 0.2; sfx('echo', 0.2);
-            } else { e.state = 2; e.stateT = 0.8; this.fxRing(e.x, e.z, 3, 0.8, [1, 0.4, 0.8]); }
+          if (!e.state && e.atkT <= 0) {
+            e.atkT = e.hp < e.maxhp * 0.45 ? 3.6 : 5;
+            const pattern = (e.pattern++ + (e.rank || 1) - 1) % 3;
+            if (pattern === 0) {
+              this.charge(e, dx, dz);
+              this.ui.banner('衝鋒預警：往紅線側面移動！', '#ff8ca8');
+            } else if (pattern === 1) {
+              // 留下朝向玩家的寬缺口；缺口方向在預警開始時固定。
+              e.gap = Math.atan2(dz, dx); e.state = 4; e.stateT = 1.2;
+              this.ui.banner('環形彈幕：移向青色缺口！', '#7deaff');
+            } else {
+              for (let i = 0; i < 5; i++) {
+                this.warnBlast(e, p.x + (i - 2) * 2.5, p.z, 1.65, 1.1 + Math.abs(i - 2) * 0.18);
+              }
+              if ((e.rank || 1) >= 3) {
+                this.warnBlast(e, p.x, p.z - 3.2, 1.5, 1.65);
+                this.warnBlast(e, p.x, p.z + 3.2, 1.5, 1.65);
+              }
+              this.ui.banner('落雷預警：離開紅圈！', '#ff8ca8');
+              e.state = 3; e.stateT = 1.8;
+            }
+          }
+        }
+        if (e.state === 2) {
+          sp = 0; e.stateT -= dt;
+          if (e.stateT <= 0) { e.state = 1; e.stateT = 0.85; }
+        } else if (e.state === 1) {
+          ux = e.cdx; uz = e.cdz; sp = e.chargeSpeed;
+          e.stateT -= dt;
+          if (e.stateT <= 0) { e.state = 3; e.stateT = 1; }
+        } else if (e.state === 3 || e.state === 4) {
+          sp = 0; e.stateT -= dt;
+          if (e.stateT <= 0) {
+            if (e.state === 4) {
+              this.enemyFan(e, e.gap + Math.PI, 22, TAU - 1.15, 3.8);
+              sfx('echo', 0.2);
+            }
+            e.state = 0;
           }
         }
         vx = ux * sp; vz = uz * sp;
@@ -918,8 +1065,8 @@ export class Game {
         }
       }
 
-      if (d < e.r + 0.38) this.hurtPlayer(e.dmg);
-      if (d > 30) { const a = rnd() * TAU; e.x = p.x + Math.cos(a) * 14; e.z = p.z + Math.sin(a) * 10.5; }
+      if (d2(e.x, e.z, p.x, p.z) < (e.r + 0.38) ** 2) this.hurtPlayer(e.dmg);
+      if (d > 30 && !e.state) { const a = rnd() * TAU; e.x = p.x + Math.cos(a) * 14; e.z = p.z + Math.sin(a) * 10.5; }
     }
 
     // 敵人互相推開
@@ -1021,8 +1168,10 @@ export class Game {
     const sh = L.shadow;
     // 敵人
     for (const e of this.enemies) {
-      const layer = L[e.type];
-      const h = this.sz[e.type] * (e.boss ? 1 : 1);
+      const def = ENEMIES[e.type];
+      const skin = def.skin || e.type;
+      const layer = L[skin];
+      const h = def.skin ? def.size : this.sz[e.type];
       const w = Math.sin(t * (e.type === 'bat' ? 14 : 7) + e.ph);
       let sxs = 1; let sy = 1; let roll = 0; let y = 0;
       if (e.type === 'bat') { sxs = 1 + w * 0.12; sy = 1 - w * 0.08; y = 0.7 + Math.sin(t * 3 + e.ph) * 0.12; }
@@ -1030,9 +1179,10 @@ export class Game {
       else if (e.type === 'shooter') { y = 0.35 + Math.sin(t * 2.2 + e.ph) * 0.1; roll = w * 0.03; }
       else if (e.type === 'golem') { roll = w * 0.04; sy = 1 + Math.abs(w) * 0.03; }
       else { sy = 1 + w * 0.02; }
-      const asp = this.assets.aspect[`enemy_${e.type}`];
+      const asp = this.assets.aspect[`enemy_${skin}`];
       const f = e.flash > 0 ? 2.6 : 1;
       let r = f; let g = f; let b = f;
+      if (f === 1 && def.tint) [r, g, b] = def.tint;
       if (!f || f === 1) {
         if (e.frz > 0) { const q = Math.min(1, e.frz / 8); r = 1 + 0.5 * q; g = 1 + 0.25 * q; b = 1 - 0.3 * q; }
         if (e.stun > 0) { r = 0.8; g = 0.9; b = 1.5; }
@@ -1132,6 +1282,23 @@ export class Game {
 
   drawEffects(t) {
     const L = this.L; const p = this.p;
+    for (const h of this.hazards) {
+      const q = clamp(1 - h.left / h.max, 0, 1);
+      L.ring.add(h.x, 0.065, h.z, h.r * 2, h.r * 2, 0, 1.4, 0.12, 0.25);
+      L.disc.add(h.x, 0.06, h.z, h.r * 2 * q, h.r * 2 * q, 0, 0.7, 0.04, 0.12);
+    }
+    for (const e of this.enemies) {
+      if (e.state === 2) {
+        const len = e.chargeSpeed * 0.85;
+        L.beam.add(e.x + e.cdx * len / 2, 0.07, e.z + e.cdz * len / 2, len, e.r * 2 + 0.76, Math.atan2(-e.cdz, e.cdx), 1.2, 0.1, 0.25);
+      } else if (e.state === 4) {
+        L.ring.add(e.x, 0.07, e.z, 6, 6, 0, 1, 0.15, 0.35);
+        L.beam.add(e.x + Math.cos(e.gap) * 4, 0.08, e.z + Math.sin(e.gap) * 4, 8, 1.4, -e.gap, 0.1, 0.9, 1);
+      }
+    }
+    for (const f of this.trails) {
+      L.disc.add(f.x, 0.04, f.z, f.r * 2, f.r * 2, 0, 0.25, 0.45 * Math.min(1, f.life), 0.8 * Math.min(1, f.life));
+    }
 
     // 默禱領域
     if (this.weapons.field) {
@@ -1233,7 +1400,7 @@ export class Game {
       hp: p.hp, maxhp: p.maxhp, xp: p.xp, xpNeed: p.need, lvl: p.lvl, time: this.t, kills: this.kills, fish: this.fishEaten,
       prayer: p.prayer, prayerMax: PRAYER_MAX, mode: p.mode, modeLeft: p.modeT,
       pet: { fullness: Math.min(pt.fullness, pt.need || 12), need: pt.need || 12, full: pt.full, left: pt.fullT, dur: pt.fullDur },
-      boss: this.boss ? { hp: this.boss.hp, maxhp: this.boss.maxhp, name: ENEMIES.boss.name } : null,
+      boss: this.boss ? { hp: this.boss.hp, maxhp: this.boss.maxhp, name: `${this.boss.name || ENEMIES.boss.name}${this.boss.hp < this.boss.maxhp * 0.45 ? ' · 狂暴' : ''}` } : null,
     });
   }
 }

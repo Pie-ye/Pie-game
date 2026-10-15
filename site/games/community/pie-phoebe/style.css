@@ -17,7 +17,7 @@ html, body {
   font: 15px/1.45 "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
   user-select: none;
   -webkit-user-select: none;
-  touch-action: none;
+  touch-action: auto;
   overflow: hidden;
 }
 #app {
@@ -30,6 +30,7 @@ html, body {
 }
 @media (display-mode: fullscreen) { #app { height: 100vh; } }
 canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#gl, #hud { touch-action: none; }
 #nums { pointer-events: none; }
 [hidden] { display: none !important; }
 #loading { position: absolute; inset: 0; display: grid; place-items: center; background: #0b1026; color: var(--muted); letter-spacing: .2em; }
@@ -57,6 +58,7 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
 .slot { position: relative; width: clamp(24px, 3.3vw, 34px); height: clamp(24px, 3.3vw, 34px); display: grid; place-items: center; border-radius: 7px; background: rgba(8, 10, 28, .75); border: 1px solid var(--line); font-size: 1.15em; }
 .slot.pet { border-color: rgba(111, 208, 255, .6); }
 .slot.passive { opacity: .85; }
+.slot.combo { width: auto; padding: 0 6px; font-size: .75em; color: var(--gold); border-color: var(--gold); }
 .slot b { position: absolute; right: 1px; bottom: -1px; font-size: .62em; color: var(--gold); text-shadow: 0 1px 2px #000; }
 .hud-center { position: absolute; left: 50%; top: calc(clamp(14px, 2vw, 20px) + 6px); transform: translateX(-50%); display: grid; justify-items: center; }
 #time { font-size: clamp(18px, 3vw, 30px); font-weight: 800; letter-spacing: .08em; text-shadow: 0 2px 6px #000, 0 0 16px rgba(120, 190, 255, .6); font-variant-numeric: tabular-nums; }
@@ -84,7 +86,7 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
 #stick i { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px; border-radius: 50%; background: rgba(255, 255, 255, .35); }
 
 /* ───── 畫面（標題／升級／結算） ───── */
-#screen { position: absolute; inset: 0; display: grid; place-items: center; padding: 12px; background: radial-gradient(ellipse at center, rgba(10, 12, 40, .78), rgba(4, 4, 14, .94)); overflow: auto; }
+#screen { position: absolute; inset: 0; display: grid; place-items: safe center; padding: 12px; background: radial-gradient(ellipse at center, rgba(10, 12, 40, .78), rgba(4, 4, 14, .94)); overflow: auto; touch-action: pan-y; }
 .card-wrap { width: min(880px, 100%); text-align: center; }
 .logo { font-size: clamp(26px, 5.4vw, 54px); font-weight: 900; line-height: 1.1; letter-spacing: .06em; background: linear-gradient(180deg, #fff6c8, #ffc94d 55%, #ff9aa8); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 3px 0 #2a1a3a) drop-shadow(0 0 18px rgba(255, 200, 90, .45)); }
 .sub { color: var(--muted); margin: 6px 0 12px; font-size: clamp(12px, 1.7vw, 16px); }

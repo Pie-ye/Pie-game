@@ -44,14 +44,18 @@ export function hasSample(kind) { return buffers[kind].length > 0; }
 
 const active = { chibi: [], reggie: [] };
 const lastIdx = { chibi: -1, reggie: -1 };
+let lastChibi = -Infinity;
 
 function sample(kind, { vol = 1, rate = 1, delay = 0 } = {}) {
   const list = buffers[kind];
   if (!ac || muted || !list.length) return false;
   const now = ac.currentTime;
+  if (kind === 'chibi' && now - lastChibi < 12) return true;
   active[kind] = active[kind].filter((end) => end > now);
+  if (kind === 'chibi' && active[kind].length) return true;
   if (active[kind].length >= 2) return true;      // 已有兩個在播，這次略過（算已處理，不退回合成音）
   const src = ac.createBufferSource();
+  if (kind === 'chibi') lastChibi = now;
   // 不連續重複同一個檔
   let idx = Math.floor(Math.random() * list.length);
   if (list.length > 1 && idx === lastIdx[kind]) idx = (idx + 1) % list.length;

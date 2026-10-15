@@ -1,5 +1,5 @@
 // DOM 介面：HUD、標題、升級選單、暫停、結算。
-import { WEAPONS, PASSIVES, PET } from './data.js';
+import { WEAPONS, PASSIVES, PET, SYNERGIES } from './data.js';
 import { isMuted } from './audio.js';
 
 const $ = (id) => document.getElementById(id);
@@ -86,6 +86,9 @@ export class UI {
     for (const [k, lv] of Object.entries(g.weapons)) parts.push(`<div class="slot" title="${WEAPONS[k].name}">${WEAPONS[k].icon}<b>${lv}</b></div>`);
     for (const [k, lv] of Object.entries(g.petSkills)) parts.push(`<div class="slot pet" title="${PET[k].name}">${PET[k].icon}<b>${lv}</b></div>`);
     for (const [k, lv] of Object.entries(g.passives)) parts.push(`<div class="slot passive" title="${PASSIVES[k].name}">${PASSIVES[k].icon}<b>${lv}</b></div>`);
+    for (const s of SYNERGIES) {
+      if (g.weapons[s.a] >= 3 && (s.pet ? g.petSkills : g.weapons)[s.b] >= 3) parts.push(`<div class="slot combo" title="${s.desc}" aria-label="${s.name}已啟動">⚡ ${s.name}</div>`);
+    }
     $('slots').innerHTML = parts.join('');
   }
 
@@ -114,14 +117,16 @@ export class UI {
     this.screen.hidden = false;
     this.screen.innerHTML = `
       <div class="card-wrap">
-        <div class="logo">菲比啾比<br>星光倖存</div>
-        <p class="sub">衍射共鳴者菲比啾比，帶著海獅瑞吉，撐過十二分鐘的失序噪音。</p>
+        <div class="logo">菲比啾比<br>星光亂鬥 v1.2</div>
+        <p class="sub">帶著海獅瑞吉，撐過十二分鐘並擊敗三位頭目！</p>
         <div class="duo"><img src="./assets/phoebe.png" alt="菲比啾比"><img class="pet" src="./assets/reggie_open.png" alt="海獅瑞吉"></div>
         <button type="button" class="screen-btn" id="go">開始 <small>(Enter)</small></button>
         <div class="tips">
           <div><b>移動</b> WASD／方向鍵，或在畫面上按住拖曳。攻擊會自動施放。</div>
           <div><b>祈願</b> 充滿後按 <b>Q 赦罪</b>（輸出強化）或 <b>E 告解</b>（光噪疊 3 倍、全場易傷）。</div>
           <div><b>瑞吉</b> 會張嘴吼、肚皮滑行，還會去吃你打出來的小魚——吃飽就變胖變強。</div>
+          <div><b>走位</b> 紅線衝鋒往側面躲、紅圈落雷要離開；環形彈幕沿青色缺口逃出。</div>
+          <div><b>連攜</b> 星輝＋雷光、聖祷＋冰晶、光痕＋滑行，各 Lv3 啟動。最多攜帶 5 種角色技能。</div>
           <div>P／Esc 暫停　M 靜音　升級時按 1・2・3 選卡</div>
         </div>
         ${best ? `<div class="best">最佳存活 ${fmt(best.time)}　擊殺 ${best.kills}</div>` : ''}
