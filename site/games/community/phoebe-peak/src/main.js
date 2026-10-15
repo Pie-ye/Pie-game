@@ -25,13 +25,14 @@ function buildMenu(){
   const gl=game.world.gloom?` · 今日變體：幽暗的${ZONES.find(z=>z.id===game.world.gloom).name}區`:'';$('daily').textContent=`今日山脈 #${seed}${gl}（每 24 小時更換）${save.best[ascent]?` · 本階最佳 ${Math.floor(save.best[ascent]/60)}分${Math.round(save.best[ascent]%60)}秒`:''}`;
 }
 function clearInput(){keys.clear();stick={x:0,z:0,id:null};touch={run:false,grab:false};drag=null;const j=$('joystick').firstElementChild;if(j)j.style.transform='';}
+const lock=()=>{if(matchMedia('(pointer:fine)').matches&&document.pointerLockElement!==canvas){try{const r=canvas.requestPointerLock();r?.catch?.(()=>{});}catch{}}};
 function start(){
-  audio.unlock();clearInput();game.reset({seed,ascent});game.mode='play';view.yaw=0;view.pitch=.34;view.dist=6.4;
+  audio.unlock();lock();clearInput();game.reset({seed,ascent});game.mode='play';view.yaw=0;view.pitch=.34;view.dist=6.4;
   hud=hud||makeHud(game);$('menu').hidden=true;$('modal').hidden=true;$('hud').hidden=false;app.focus();
   game.toast('走向前方岩壁開始攀爬。靠近物品按 E 撿起',4200);
 }
 function pause(){if(game.mode==='play'){game.mode='pause';clearInput();$('modal-title').textContent='暫停';$('modal-copy').textContent='放鬆一下，山不會跑掉。';$('modal-stats').textContent='';$('resume').hidden=false;$('modal').hidden=false;}
-  else if(game.mode==='pause'){game.mode='play';$('modal').hidden=true;app.focus();}}
+  else if(game.mode==='pause'){game.mode='play';$('modal').hidden=true;app.focus();lock();}}
 $('start').onclick=start;$('resume').onclick=pause;$('pause').onclick=pause;$('restart').onclick=()=>{$('modal').hidden=true;$('menu').hidden=false;game.mode='title';buildMenu();};
 $('mute').onclick=()=>{$('mute').textContent=audio.toggle()?'音效 關':'音效 開';};
 window.addEventListener('blur',()=>{if(game.mode==='play')pause();});
@@ -46,8 +47,10 @@ const pressed=e=>{
 };
 window.addEventListener('keydown',pressed);window.addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
-canvas.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'){if(e.button===2||e.button===1){drag={x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId);}else if(e.button===0)edge.use=true;}
+canvas.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'){if(game.mode==='play'&&document.pointerLockElement!==canvas)lock();if(e.button===2||e.button===1){drag={x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId);}else if(e.button===0)edge.use=true;}
   else if(e.clientX>innerWidth*.4){drag={x:e.clientX,y:e.clientY,id:e.pointerId};canvas.setPointerCapture(e.pointerId);}});
+document.addEventListener('pointerlockchange',()=>{if(!document.pointerLockElement&&game.mode==='play')pause();});
+document.addEventListener('mousemove',e=>{if(document.pointerLockElement!==canvas||game.mode!=='play')return;view.yaw-=e.movementX*.0026;view.pitch=Math.max(-.1,Math.min(1.2,view.pitch+e.movementY*.002));lastDrag=performance.now();});
 canvas.addEventListener('pointermove',e=>{if(!drag)return;view.yaw-=(e.clientX-drag.x)*.006;view.pitch=Math.max(-.1,Math.min(1.2,view.pitch+(e.clientY-drag.y)*.004));drag.x=e.clientX;drag.y=e.clientY;lastDrag=performance.now();});
 canvas.addEventListener('pointerup',()=>drag=null);canvas.addEventListener('pointercancel',()=>drag=null);
 canvas.addEventListener('wheel',e=>{e.preventDefault();view.dist=Math.max(3,Math.min(12,view.dist+e.deltaY*.006));},{passive:false});
@@ -111,7 +114,7 @@ async function boot(){
     sc=await buildScene(renderer,game,p=>{$('load-bar').value=p;$('load-text').textContent=`載入模型 ${Math.round(p*100)}%`;});sc.renderer=renderer;
     const resize=()=>sc.resize(app.clientWidth,app.clientHeight);new ResizeObserver(resize).observe(app);resize();
     $('loading').hidden=true;buildMenu();$('menu').hidden=false;
-    window.__peak={game,sc,start,view,route,readInput};
+    window.__peak={game,sc,start,view,route,readInput,get hud(){return hud;}};
     canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();game.mode='pause';$('loading').hidden=false;$('load-text').textContent='繪圖連線已中斷，請重新整理頁面。';});
     if(params.get('autostart')==='1')start();
     requestAnimationFrame(frame);

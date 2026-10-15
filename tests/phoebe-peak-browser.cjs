@@ -12,15 +12,20 @@ const base=process.env.EGG_TEST_URL||'http://127.0.0.1:8765/games/community/phoe
     assert.equal(await page.isVisible('#menu'),true);assert.match(await page.textContent('#daily'),/今日山脈 #20000/);
     assert.equal(await page.evaluate(()=>[...document.querySelectorAll('.asc')].filter(b=>!b.disabled).length),1,'only the first ascent is unlocked');ok('menu and ascent lock');
     await page.click('#start');assert.equal(await page.evaluate(()=>!document.getElementById('hud').hidden),true);assert.equal(await page.evaluate(()=>window.__peak.game.mode),'play');ok('start');
-    // keyboard mapping (camera yaw 0: forward is -z)
+    // keyboard mapping (camera yaw 0: forward is -z); freeze the game loop so it cannot consume the key edges first
+    await page.evaluate(()=>{window.__peak.game.mode='pause';});
     await page.keyboard.down('w');await page.keyboard.down('Shift');await page.keyboard.down('c');
     const inp=await page.evaluate(()=>window.__peak.readInput());assert.ok(inp.f===1&&inp.mz<-.9&&inp.sprint&&inp.grab);
     await page.keyboard.up('w');await page.keyboard.up('Shift');await page.keyboard.up('c');
-    await page.keyboard.press('Space');assert.equal((await page.evaluate(()=>window.__peak.readInput())).jump,true);assert.equal((await page.evaluate(()=>window.__peak.readInput())).jump,false);ok('keyboard input');
+    await page.keyboard.press('Space');assert.equal((await page.evaluate(()=>window.__peak.readInput())).jump,true);assert.equal((await page.evaluate(()=>window.__peak.readInput())).jump,false);ok('keyboard input');await page.evaluate(()=>{window.__peak.game.mode='play';});
+    // mouse look without any button: with the pointer locked, plain movement turns the camera
+    const turned=await page.evaluate(()=>{Object.defineProperty(document,'pointerLockElement',{get:()=>document.getElementById('world'),configurable:true});const v=window.__peak.view,y0=v.yaw,p0=v.pitch;
+      document.dispatchEvent(new MouseEvent('mousemove',{movementX:100,movementY:40}));const r={dyaw:v.yaw-y0,dpitch:v.pitch-p0};delete document.pointerLockElement;v.yaw=y0;v.pitch=p0;return r;});
+    assert.ok(turned.dyaw<-.2&&turned.dpitch>.05,JSON.stringify(turned));ok('mouse look without clicking');
     // drive the real game objects: walk into the wall, climb, check stamina HUD
     const step=(sec,keys)=>page.evaluate(([sec,keys])=>{const P=window.__peak,g=P.game;for(let i=0;i<sec*60;i++){const inp=P.readInput();Object.assign(inp,keys);g.update(1/60,inp);P.route(g.events);g.events.length=0;P.sc.update(1/60,P.view);}return {state:g.player.state,y:g.player.y,st:g.stamina};},[sec,keys]);
     let r=await step(2.2,{mx:0,mz:-1});assert.equal(r.state,'wall');ok('auto grab');
-    r=await step(2,{f:1});assert.ok(r.y>2&&r.st<95);await page.evaluate(()=>{const P=window.__peak;P.sc.update(.016,P.view);P.sc.renderer.render(P.sc.scene,P.sc.camera);});
+    r=await step(2,{f:1});assert.ok(r.y>2&&r.st<95);await page.evaluate(()=>{const P=window.__peak;P.sc.update(.016,P.view);P.hud.update(.016,P.view);P.sc.renderer.render(P.sc.scene,P.sc.camera);});
     const width=await page.evaluate(()=>parseFloat(document.getElementById('fill').style.width));assert.ok(width<95,'HUD stamina follows');ok('climb + HUD');
     r=await step(7,{f:1});assert.equal(r.state,'move');ok('mantle onto the first ledge');
     // inventory + items through the real UI path
@@ -31,7 +36,7 @@ const base=process.env.EGG_TEST_URL||'http://127.0.0.1:8765/games/community/phoe
     await page.evaluate(()=>{const P=window.__peak,g=P.game,w=g.world,b=w.boxes[w.zones[3].firstBox+3];Object.assign(g.player,{x:(b.x1+b.x2)/2,y:b.y2,z:(b.z1+b.z2)/2,grounded:true,support:b,state:'move'});for(let i=0;i<60;i++)P.sc.update(1/30,P.view);P.sc.renderer.render(P.sc.scene,P.sc.camera);});
     const tri2=await page.evaluate(()=>window.__peak.sc.renderer.info.render.triangles);assert.ok(tri2<1400000,`caldera triangles ${tri2}`);ok('caldera triangles '+tri2);
     // pause and win flow
-    await page.click('#pause');assert.equal(await page.evaluate(()=>window.__peak.game.mode),'pause');await page.click('#resume');assert.equal(await page.evaluate(()=>window.__peak.game.mode),'play');ok('pause/resume');
+    await page.evaluate(()=>document.exitPointerLock());await page.waitForFunction(()=>window.__peak.game.mode==='pause',null,{timeout:5000});assert.equal(await page.isVisible('#modal'),true,'releasing the mouse (Esc) pauses');await page.click('#resume');assert.equal(await page.evaluate(()=>window.__peak.game.mode),'play');ok('pause/resume');
     await page.evaluate(()=>{const g=window.__peak.game,s=g.world.summit;Object.assign(g.player,{x:s.x,y:s.y,z:s.z,grounded:true,support:g.world.boxes[48],state:'move'});window.__peak.route((g.update(1/60,window.__peak.readInput()),g.events.splice(0)));});
     assert.equal(await page.isVisible('#modal'),true);assert.match(await page.textContent('#modal-title'),/登頂/);
     assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('pg-phoebe-peak')).unlocked),1);ok('summit unlocks the next ascent');
