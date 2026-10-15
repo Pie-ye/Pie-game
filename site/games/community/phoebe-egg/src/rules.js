@@ -2,15 +2,15 @@
 export const CAMP = { x: 0, z: 23, y: 0 };
 export const NEST = { x: 0, z: -23, y: 0 };
 export const LIMIT = 29;
-export const PLATFORM = { x1: -21, x2: -10, z1: -14, z2: 9, y: 3.2 };
-export const RAMP = { x1: -19, x2: -12, z1: -23, z2: -14, y: 3.2 };
+export const PLATFORM = { x1: -14, x2: -3, z1: -14, z2: 9, y: 3.2 };
+export const RAMP = { x1: -12, x2: -5, z1: -23, z2: -14, y: 3.2 };
 export const CLIMBS = [
-  { x: -15, z: 10.1, topX: -15, topZ: 7.8, y: 3.2 },
-  { x: -8.9, z: -1, topX: -11.3, topZ: -1, y: 3.2 },
+  { x: -8.5, z: 10.1, topX: -8.5, topZ: 7.8, y: 3.2 },
+  { x: -1.9, z: -1, topX: -4.3, topZ: -1, y: 3.2 },
 ];
 export const ROCKS = [
   { x: 1, z: 7, r: 2.7, h: 3.8 }, { x: 5, z: -5, r: 2.6, h: 4.5 },
-  { x: -4, z: -11, r: 2.1, h: 3.7 }, { x: 16, z: 4, r: 2.4, h: 3.4 },
+  { x: 7, z: -12, r: 2.1, h: 3.7 }, { x: 16, z: 4, r: 2.4, h: 3.4 },
   { x: 14, z: -17, r: 2.8, h: 5 }, { x: -23, z: 18, r: 2, h: 4 },
 ];
 export const inside = (x, z, b) => x >= b.x1 && x <= b.x2 && z >= b.z1 && z <= b.z2;
@@ -52,7 +52,8 @@ export function lineClear(a, b) {
   return true;
 }
 // Grid A* routes Reggie around rocks and onto the ramp, rather than through cliffs.
-export function findPath(from, to) {
+// lowlandOnly: Reggie is a sea lion and cannot use the ramp, so the plateau is a safe route for Phoebe.
+export function findPath(from, to, lowlandOnly = false) {
   const step = 2, key = (x, z) => `${x},${z}`;
   const sx = Math.round(from.x / step), sz = Math.round(from.z / step);
   const tx = Math.round(to.x / step), tz = Math.round(to.z / step);
@@ -66,7 +67,7 @@ export function findPath(from, to) {
     for (const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1]]) {
       const x = node.x + dx, z = node.z + dz;
       const y = ground(node.x * step, node.z * step), nextY = ground(x * step, z * step);
-      if (Math.abs(nextY - y) > 1 || blocked(x * step, z * step, nextY, .9)) continue;
+      if ((lowlandOnly && nextY > .05) || Math.abs(nextY - y) > 1 || blocked(x * step, z * step, nextY, .9)) continue;
       if (!lineClear({ x:node.x*step,z:node.z*step,y:y+1 }, { x:x*step,z:z*step,y:nextY+1 })) continue;
       const g = node.g + 1;
       if ((costs.get(key(x,z)) ?? Infinity) <= g) continue;

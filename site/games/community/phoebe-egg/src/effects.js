@@ -28,7 +28,7 @@ export function makeEffects(scene){
         const m=emit('ring',0xffdfa1,e.x+Math.sin(e.angle)*(1+i*.5),e.y+1.6,e.z+Math.cos(e.angle)*(1+i*.5),.5+i*.3,.6,Math.sin(e.angle)*3,0,Math.cos(e.angle)*3,6);
         m.rotation.set(0,e.angle,0);
       }
-    }else if(slam)emit('ring',0xffeac1,e.x,e.y+.12,e.z,.4,.55,0,0,0,10);
+    }else if(slam)emit('ring',0xffeac1,e.x,e.y+.12,e.z,.4,.55,0,0,0,8);
     else{
       const m=emit('arc',0xffe0ac,e.x,e.y+.7,e.z,3.6,.5,0,0,0,1);
       m.rotation.set(-Math.PI/2,0,-e.angle); 

@@ -47,6 +47,30 @@
     },
     "cloud": {
       "paint_seconds": 19.082657162000032
+    },
+    "reggie_roar": {
+      "shape_seconds": 48.86751655100011,
+      "raw_faces": 772916,
+      "faces": 30000,
+      "paint_seconds": 54.45401788200002
+    },
+    "reggie_slam": {
+      "shape_seconds": 47.36240305799993,
+      "raw_faces": 711008,
+      "faces": 30000,
+      "paint_seconds": 46.6505462130001
+    },
+    "reggie_charge": {
+      "shape_seconds": 37.09578021399989,
+      "raw_faces": 262400,
+      "faces": 30000,
+      "paint_seconds": 35.78012731900003
+    },
+    "reggie_sweep": {
+      "shape_seconds": 37.243918626000095,
+      "raw_faces": 284824,
+      "faces": 30000,
+      "paint_seconds": 42.60844031600004
     }
   }
 }

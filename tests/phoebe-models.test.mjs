@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 
 const dir=new URL('../site/games/community/phoebe-egg/assets/models/',import.meta.url);
-const BUDGET={phoebe:60000,reggie:60000,sakura_tree:20000,plateau:16000,ground:12000,sea:10,sky:6000};
-const MODELS=['phoebe','reggie','plateau','ramp','rock','sakura_tree','torii','lantern','nest','tent','crate','flag','ladder','egg','cloud','ground','sea','sky'];
+const BUDGET={phoebe:60000,reggie:60000,reggie_roar:32000,reggie_slam:32000,reggie_charge:32000,reggie_sweep:32000,sakura_tree:20000,plateau:16000,ground:12000,sea:10,sky:6000};
+const MODELS=['phoebe','reggie','plateau','ramp','rock','sakura_tree','torii','lantern','nest','tent','crate','flag','ladder','egg','cloud','reggie_roar','reggie_slam','reggie_charge','reggie_sweep','ground','sea','sky'];
 
 async function parse(name){
   const file=await readFile(new URL(`${name}.glb`,dir));
@@ -41,7 +41,7 @@ for(const name of MODELS)test(`${name}.glb: finite indexed geometry, UVs, embedd
 test('Hunyuan-generated actors and props record the Colab provenance manifest',async()=>{
   const manifest=JSON.parse(await readFile(new URL('textured.json',dir)));
   assert.match(manifest.model,/Hunyuan3D/);
-  for(const name of MODELS.slice(0,15))assert.ok(manifest.assets[name],`${name} generation recorded`);
+  for(const name of MODELS.slice(0,19))assert.ok(manifest.assets[name],`${name} generation recorded`);
 });
 
 test('characters are standing-height meshes; terrain matches gameplay extents',async()=>{

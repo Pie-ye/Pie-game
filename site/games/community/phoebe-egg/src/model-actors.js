@@ -43,12 +43,26 @@ export async function makeGenerated(name,parent){
     rig.add(mesh);meshes.push(mesh);
   });
   root.updateMatrixWorld(true);meshes.forEach(mesh=>mesh.bind(skeleton));
+  // Reggie ships one mesh per attack pose (reggie_<pose>.glb); the idle skinned mesh covers everything else.
+  const poses={};
+  if(name==='reggie'){
+    const reference=Math.max(size.x,size.y,size.z)*scale;
+    for(const pose of ['roar','slam','charge','sweep']){
+      const a=await loadAnime(new URL(`../assets/models/reggie_${pose}.glb`,import.meta.url),{style:'painted'});a.updateMatrixWorld(true);
+      const b=new T.Box3().setFromObject(a),s=b.getSize(new T.Vector3()),c=b.getCenter(new T.Vector3()),k=reference/Math.max(s.x,s.y,s.z);
+      const group=new T.Group();group.name=`reggie-${pose}`;group.visible=false;
+      a.traverse(o=>{if(!o.isMesh)return;const g=o.geometry.clone().applyMatrix4(o.matrixWorld);g.translate(-c.x,-b.min.y,-c.z);g.scale(k,k,k);
+        const m=new T.Mesh(g,o.material);m.castShadow=true;group.add(m);});
+      rig.add(group);poses[pose]=group;
+    }
+  }
+  const showPose=key=>{for(const [k,g] of Object.entries(poses))g.visible=k===key;meshes.forEach(m=>m.visible=!poses[key]);};
   const carry=new T.Group();carry.name='carry';carry.position.set(0,height*.3,.5);body.add(carry);
   const egg=makeEgg(carry,.5);egg.visible=false;
   root.userData.asset={source:'Colab / Hunyuan3D-2 textured',url:`assets/models/${name}.glb`,
     vertices:meshes.reduce((n,m)=>n+m.geometry.attributes.position.count,0),rig:'7 bones; procedural blended weights',color:'Hunyuan3D-2 paint texture'};
   return {root,rig,body,head,arms,legs,egg,carry,skeleton,meshes,animate(state,time){
-    rig.position.set(0,0,0);rig.rotation.set(0,0,0);body.rotation.set(0,0,0);body.scale.set(1,1,1);head.rotation.set(0,0,0);
+    rig.position.set(0,0,0);rig.rotation.set(0,0,0);rig.scale.set(1,1,1);body.rotation.set(0,0,0);body.scale.set(1,1,1);head.rotation.set(0,0,0);
     arms.forEach(b=>b.rotation.set(0,0,0));legs.forEach(b=>b.rotation.set(0,0,0));
     if(name==='phoebe'){
       const moving=state.speed>.1,phase=time*(state.sprinting?14:9),stride=moving?Math.sin(phase)*.45:0;
@@ -61,15 +75,25 @@ export async function makeGenerated(name,parent){
       if(state.roll>0){const a=-(1-state.roll/.62)*Math.PI*2;rig.rotation.x=a;rig.position.set(0,1-Math.cos(a),-Math.sin(a));}
       head.rotation.y=Math.sin(time*1.3)*.025;egg.visible=!!state.egg;egg.userData.cracks.visible=!!state.egg&&state.egg.hp<3;
     }else{
-      const moving=['chase','patrol','charge'].includes(state.state),charging=state.state==='charge';
-      rig.position.y=moving?Math.abs(Math.sin(time*(charging?13:7)))*.05:Math.sin(time*2)*.015;
-      body.rotation.x=charging?.13:0;arms.forEach((b,i)=>b.rotation.z=moving?Math.sin(time*7+i*Math.PI)*.19:0);
-      if(state.state==='windup'){head.rotation.x=-.13;if(state.attack==='slam')rig.position.y=Math.sin(Math.min(1,state.clock)*Math.PI/2)*.4;}
-      if(state.state==='active'){
-        if(state.attack==='roar'){head.rotation.x=Math.sin(state.clock*30)*.06-.12;body.scale.y=1+Math.sin(state.clock*20)*.04;}
-        if(state.attack==='slam')body.scale.y=.9+Math.min(.1,state.clock*.2);
-        if(state.attack==='sweep')rig.rotation.y=Math.sin(state.clock/.55*Math.PI)*Math.PI*1.2;
+      const attacking=['windup','active','charge'].includes(state.state)&&poses[state.attack];
+      showPose(attacking?state.attack:'idle');
+      const moving=['chase','patrol'].includes(state.state),clock=state.clock;
+      rig.position.y=moving?Math.abs(Math.sin(time*7))*.05:Math.sin(time*2)*.015;
+      arms.forEach((b,i)=>b.rotation.z=moving?Math.sin(time*7+i*Math.PI)*.19:0);
+      const ease=v=>{v=Math.min(1,Math.max(0,v));return v*v*(3-2*v);};
+      if(state.state==='windup'){
+        const t=ease(clock/1.05);
+        if(state.attack==='roar'){rig.scale.setScalar(.94+t*.1);rig.position.x=Math.sin(clock*40)*.02*t;}
+        if(state.attack==='slam')rig.position.y=t*.45;
+        if(state.attack==='sweep')rig.rotation.y=-1.8*t;
+        if(state.attack==='charge'){rig.position.y=-.03*t;rig.position.z=-.35*t;rig.position.x=Math.sin(clock*45)*.025*t;}
       }
+      if(state.state==='active'){
+        if(state.attack==='roar'){rig.scale.setScalar(1.04+Math.sin(clock*30)*.03);rig.position.x=Math.sin(clock*60)*.03;}
+        if(state.attack==='slam'){rig.position.y=.45*Math.max(0,1-clock/.1);rig.scale.set(1+.08*Math.min(1,clock*8),1-.08*Math.min(1,clock*8),1+.08*Math.min(1,clock*8));}
+        if(state.attack==='sweep')rig.rotation.y=-1.8+3.6*ease(clock/.4);
+      }
+      if(state.state==='charge'){rig.position.y=Math.abs(Math.sin(time*26))*.04;rig.rotation.x=.05;}
     }
   }};
 }

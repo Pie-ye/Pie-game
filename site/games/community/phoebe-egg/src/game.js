@@ -24,7 +24,7 @@ export class Game {
       if(distance(p,{x:climb.topX,z:climb.topZ})<1.6&&Math.abs(p.y-climb.y)<.3)return {type:'climb',text:'E ／互動 · 安全爬下岩台（25 耐力）',climb,up:false};
     }
     if(p.egg)return {type:'drop',text:'送回綠色營地 · E 可放下蛋休息'};
-    return {type:'walk',text:'前往金色蛋巢 · 岩台梯子可用 E 攀爬'};
+    return {type:'walk',text:'前往金色蛋巢 · 岩台是瑞吉上不去的安全路線'};
   }
   interact(){
     if(this.mode!=='play')return;
@@ -107,6 +107,12 @@ export class Game {
     } else this.deposit=0;
     this.updateEnemy(dt);
   }
+  // Reggie stays on the lowland: any step that would put him on the ramp or plateau is undone.
+  enemyMove(dx,dz,radius){
+    const e=this.enemy,x=e.x,z=e.z,collided=move(e,dx,dz,radius);
+    if(ground(e.x,e.z)>.05){e.x=x;e.z=z;return true;}
+    e.y=0;return collided;
+  }
   updateEnemy(dt){
     const e=this.enemy,p=this.player;e.clock+=dt;e.cooldown=Math.max(0,e.cooldown-dt);
     const d=distance(e,p),sees=lineClear(e,p),safe=distance(p,CAMP)<4.8;
@@ -115,7 +121,7 @@ export class Game {
       return;
     }
     if(e.state==='charge'){
-      const collided=move(e,e.direction.x*13*dt,e.direction.z*13*dt,.95);e.y=ground(e.x,e.z);
+      const collided=this.enemyMove(e.direction.x*13*dt,e.direction.z*13*dt,.95);
       if(!safe&&!e.hit&&inAttack('charge',e,p,e.direction)){this.hit(23);e.hit=true;}
       if(collided||e.clock>1.35||distance(e,CAMP)<5.5){e.state='recover';e.clock=0;}
       return;
@@ -140,7 +146,7 @@ export class Game {
     }
     const target=aggro?p:{x:6+Math.sin(this.elapsed*.1)*6,z:-15+Math.cos(this.elapsed*.1)*5,y:0};
     e.pathClock-=dt;
-    if(e.pathClock<=0){e.path=findPath(e,target);e.pathClock=.8;}
+    if(e.pathClock<=0){e.path=findPath(e,target,true);e.pathClock=.8;}
     let next=e.path[0];
     if(next&&distance(e,next)<.65){e.path.shift();next=e.path[0];}
     if(!next&&distance(e,target)>1.4&&lineClear(e,target)&&Math.abs(e.y-ground(target.x,target.z))<.3)next=target;
@@ -148,7 +154,7 @@ export class Game {
       const dx=next.x-e.x,dz=next.z-e.z,l=Math.hypot(dx,dz)||1;
       const speed=aggro?2.35+this.delivered*.3:1.3;
       const nx=e.x+dx/l*speed*dt,nz=e.z+dz/l*speed*dt;
-      if(distance({x:nx,z:nz},CAMP)>5.2){move(e,dx/l*speed*dt,dz/l*speed*dt,.9);e.angle=Math.atan2(dx,dz);e.y=ground(e.x,e.z);}
+      if(distance({x:nx,z:nz},CAMP)>5.2){this.enemyMove(dx/l*speed*dt,dz/l*speed*dt,.9);e.angle=Math.atan2(dx,dz);}
     }
   }
 }

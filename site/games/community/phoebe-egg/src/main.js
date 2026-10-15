@@ -20,7 +20,7 @@ const readInput=()=>{
   return {x:x*Math.cos(yaw)+z*Math.sin(yaw),z:-x*Math.sin(yaw)+z*Math.cos(yaw),run:keys.has('shift')||touchRun,use:keys.has('e')||touchUse};
 };
 function clearInput(){keys.clear();stick={id:null,x:0,z:0};touchUse=false;touchRun=false;drag=null;$('joystick').firstElementChild.style.transform='';$('touch-run').classList.remove('active');}
-function start(){audio.unlock();clearInput();game.reset();yaw=0;pitch=.51;camera.position.set(0,7,31);lastMode='';app.focus();game.message('沿路前往蛋巢；左側岩台有攀爬梯，右側是平緩河谷');}
+function start(){audio.unlock();clearInput();game.reset();yaw=0;pitch=.51;camera.position.set(0,7,31);lastMode='';app.focus();game.message('蛋巢在北側；抱蛋後走西側坡道上岩台，瑞吉上不去，從南端梯子下來就是營地');}
 function pause(){if(game.mode==='play'){game.mode='pause';clearInput();}else if(game.mode==='pause'){game.mode='play';app.focus();}}
 $('start').onclick=start;$('restart').onclick=start;$('resume').onclick=pause;$('pause').onclick=pause;
 $('home').onclick=()=>{clearInput();game.reset();game.mode='title';};
@@ -107,11 +107,11 @@ function visual(dt){
   dropped.visible=!!game.dropped;if(game.dropped){dropped.position.set(game.dropped.x,game.dropped.y,game.dropped.z);dropped.userData.cracks.visible=game.dropped.hp<3;}
   world.nestEggs.forEach((egg,i)=>egg.visible=i<3-game.delivered-(p.egg||game.dropped?1:0));
   const warning=e.state==='windup',active=e.state==='active';
-  telegraph.visible=(warning||active)&&['roar','slam'].includes(e.attack);sweepArea.visible=(warning||active)&&e.attack==='sweep';chargeLine.visible=warning&&e.attack==='charge';shock.visible=active;
+  telegraph.visible=(warning||active)&&['roar','slam'].includes(e.attack);sweepArea.visible=(warning||active)&&e.attack==='sweep';chargeLine.visible=warning&&e.attack==='charge';shock.visible=active&&['roar','slam'].includes(e.attack);
   if(telegraph.visible){const radius=e.attack==='roar'?6:e.attack==='slam'?4.8:3.8;telegraph.position.set(e.x,e.y+.055,e.z);telegraph.scale.setScalar(radius);telegraph.material.opacity=.14+Math.min(1,e.clock)*.22;}
   if(sweepArea.visible){sweepArea.position.set(e.x,e.y+.06,e.z);sweepArea.rotation.set(-Math.PI/2,0,-e.angle);sweepArea.material.opacity=.14+Math.min(1,e.clock)*.22;}
   if(chargeLine.visible){chargeLine.position.set(e.x+e.direction.x*8,e.y+.06,e.z+e.direction.z*8);chargeLine.rotation.set(-Math.PI/2,0,-e.angle);chargeLine.material.opacity=.2+e.clock*.25;}
-  if(shock.visible){shock.position.set(e.x,e.y+.18,e.z);shock.scale.setScalar(1+e.clock*10);shock.material.opacity=Math.max(0,.65-e.clock);}
+  if(shock.visible){shock.position.set(e.x,e.y+.18,e.z);shock.scale.setScalar((e.attack==='roar'?6:4.8)*Math.min(1,.15+e.clock/.4));shock.material.opacity=Math.max(0,.7-e.clock);}
   const target=new T.Vector3(p.x,p.y+1.35,p.z),desired=new T.Vector3();
   if(game.mode==='title'){
     target.set(-3,1,-7);desired.set(25,23,35);

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#16363a">
+  <title>菲比啾比 · 攀登</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main id="app" tabindex="0">
+    <canvas id="world" aria-label="三維攀岩場景"></canvas>
+    <div id="loading"><div class="load-card"><b>菲比啾比 · 攀登</b><span id="load-text">正在準備山脈…</span><progress id="load-bar" max="1" value="0"></progress></div></div>
+    <div id="fx"><i id="fx-hurt"></i><i id="fx-cold"></i><i id="fx-heat"></i><i id="fx-poison"></i><i id="fx-gloom"></i><i id="fx-faint"></i><i id="fx-sleep"></i></div>
+    <section id="hud" hidden aria-label="遊戲資訊">
+      <div id="stamina" class="panel"><div class="bar"><div class="track"></div><div id="caps"></div><div id="fill"></div><div id="max-mark"></div></div><div id="chips"></div></div>
+      <div id="altitude" class="panel"><div id="alt-bar"></div><div id="alt-marker"></div><span id="alt-text"></span></div>
+      <div id="zone-name" class="panel"></div>
+      <div id="slots"></div>
+      <div id="aim" hidden></div>
+      <div id="warn" role="status"></div><div id="toast" role="status"></div><div id="hint"></div>
+      <div class="tools"><button id="mute">音效 開</button><button id="pause">暫停</button></div>
+      <div id="help" class="panel">WASD 移動 · <b>Space</b> 跳／蹬躍 · <b>Shift</b> 衝刺 · 走向岩壁自動攀爬 · <b>C</b> 抓牆／放手 · <b>E</b> 互動 · <b>F</b>／左鍵 使用 · <b>1-4</b>／<b>Q</b> 切換 · <b>G</b> 丟棄 · 右鍵拖曳視角</div>
+      <div id="touch"><div id="joystick"><i></i></div><div class="touch-actions"><button id="t-jump">跳</button><button id="t-grab">抓</button><button id="t-use">用</button><button id="t-act">互動</button><button id="t-run">跑</button></div></div>
+    </section>
+    <section id="menu" class="overlay" hidden>
+      <div class="menu-card">
+        <span class="eyebrow">PHOEBE PEAK · 單人攀登</span>
+        <h1>菲比啾比<br><em>攀登</em></h1>
+        <p>體力條就是整個遊戲。吃對東西、用對工具，避開瑞吉，一路爬到山頂。</p>
+        <div class="brief"><span><b>體力</b> 飢餓、受傷、中毒、冷熱與背包重量都會扣掉上限</span><span><b>昏迷</b> 體力上限歸零或摔太重，會在最近的祭壇醒來</span><span><b>賭一把</b> 野莓與蘑菇可能有毒；能量飲料之後會昏睡</span><span><b>沒有分數</b> 登頂就通關，並解鎖更高的難度</span></div>
+        <div id="ascents"></div>
+        <div id="daily" class="fine"></div>
+        <button id="start" class="primary">開始攀登 <span>→</span></button>
+        <p class="fine"><a href="./rig-preview.html" style="color:inherit">檢視角色骨架與動作 →</a></p>
+      </div>
+    </section>
+    <section id="modal" class="overlay" hidden><div class="menu-card compact"><span class="eyebrow">PHOEBE PEAK</span><h2 id="modal-title"></h2><p id="modal-copy"></p><div id="modal-stats" class="fine"></div><button id="resume" class="primary">繼續</button><button id="restart" class="ghost">重新開始</button></div></section>
+  </main>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

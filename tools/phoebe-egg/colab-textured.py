@@ -12,8 +12,15 @@ from hy3dgen.texgen import Hunyuan3DPaintPipeline
 
 NAMES = sys.argv[1:] or ['phoebe', 'reggie', 'plateau', 'ramp', 'rock', 'sakura_tree', 'torii', 'lantern',
                          'nest', 'tent', 'crate', 'flag', 'ladder', 'egg', 'cloud']
-FACES = {'phoebe': 40000, 'reggie': 40000, 'plateau': 12000, 'ramp': 8000, 'rock': 8000, 'sakura_tree': 16000, 'torii': 10000,
+FACES = {'phoebe': 40000, 'reggie': 40000, 'reggie_roar': 30000, 'reggie_slam': 30000, 'reggie_charge': 30000, 'reggie_sweep': 30000, 'plateau': 12000, 'ramp': 8000, 'rock': 8000, 'sakura_tree': 16000, 'torii': 10000,
          'lantern': 6000, 'nest': 8000, 'tent': 8000, 'crate': 4000, 'flag': 5000, 'ladder': 4000, 'egg': 4000, 'cloud': 4000}
+ITEM_NAMES = {'snack','coconut','berry_red','berry_blue','mushroom_item','energy_drink','medkit','bandage','antidote','hot_tea','ice_pack','rope_spool','piton','chain_launcher','blowdart','lantern_item'}
+def faces_for(name):
+    if name in FACES: return FACES[name]
+    if name.endswith('_wall'): return 1800   # tiled hundreds of times: texture carries the detail
+    if name.endswith('_ledge'): return 6000
+    if name in ITEM_NAMES: return 2500
+    return 8000
 refs, out = pathlib.Path('/content/refs'), pathlib.Path('/content/textured'); out.mkdir(exist_ok=True)
 todo = [n for n in NAMES if not (out / f'{n}-shape.glb').exists() and not (out / f'{n}.glb').exists()]
 rembg = BackgroundRemover() if todo else None
@@ -28,10 +35,11 @@ for name in NAMES:                      # stage 1: shapes (shape model resident,
         image = Image.open(refs / f'{name}.png').convert('RGBA')
         image = rembg(image.convert('RGB')) if image.getextrema()[3][0] == 255 else image
         started = time.monotonic()
-        mesh = shape(image=image, num_inference_steps=40, octree_resolution=320, num_chunks=20000,
+        hero = name.startswith(('phoebe', 'reggie'))
+        mesh = shape(image=image, num_inference_steps=40 if hero else 30, octree_resolution=320 if hero else 256, num_chunks=20000,
                      generator=torch.manual_seed(2026), output_type='trimesh')[0]
         mesh = FloaterRemover()(mesh); mesh = DegenerateFaceRemover()(mesh)
-        raw = len(mesh.faces); mesh = FaceReducer()(mesh, max_facenum=FACES.get(name, 8000))
+        raw = len(mesh.faces); mesh = FaceReducer()(mesh, max_facenum=faces_for(name))
         mesh.export(out / f'{name}-shape.glb'); image.save(out / f'{name}-cut.png')
         records[name] = dict(shape_seconds=time.monotonic() - started, raw_faces=raw, faces=len(mesh.faces))
         print('SHAPE', name, records[name], flush=True)
