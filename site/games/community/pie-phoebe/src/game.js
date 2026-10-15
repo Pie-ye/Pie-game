@@ -1,8 +1,9 @@
 // 遊戲核心：世界狀態、武器、瑞吉、敵人、渲染。
 import { THREE, Layer } from './gfx.js';
-import { WEAPONS, PASSIVES, PET, ENEMIES, SYNERGIES, WIN_TIME, xpNeed, spawnTable } from './data.js';
+import { WEAPONS, PASSIVES, PET, ENEMIES, CHARACTERS, SYNERGIES, SYN_LV, BOSS_SCHEDULE, ENDLESS_ORDER, WIN_TIME, xpNeed, spawnTable } from './data.js';
+import { BOSS_AI, BOSS_HINT } from './bosses.js';
 import { sfx } from './audio.js';
-import { skillStats, skillSummary, clampArena, ARENA_RADIUS } from './skills.js';
+import { skillStats, skillSummary, petStats, clampArena, ARENA_RADIUS } from './skills.js';
 
 const TAU = Math.PI * 2;
 const rnd = Math.random;
@@ -13,6 +14,17 @@ const MAX_ENEMY_R = 1.9;
 const PRAYER_MAX = 120;
 const MODE_TIME = 15;
 const BEST_KEY = 'pg-phoebe-best';
+
+const CHAR_KEY = 'pg-phoebe-char';
+export function loadChar() {
+  try { const v = localStorage.getItem(CHAR_KEY); return CHARACTERS[v] ? v : 'phoebe'; } catch { return 'phoebe'; }
+}
+
+const FX_KEY = 'pg-phoebe-fx';
+export const FX_LEVELS = { low: { name: '低', scale: .55 }, mid: { name: '中', scale: 1 }, high: { name: '高', scale: 1.45 } };
+export function loadFxLevel() {
+  try { const v = localStorage.getItem(FX_KEY); return FX_LEVELS[v] ? v : 'mid'; } catch { return 'mid'; }
+}
 
 export function loadBest() {
   try { const v = JSON.parse(localStorage.getItem(BEST_KEY)); return v && v.time ? v : null; } catch { return null; }
@@ -73,35 +85,67 @@ export class Game {
     L.bat = solid(tex.enemy_bat, 400, 3);
     L.golem = solid(tex.enemy_golem, 400, 3);
     L.shooter = solid(tex.enemy_shooter, 400, 3);
-    L.boss = solid(tex.enemy_boss, 4, 3);
+    for (const k of ['vanguard', 'weaver', 'conductor', 'crab', 'lighthouse', 'hive']) L[k] = solid(tex[`enemy_${k}`], 4, 3);
+    L.obelisk = solid(tex.enemy_obelisk, 12, 3);
+    L.egg = solid(tex.enemy_egg, 24, 3);
     L.fish = solid(tex.fish_blue, 400, 4);
     L.gold = solid(tex.fish_gold, 120, 4);
     L.heart = solid(tex.heart, 40, 4);
     L.chest = solid(tex.chest, 8, 4);
     L.phoebe = solid(tex.phoebe, 2, 5);
+    L.phrolova = solid(tex.phrolova, 2, 5);
+    L.hecate = solid(tex.hecate, 2, 5);
     L.rc = solid(tex.reggie_closed, 2, 5);
     L.ro = solid(tex.reggie_open, 2, 5);
-    L.disc = add(tex.disc, 160, 6, { flat: true, opacity: .3 });
-    L.ring = add(tex.ring, 160, 7, { flat: true, opacity: .45 });
-    L.beam = add(tex.beam, 180, 7, { flat: true, opacity: .55 });
-    L.sigil = add(tex.sigil, 90, 7, { flat: true, opacity: .45 });
-    L.prism = add(tex.prism, 180, 8, { center: true, opacity: .65 });
-    L.pillar = add(tex.pillar, 70, 8, { opacity: .45 });
-    // 獨立危險圖層最後繪製，避免技能亮光遮住頭目預警。
+    // v1.4：技能特效整體變淡（基準透明度約為 v1.3 的六成）。可用亮度設定再乘 0.55／1／1.45。
+    L.disc = add(tex.disc, 160, 6, { flat: true, opacity: .18 });
+    L.ring = add(tex.ring, 160, 7, { flat: true, opacity: .28 });
+    L.beam = add(tex.beam, 180, 7, { flat: true, opacity: .32 });
+    L.sigil = add(tex.sigil, 90, 7, { flat: true, opacity: .26 });
+    L.prism = add(tex.prism, 180, 8, { center: true, opacity: .4 });
+    L.pillar = add(tex.pillar, 70, 8, { opacity: .26 });
+    // 獨立危險圖層最後繪製，不受亮度設定影響，避免技能亮光遮住頭目預警。
     L.dangerRing = add(tex.ring, 64, 11, { flat: true });
     L.dangerBeam = add(tex.beam, 180, 11, { flat: true });
-    L.halo = add(tex.halo, 4, 8, { center: true });
-    L.mirror = add(tex.fx_mirror, 24, 8, { center: true });
-    L.star = add(tex.fx_star, 700, 9, { center: true });
-    L.glow = add(tex.glow, 900, 9, { center: true, opacity: .45 });
+    L.halo = add(tex.halo, 4, 8, { center: true, opacity: .6 });
+    L.mirror = add(tex.fx_mirror, 24, 8, { center: true, opacity: .6 });
+    L.star = add(tex.fx_star, 700, 9, { center: true, opacity: .55 });
+    L.glow = add(tex.glow, 900, 9, { center: true, opacity: .28 });
     L.eshot = add(tex.fx_shot, 600, 9, { center: true });
+    L.slash = add(tex.crescent, 40, 7, { flat: true, opacity: .55 });
+    L.lily = add(tex.fx_lily, 60, 8, { center: true, opacity: .5 });
+    this.fxLayers = ['disc', 'ring', 'beam', 'sigil', 'prism', 'pillar', 'halo', 'mirror', 'star', 'glow', 'slash', 'lily'].map((k) => L[k]);
+    this.setFxLevel(loadFxLevel());
 
     // 尺寸（高度，世界單位）
     this.sz = {
-      phoebe: 1.95,
+      phoebe: 1.95, phrolova: 2.1, hecate: 2.6,
       reggie: 2.15 / aspect.reggie_closed,
-      hum: 1.2, bat: 1.15, golem: 1.85, shooter: 1.25, boss: 5.0,
+      hum: 1.2, bat: 1.15, golem: 1.85, shooter: 1.25,
     };
+  }
+
+  setChar(id) {
+    this.charId = CHARACTERS[id] ? id : 'phoebe';
+    try { localStorage.setItem(CHAR_KEY, this.charId); } catch { /* 私密模式 */ }
+    return this.charId;
+  }
+
+  get char() { return CHARACTERS[this.charId || 'phoebe']; }
+
+  /** 只有菲比會喊「菲比啾比」（真實取樣）；其他角色不播。 */
+  voice(vol) { if ((this.charId || 'phoebe') === 'phoebe') sfx('chibi', vol); }
+
+  setFxLevel(level) {
+    this.fxLevel = FX_LEVELS[level] ? level : 'mid';
+    for (const layer of this.fxLayers) layer.setScale(FX_LEVELS[this.fxLevel].scale);
+    try { localStorage.setItem(FX_KEY, this.fxLevel); } catch { /* 私密模式 */ }
+    return this.fxLevel;
+  }
+
+  cycleFxLevel() {
+    const keys = Object.keys(FX_LEVELS);
+    return this.setFxLevel(keys[(keys.indexOf(this.fxLevel) + 1) % keys.length]);
   }
 
   resize() {
@@ -121,26 +165,31 @@ export class Game {
   // ───────────────────────── 流程 ─────────────────────────
   newRun() {
     this.t = 0; this.kills = 0; this.fishEaten = 0;
+    this.charId ||= 'phoebe';
     this.p = {
-      x: 0, z: 0, hp: 100, maxhp: 100, face: 1, inv: 0, lvl: 1, xp: 0, need: xpNeed(1),
+      x: 0, z: 0, hp: CHARACTERS[this.charId || 'phoebe'].hp, maxhp: CHARACTERS[this.charId || 'phoebe'].hp, face: 1, inv: 0, lvl: 1, xp: 0, need: xpNeed(1),
       walk: 0, moving: false, prayer: 0, mode: null, modeT: 0, hurt: 0, regen: 0,
     };
-    this.weapons = { star: 1 };
+    this.charId ||= 'phoebe';
+    this.weapons = { [CHARACTERS[this.charId].start]: 1 };
+    this.notes = 0; this.hecate = null; this.slashes = []; this.petalAng = 0;
     this.passives = {};
     this.petSkills = { roar: 1 };
-    this.cd = { star: 0.4, ring: 0, litany: 2, field: 0, echo: 2.5, rain: 1.5, chain: 1, frost: 2, trail: 0 };
+    this.cd = { star: 0.4, ring: 0, litany: 2, field: 0, echo: 2.5, rain: 1.5, chain: 1, frost: 2, trail: 0, scythe: 0.3, dream: 1, coda: 0, lily: 0 };
     this.hazards = []; this.trails = []; this.petTrailCd = 0; this.bossKills = 0;
-    this.mirrorZone = null; this.starStage = 0; this.damageBySkill = {};
+    this.mirrorZone = null; this.starStage = 0; this.damageBySkill = {}; this.synergyDamage = {}; this.synOn = new Set(); this.synFxCd = {};
     this.fieldT = 0;
     this.pet = {
-      x: -1.6, z: 0.9, vx: 0, vz: 0, face: 1, fullness: 0, full: false, fullT: 0, fullDur: 10,
-      roarCd: 4, slideCd: 5, pose: 0, poseFired: true, slide: 0, sdx: 1, sdz: 0, slideId: 0, back: 0, bob: 0, burp: 0,
+      x: -1.6, z: 0.9, vx: 0, vz: 0, face: 1,
+      roarCd: 4, slideCd: 5, pose: 0, poseFired: true, slide: 0, slideT: 0, slideDur: 1, slideLap: 0, slideX0: 0, slideZ0: 0, slideTheta0: 0,
+      sdx: 0, sdz: 0, slideId: 0, bob: 0,
     };
     this.enemies = []; this.shots = []; this.eshots = []; this.pickups = []; this.parts = [];
     this.fxs = []; this.nums = []; this.strikes = []; this.waves = [];
     this.spawnAcc = 0; this.bossIdx = 0; this.swarmIdx = 0; this.nextId = 1; this.pending = 0;
     this.camPos.x = 0; this.camPos.z = 0;
     this.shake = 0; this.won = false; this.boss = null; this.endless = false; this.pendingCards = null;
+    this.refreshSynergies(false);
     this.ui.setSlots(this);
   }
 
@@ -149,8 +198,8 @@ export class Game {
     this.mode = 'play';
     this.ui.hideScreen();
     this.ui.showHud(true);
-    this.ui.banner('菲比啾比，出發！', '#ffd966');
-    sfx('chibi', 0.5);
+    this.ui.banner(this.charId === 'phrolova' ? '弗洛洛，出發！' : '菲比啾比，出發！', this.char.color);
+    this.voice(0.5);
   }
 
   pause() {
@@ -183,7 +232,7 @@ export class Game {
   }
 
   finish(win) {
-    const st = { time: this.t, kills: this.kills, lvl: this.p.lvl, fish: this.fishEaten, newBest: false, damageBySkill: this.damageBySkill };
+    const st = { charId: this.charId, time: this.t, kills: this.kills, lvl: this.p.lvl, fish: this.fishEaten, newBest: false, damageBySkill: this.damageBySkill, synergyDamage: this.synergyDamage };
     let best = loadBest();
     if (!best || this.t > best.time) {
       best = { time: this.t, kills: this.kills };
@@ -196,21 +245,32 @@ export class Game {
   // ───────────────────────── 派生屬性 ─────────────────────────
   get absolve() { return this.p.mode === 'absolve'; }
   get confess() { return this.p.mode === 'confess'; }
-  get atk() { return (1 + Math.min(.9, (this.p.lvl - 1) * .025)) * (1 + 0.12 * (this.passives.might || 0)) * (this.absolve ? 1.35 : 1); }
+  get synergies() { return SYNERGIES.filter((x) => (x.char || 'phoebe') === (this.charId || 'phoebe')); }
+  get maestro() { return this.p.mode === 'maestro'; }
+  get atk() { return (1 + Math.min(.9, (this.p.lvl - 1) * .025)) * (1 + 0.12 * (this.passives.might || 0)) * (this.absolve ? 1.35 : 1) * (this.maestro ? 1.25 : 1); }
   get cdm() { return Math.max(0.35, 1 - 0.08 * (this.passives.haste || 0)); }
   get area() { return 1 + 0.12 * (this.passives.area || 0); }
   get speed() { return 4.4 * (1 + 0.1 * (this.passives.speed || 0)); }
   get magnet() { return 2.4 * (1 + 0.3 * (this.passives.magnet || 0)); }
-  get petAtk() {
-    const gl = this.petSkills.glutton || 0;
-    return (1 + 0.12 * (this.passives.might || 0)) * (this.confess ? 1.3 : 1) * (this.pet.full ? (gl >= 8 ? 2 : 1.5) : 1);
-  }
+  get petAtk() { return (1 + 0.12 * (this.passives.might || 0)) * (this.confess ? 1.15 : 1); }
 
   setMode(m) {
     const p = this.p;
     if (this.mode !== 'play' || p.mode || p.prayer < PRAYER_MAX) return;
+    const phrolova = this.charId === 'phrolova';
+    if ((m === 'maestro') !== phrolova) return;          // 弗洛洛只有樂章；菲比只有赦罪／告解
     p.mode = m; p.modeT = MODE_TIME; p.prayer = 0;
     this.buildGrid();
+    if (phrolova) {
+      this.forNear(p.x, p.z, 7, (e) => this.hurt(e, 70, { stacks: 2, source: 'prayer' }));
+      this.hecate = { x: p.x + 1.5, z: p.z - 1, ang: 0, cd: 0.3, n: 0, face: 1, bob: 0 };
+      this.sigilFx(p.x, p.z, 7, 'liberation');
+      sfx('mode'); this.shake = Math.max(this.shake, 0.25);
+      this.ui.banner('樂章 ・ 赫卡忒降臨', '#ff5470');
+      this.fxRing(p.x, p.z, 7, 0.7, [1, 0.25, 0.4]);
+      this.burst(p.x, 1, p.z, 40, { kind: 'glow', color: [1, 0.25, 0.4], speed: 6, life: 0.9, size: 0.7 });
+      return;
+    }
     this.forNear(p.x, p.z, 7, (e) => this.hurt(e, m === 'absolve' ? 90 : 40, { stacks: m === 'absolve' ? 1 : 3, source: 'prayer' }));
     this.sigilFx(p.x, p.z, 7, 'liberation');
     sfx('mode');
@@ -238,6 +298,7 @@ export class Game {
     const pool = [];
     const wOwned = Object.keys(this.weapons).length;
     for (const [k, w] of Object.entries(WEAPONS)) {
+      if (w.owner && w.owner !== this.charId) continue;
       const lv = this.weapons[k] || 0;
       if (lv && lv < w.max) pool.push({ type: 'weapon', key: k, w: 1.4 });
       else if (!lv && wOwned < 5) pool.push({ type: 'weapon', key: k, w: 1 });
@@ -250,6 +311,17 @@ export class Game {
     for (const [k, w] of Object.entries(PET)) {
       const lv = this.petSkills[k] || 0;
       if (lv < w.max) pool.push({ type: 'pet', key: k, w: lv ? 1.3 : 1.1 });
+    }
+    // 補齊連攜：夥伴技能已持有、自己還沒到 SYN_LV 的卡，被抽中的機率 ×2.5。
+    for (const c of pool) {
+      if (c.type === 'passive') continue;
+      const mine = (c.type === 'pet' ? this.petSkills : this.weapons)[c.key] || 0;
+      for (const sy of this.synergies) {
+        const isA = sy.a === c.key && c.type === 'weapon'; const isB = sy.b === c.key && (sy.pet ? c.type === 'pet' : c.type === 'weapon');
+        if (!isA && !isB) continue;
+        const other = isA ? (sy.pet ? this.petSkills : this.weapons)[sy.b] : this.weapons[sy.a];
+        if ((other || 0) >= 1 && mine < SYN_LV) { c.w *= 2.5; c.syn = sy.id; break; }
+      }
     }
     const out = [];
     while (out.length < 3 && pool.length) {
@@ -270,11 +342,11 @@ export class Game {
     }
     const d = c.type === 'weapon' ? WEAPONS[c.key] : PET[c.key];
     const cur = (c.type === 'weapon' ? this.weapons : this.petSkills)[c.key] || 0;
-    const combo = SYNERGIES.find((s) => (s.a === c.key || s.b === c.key) && ((s.a === c.key ? (s.pet ? this.petSkills : this.weapons)[s.b] : this.weapons[s.a]) || 0) > 0)
-      || SYNERGIES.find((s) => s.a === c.key || s.b === c.key);
-    const hint = combo ? `｜連攜 ${combo.desc}（目前 ${this.weapons[combo.a] || 0}/${(combo.pet ? this.petSkills : this.weapons)[combo.b] || 0}）` : '';
+    const combo = this.synergies.find((s) => (s.a === c.key && c.type === 'weapon') || (s.b === c.key && (s.pet ? c.type === 'pet' : c.type === 'weapon')));
+    const lvOf = (k, pet) => (pet ? this.petSkills : this.weapons)[k] || 0;
+    const hint = combo ? `｜⚡連攜 ${combo.name}（${WEAPONS[combo.a].name} Lv${lvOf(combo.a)}／${(combo.pet ? PET : WEAPONS)[combo.b].name} Lv${lvOf(combo.b, combo.pet)}，各需 Lv${SYN_LV}）${c.syn ? ' ★補齊連攜' : ''}` : '';
     const now = c.type === 'weapon' ? `${cur ? skillSummary(c.key, cur) + ' → ' : ''}${skillSummary(c.key, cur + 1)}` : d.lv[cur + 1];
-    return { ...c, icon: d.icon, name: d.name, lv: `Lv ${cur + 1}`, now, desc: d.desc + hint, kind: c.type === 'pet' ? 'pet' : '', isNew: cur === 0 };
+    return { ...c, icon: d.icon, name: d.name, lv: `Lv ${cur + 1}`, now, desc: d.desc + hint, kind: c.type === 'pet' ? 'pet' : '', isNew: cur === 0, synHint: !!c.syn };
   }
 
   openLevelUp() {
@@ -297,6 +369,7 @@ export class Game {
     }
     this.pending--;
     this.pendingCards = null;
+    this.refreshSynergies();
     this.ui.setSlots(this);
     if (this.pending > 0) this.openLevelUp();
     else { this.mode = 'play'; this.ui.hideScreen(); }
@@ -360,7 +433,7 @@ export class Game {
 
   /** 對敵人造成傷害。opts：mul 傷害倍率（預設玩家攻擊）、stacks 光噪層數、kx/kz 擊退方向、knock、stun */
   hurt(e, base, opts = {}) {
-    if (e.dead) return;
+    if (e.dead) return 0;
     const mul = opts.mul != null ? opts.mul : this.atk;
     let d = base * mul;
     if (e.frz > 0) d *= 1 + e.frz * (this.absolve ? 0.09 : 0.03);
@@ -368,6 +441,7 @@ export class Game {
     if (e.exposed > 0) d *= 1.2;
     const crit = rnd() < 0.08;
     if (crit) d *= 1.8;
+    if (e.boss) d = this.bossDamage(e, d);
     const applied = Math.min(e.hp, d);
     e.hp -= d;
     const source = opts.source || 'pet';
@@ -382,6 +456,48 @@ export class Game {
     this.num(e.x, e.z, e.size * 0.9, Math.round(d), crit ? '#ffe36b' : '#ffffff', crit ? 1.35 : 1);
     sfx('hit', 0.04);
     if (e.hp <= 0) this.kill(e);
+    return applied;
+  }
+
+  /** 頭目受傷修正：破防加成、共鳴護罩減傷、護盾吸收。回傳實際打到血量上的傷害。 */
+  bossDamage(e, d) {
+    if (e.vuln > 0) d *= e.vulnMul || 1.6;
+    if (e.ward < 1) d *= e.ward;
+    if (e.shield > 0) {
+      const absorbed = Math.min(e.shield, d);
+      e.shield -= absorbed; d -= absorbed;
+      this.fxs.length < 90 && e.shield <= 0 && this.fxRing(e.x, e.z, 3.2, 0.4, [.5, .9, 1]);
+    }
+    return d;
+  }
+
+  /** 連攜是否啟動（雙方都達 SYN_LV）。 */
+  syn(id) {
+    const s = SYNERGIES.find((x) => x.id === id);
+    return (this.weapons[s.a] || 0) >= SYN_LV && ((s.pet ? this.petSkills : this.weapons)[s.b] || 0) >= SYN_LV;
+  }
+
+  refreshSynergies(announce = true) {
+    const now = new Set();
+    for (const s of this.synergies) {
+      const a = this.weapons[s.a] || 0; const b = (s.pet ? this.petSkills : this.weapons)[s.b] || 0;
+      if (a >= SYN_LV && b >= SYN_LV) now.add(s.id);
+    }
+    if (announce) for (const s of this.synergies) if (now.has(s.id) && !this.synOn.has(s.id)) {
+      this.ui.banner(`⚡ 連攜啟動：${s.name}`, '#7dffd2'); sfx('level');
+      this.fxRing(this.p.x, this.p.z, 4.5, 0.7, [.5, 1, .85]);
+    }
+    this.synOn = now;
+  }
+
+  /** 記錄連攜貢獻的傷害，並限流顯示提示文字。 */
+  addSyn(id, dmg, x, z, label) {
+    this.synergyDamage[id] = (this.synergyDamage[id] || 0) + Math.max(0, dmg);
+    if (label && (this.synFxCd[id] || 0) <= this.t) {
+      this.synFxCd[id] = this.t + 0.7;
+      this.popup(x, z, 2.4, label, '#7dffd2');
+      this.fxRing(x, z, 1.6, 0.35, [.5, 1, .85]);
+    }
   }
 
   kill(e) {
@@ -392,21 +508,27 @@ export class Game {
     this.burst(e.x, 0.5 * e.size, e.z, e.boss ? 60 : 6, { kind: 'glow', color: [0.85, 0.5, 1], speed: e.boss ? 8 : 3, life: 0.5, size: e.boss ? 1.2 : 0.4 });
     const def = ENEMIES[e.type];
     if (e.boss) {
-      this.bossKills++;
+      if (e.main) this.bossKills++; else this.eliteKills = (this.eliteKills || 0) + 1;
       this.hazards = this.hazards.filter((h) => h.owner !== e.id);
+      for (const o of this.enemies) if (o.owner === e.id && !o.dead) o.dead = true;
+      this.eshots = [];
       this.drop('chest', e.x, e.z, 0);
-      for (let i = 0; i < 8; i++) this.drop('gold', e.x + (rnd() - 0.5) * 3, e.z + (rnd() - 0.5) * 3, 5);
+      const gold = e.elite ? 5 : 8;
+      for (let i = 0; i < gold; i++) this.drop('gold', e.x + (rnd() - 0.5) * 3, e.z + (rnd() - 0.5) * 3, 5);
       for (let i = 0; i < 2; i++) this.drop('heart', e.x + (rnd() - 0.5) * 2, e.z + (rnd() - 0.5) * 2, 18);
       this.boss = this.enemies.find((o) => o.boss && !o.dead) || null;
       this.shake = 0.6;
-      this.ui.banner('失序者 被擊敗！', '#ffd966');
+      this.ui.banner(`${e.name} 被擊敗！`, '#ffd966');
       sfx('boom');
-      sfx('chibi', 0.2);
+      if (e.main) this.voice(0.2);
+    } else if (def.prop) {
+      // 共鳴柱、噪卵：沒有掉落
     } else if (def.fish >= 4) this.drop('gold', e.x, e.z, def.fish);
     else {
       for (let i = 0; i < def.fish; i++) this.drop('fish', e.x + (rnd() - 0.5) * 0.6, e.z + (rnd() - 0.5) * 0.6, 1);
       if (rnd() < 0.012) this.drop('heart', e.x, e.z, 15);
     }
+    if (e.type === 'egg' && e.hatching) return;
     if (e.type === 'splitter' && this.enemies.length < 335) {
       for (let i = 0; i < 3; i++) {
         const a = i * TAU / 3;
@@ -485,7 +607,7 @@ export class Game {
     p.hp = Math.min(p.maxhp, p.hp + (this.confess ? 2.25 : 0.25) * dt);
 
     // 祈願
-    if (p.mode) { p.modeT -= dt; if (p.modeT <= 0) { p.mode = null; p.modeT = 0; } }
+    if (p.mode) { p.modeT -= dt; if (p.modeT <= 0) { p.mode = null; p.modeT = 0; this.hecate = null; } }
     else p.prayer = Math.min(PRAYER_MAX, p.prayer + 5 * (1 + 0.2 * (this.passives.prayer || 0)) * dt);
 
     this.buildGrid();
@@ -507,8 +629,8 @@ export class Game {
 
   // ───────────────────────── 武器 ─────────────────────────
   sigilFx(x, z, r, style = 'starflash') {
-    if (this.fxs.length > 140) return;
-    this.fxs.push({ kind: 'sigil', style, x, z, r, t: 0, life: style === 'liberation' ? 1.1 : .65, color: this.confess ? [.35, .85, 1] : [1, .8, .3] });
+    if (this.fxs.length > 90) return;
+    this.fxs.push({ kind: 'sigil', style, x, z, r, t: 0, life: style === 'liberation' ? 1.1 : .65, color: this.charId === 'phrolova' ? [1, .25, .42] : this.confess ? [.35, .85, 1] : [1, .8, .3] });
   }
 
   updateMirror(dt) {
@@ -522,9 +644,10 @@ export class Game {
         this.mirrorZone = { x: e.x, z: e.z, r: s.radius * this.area, life: s.duration, tick: 0, refract: 0 };
         this.sigilFx(e.x, e.z, this.mirrorZone.r, 'mirror');
         this.forNear(e.x, e.z, this.mirrorZone.r, (o) => this.hurt(o, s.damage, { stacks: 1, stun: .7, source: 'ring' }));
-        if (lv >= 3 && this.weapons.litany >= 3) {
+        if (this.syn('mirrorstar')) {
           this.strikes.push({ x: e.x, z: e.z, r: this.mirrorZone.r, t: .35, max: .35,
-            dmg: skillStats('litany', this.weapons.litany).damage * .6, source: 'litany', style: 'starflash' });
+            dmg: skillStats('litany', this.weapons.litany).damage, source: 'litany', style: 'starflash', syn: 'mirrorstar' });
+          this.addSyn('mirrorstar', 0, e.x, e.z, '鏡映星柱！');
         }
       } else this.cd.ring = .2;
     }
@@ -552,6 +675,7 @@ export class Game {
     for (const k of Object.keys(W)) cd[k] -= dt;
     this.updateNewWeapons(dt);
     this.updateMirror(dt);
+    this.updatePhrolova(dt);
 
     if (W.star && cd.star <= 0) {
       const lv = W.star;
@@ -641,6 +765,121 @@ export class Game {
     }
   }
 
+  addNotes(n) {
+    this.notes = Math.min(6, this.notes + n * (this.maestro ? 2 : 1));
+  }
+
+  /** 弗洛洛的技能：彼岸斬、轉生之夢、緋紅終章、彼岸花環，以及樂章中的赫卡忒。 */
+  updatePhrolova(dt) {
+    const W = this.weapons; const p = this.p;
+    if (W.scythe && this.cd.scythe <= 0) {
+      const target = this.nearest(p.x, p.z, 1, 5.5)[0];
+      if (target) {
+        const s = skillStats('scythe', W.scythe);
+        this.cd.scythe = s.cooldown * this.cdm * (this.maestro ? 0.8 : 1);
+        const a = Math.atan2(target.z - p.z, target.x - p.x);
+        for (let k = 0; k < s.swings; k++) this.slashes.push({ delay: k * 0.17, ang: k === 2 ? a + Math.PI : a, flip: k % 2 });
+        p.face = Math.cos(a) >= 0 ? 1 : -1;
+      } else this.cd.scythe = 0.2;
+    }
+    for (const sl of this.slashes) {
+      sl.delay -= dt;
+      if (sl.delay > 0 || sl.done) continue;
+      sl.done = true;
+      const s = skillStats('scythe', W.scythe || 1);
+      const R = s.radius * this.area; let hit = 0;
+      this.fxs.push({ kind: 'slash', x: p.x, z: p.z, ang: sl.ang, r: R, t: 0, life: 0.24, flip: sl.flip });
+      this.forNear(p.x, p.z, R, (e) => {
+        let df = Math.atan2(e.z - p.z, e.x - p.x) - sl.ang;
+        while (df > Math.PI) df -= TAU; while (df < -Math.PI) df += TAU;
+        if (Math.abs(df) > s.arc / 2 + 0.1) return;
+        const cut = this.syn('dreamcut') && e.slowT > 0;
+        const dealt = this.hurt(e, s.damage * (cut ? 1.6 : 1), { stacks: 1, knock: 1.2, kx: Math.cos(sl.ang), kz: Math.sin(sl.ang), source: 'scythe' });
+        if (cut) this.addSyn('dreamcut', dealt * (1 - 1 / 1.6), e.x, e.z, '斬！');
+        hit++;
+      });
+      if (hit) { this.addNotes(1); sfx('beam', 0.15); p.hp = Math.min(p.maxhp, p.hp + Math.min(2, hit * 0.3)); }
+    }
+    this.slashes = this.slashes.filter((sl) => !sl.done);
+
+    if (W.dream && this.cd.dream <= 0) {
+      const target = this.nearest(p.x, p.z, 1, 10)[0];
+      if (target) {
+        const s = skillStats('dream', W.dream);
+        this.cd.dream = s.cooldown * this.cdm;
+        const R = s.radius * this.area;
+        this.sigilFx(target.x, target.z, R, 'bloom');
+        this.fxs.push({ kind: 'bloom', x: target.x, z: target.z, r: R, t: 0, life: 0.7 });
+        this.forNear(target.x, target.z, R, (e) => {
+          this.hurt(e, s.damage, { stacks: 2, stun: 0.9, source: 'dream' });
+          this.slow(e, s.duration, 0.45);
+        });
+        this.addNotes(2);
+        sfx('rain', 0.1);
+      } else this.cd.dream = 0.3;
+    }
+
+    if (W.coda) {
+      const s = skillStats('coda', W.coda);
+      if (this.notes >= s.notes && this.cd.coda <= 0 && this.nearest(p.x, p.z, 1, 9).length) {
+        this.notes = 0; this.cd.coda = s.cooldown * this.cdm;
+        const R = s.radius * this.area;
+        this.fxs.push({ kind: 'bloom', x: p.x, z: p.z, r: R, t: 0, life: 0.9, big: true });
+        this.sigilFx(p.x, p.z, R, 'liberation');
+        this.forNear(p.x, p.z, R, (e) => {
+          const dx = p.x - e.x; const dz = p.z - e.z; const d = Math.hypot(dx, dz) || 1;
+          const boom = this.syn('finale') && e.frz >= 3;
+          if (boom) e.frz = Math.max(0, e.frz - 3);
+          const dealt = this.hurt(e, s.damage * (boom ? 1.7 : 1), { stacks: 3, knock: Math.min(8, d * 2.2), kx: dx / d, kz: dz / d, source: 'coda' });
+          if (boom) { this.addSyn('finale', dealt * (1 - 1 / 1.7), e.x, e.z, '花海！'); this.sigilFx(e.x, e.z, 1.2, 'bloom'); }
+        });
+        this.ui.banner('緋紅終章！', '#ff5470'); sfx('boom', 0.1); this.shake = Math.max(this.shake, 0.3);
+      }
+    }
+
+    if (W.lily) {
+      const s = skillStats('lily', W.lily);
+      this.petalAng += s.speed * dt;
+      this.petalCd = (this.petalCd || 0) - dt;
+      if (this.petalCd <= 0) {
+        this.petalCd = s.cooldown * this.cdm;
+        const R = s.radius * this.area;
+        for (let i = 0; i < s.count; i++) {
+          const a = this.petalAng + i * TAU / s.count;
+          this.forNear(p.x + Math.cos(a) * R, p.z + Math.sin(a) * R, 0.85, (e) => this.hurt(e, s.damage, { stacks: 1, knock: 1, kx: Math.cos(a), kz: Math.sin(a), source: 'lily' }));
+        }
+      }
+    }
+
+    const h = this.hecate;
+    if (h) {
+      h.bob += dt; h.ang += dt * 1.1;
+      const tx = p.x + Math.cos(h.ang) * 2.4; const tz = p.z + Math.sin(h.ang) * 2.4 - 0.6;
+      h.x += (tx - h.x) * Math.min(1, dt * 5); h.z += (tz - h.z) * Math.min(1, dt * 5);
+      h.cd -= dt;
+      if (h.cd <= 0) {
+        const tgt = this.nearest(h.x, h.z, 1, 9)[0];
+        if (tgt) {
+          h.cd = 0.55; h.n++;
+          const big = h.n % 3 === 0;
+          const a = Math.atan2(tgt.z - h.z, tgt.x - h.x);
+          h.face = Math.cos(a) >= 0 ? 1 : -1;
+          const R = (big ? 5.2 : 4.4) * this.area;
+          this.fxs.push({ kind: 'slash', x: h.x, z: h.z, ang: a, r: R, t: 0, life: 0.3, flip: h.n % 2, hecate: true, full: big });
+          const dmg = (30 + 1.6 * p.lvl) * (big ? 1.8 : 1);
+          this.forNear(h.x, h.z, R, (e) => {
+            if (!big) {
+              let df = Math.atan2(e.z - h.z, e.x - h.x) - a;
+              while (df > Math.PI) df -= TAU; while (df < -Math.PI) df += TAU;
+              if (Math.abs(df) > 0.9) return;
+            }
+            this.hurt(e, dmg, { stacks: big ? 2 : 1, source: 'hecate' });
+          });
+        } else h.cd = 0.2;
+      }
+    }
+  }
+
   updateNewWeapons(dt) {
     const W = this.weapons; const p = this.p;
     if (W.chain && this.cd.chain <= 0) {
@@ -648,15 +887,18 @@ export class Game {
       this.cd.chain = stats.cooldown * this.cdm;
       let x = p.x; let z = p.z;
       const hit = new Set();
-      const count = stats.count + (W.star >= 3 && W.chain >= 3 ? 2 : 0);
+      const bonus = this.syn('refract') ? 2 : 0;
+      const count = stats.count + bonus;
       for (let i = 0; i < count; i++) {
         const e = this.nearest(x, z, count + 1, i ? stats.reach : 10).find((o) => !hit.has(o.id));
         if (!e) break;
         hit.add(e.id);
         const len = Math.hypot(e.x - x, e.z - z) || 0.01;
-        this.fxs.push({ kind: 'beam', x, z, dx: (e.x - x) / len, dz: (e.z - z) / len, len, w: 0.18, t: 0, life: 0.3, refract: true });
-        this.sigilFx(e.x, e.z, .65, 'refraction');
-        this.hurt(e, stats.damage, { stacks: 1, source: 'chain' });
+        const extra = i >= stats.count;
+        this.fxs.push({ kind: 'beam', x, z, dx: (e.x - x) / len, dz: (e.z - z) / len, len, w: extra ? 0.3 : 0.18, t: 0, life: extra ? 0.45 : 0.3, refract: true, color: extra ? [1, .85, .35] : null });
+        this.sigilFx(e.x, e.z, extra ? .9 : .65, 'refraction');
+        const dealt = this.hurt(e, stats.damage * (extra ? 1.25 : 1), { stacks: 1, source: 'chain' });
+        if (extra) this.addSyn('refract', dealt, e.x, e.z, '折射連攜');
         x = e.x; z = e.z;
       }
       if (hit.size) sfx('beam', 0.3);
@@ -681,9 +923,9 @@ export class Game {
       this.leaveTrail(p.x, p.z, 1);
     }
     this.petTrailCd -= dt;
-    if (W.trail >= 3 && this.petSkills.slide >= 3 && this.pet.slide > 0 && this.petTrailCd <= 0) {
+    if (this.syn('tide') && this.pet.slide > 0 && this.pet.slideT < this.pet.slideDur - .35 && this.petTrailCd <= 0) {
       this.petTrailCd = 0.18;
-      this.leaveTrail(this.pet.x, this.pet.z, 1.5);
+      this.leaveTrail(this.pet.x, this.pet.z, 2, true);
     }
     for (const f of this.trails) {
       f.life -= dt; f.tick -= dt;
@@ -693,18 +935,19 @@ export class Game {
           // 重疊光痕每半秒只命中一次，避免原地繞圈傷害無限堆疊。
           if ((e.trailHit || -1) > this.t) return;
           e.trailHit = this.t + f.tick - .01;
-          this.hurt(e, f.dmg, { stacks: 1, source: 'trail' });
+          const dealt = this.hurt(e, f.dmg, { stacks: 1, source: 'trail' });
+          if (f.tide) this.addSyn('tide', dealt * .5, e.x, e.z, '踏浪光痕');
         });
       }
     }
     this.trails = this.trails.filter((f) => f.life > 0);
   }
 
-  leaveTrail(x, z, mul) {
+  leaveTrail(x, z, mul, tide = false) {
     const lv = this.weapons.trail;
     const stats = skillStats('trail', lv);
     if (this.trails.length >= 60) this.trails.shift();
-    this.trails.push({ x, z, r: stats.radius * this.area, life: stats.duration, tick: 0, dmg: stats.damage * mul });
+    this.trails.push({ x, z, r: stats.radius * this.area, life: stats.duration, tick: 0, dmg: stats.damage * mul, tide });
   }
 
   slow(e, duration, multiplier) {
@@ -739,8 +982,9 @@ export class Game {
       if (along < -0.5 || along > len) continue;
       const perp = Math.abs(rx * dz - rz * dx);
       if (perp > w / 2 + e.r) continue;
-      const shatter = this.weapons.frost >= 3 && this.weapons.litany >= 3 && e.slowT > 0;
-      this.hurt(e, dmg * (1 + 0.04 * e.frz) * (shatter ? 1.4 : 1) * (this.absolve && e.frz > 0 ? 1.4 : 1), { stacks: this.confess ? 2 : 1, knock: 1.5, kx: dx, kz: dz, source: 'litany' });
+      const shatter = this.syn('shatter') && e.slowT > 0;
+      const dealt = this.hurt(e, dmg * (1 + 0.04 * e.frz) * (shatter ? 1.6 : 1) * (this.absolve && e.frz > 0 ? 1.4 : 1), { stacks: this.confess ? 2 : 1, knock: 1.5, kx: dx, kz: dz, source: 'litany' });
+      if (shatter) { this.addSyn('shatter', dealt * (1 - 1 / 1.6), e.x, e.z, '碎！'); this.sigilFx(e.x, e.z, .8, 'refraction'); }
     }
   }
 
@@ -800,8 +1044,10 @@ export class Game {
         const d = Math.hypot(e.x - w.x, e.z - w.z);
         if (d + e.r >= prev - 0.2 && d - e.r <= w.r + 0.2) {
           w.hit.add(e.id);
-          const combo = this.weapons.echo >= 3 && this.weapons.field >= 3 && e.frz >= 4;
-          this.hurt(e, w.dmg * (combo ? 1.5 : 1), { stacks: 2, knock: 5, kx: (e.x - w.x) / (d || 1), kz: (e.z - w.z) / (d || 1), source: 'echo' });
+          const combo = this.syn('echoboom') && e.frz >= 3;
+          if (combo) e.frz = Math.max(0, e.frz - 3);
+          const dealt = this.hurt(e, w.dmg * (combo ? 1.8 : 1), { stacks: 2, knock: 5, kx: (e.x - w.x) / (d || 1), kz: (e.z - w.z) / (d || 1), source: 'echo' });
+          if (combo) { this.addSyn('echoboom', dealt * (1 - 1 / 1.8), e.x, e.z, '引爆！'); this.sigilFx(e.x, e.z, 1.1, 'refraction'); }
         }
       }
       for (const b of this.eshots) if (!b.dead && d2(b.x, b.z, w.x, w.z) <= w.r ** 2) b.dead = true;
@@ -815,7 +1061,8 @@ export class Game {
         s.dead = true;
         this.forNear(s.x, s.z, s.r, (e) => {
           const dd = Math.hypot(e.x - s.x, e.z - s.z) || 1;
-          this.hurt(e, s.dmg * (this.absolve && s.source === 'rain' ? 1.5 : 1), { stacks: this.confess ? 3 : 2, knock: 3, kx: (e.x - s.x) / dd, kz: (e.z - s.z) / dd, source: s.source || 'rain' });
+          const dealt = this.hurt(e, s.dmg * (this.absolve && s.source === 'rain' ? 1.5 : 1), { stacks: this.confess ? 3 : 2, knock: 3, kx: (e.x - s.x) / dd, kz: (e.z - s.z) / dd, source: s.source || 'rain' });
+          if (s.syn) this.addSyn(s.syn, dealt);
         });
         this.sigilFx(s.x, s.z, s.r, s.style || 'liberation');
         if (s.source === 'rain') for (const b of this.eshots) if (d2(b.x, b.z, s.x, s.z) <= s.r ** 2) b.dead = true;
@@ -849,48 +1096,42 @@ export class Game {
   updatePet(dt) {
     const pt = this.pet; const p = this.p;
     const lv = this.petSkills;
-    const gl = lv.glutton || 0;
-
-    // 吃飽
-    const need = 12 - (gl >= 2 ? 2 : 0) - (gl >= 5 ? 2 : 0);
-    const dur = 10 + (gl >= 3 ? 2 : 0) + (gl >= 7 ? 3 : 0);
-    pt.need = need; pt.fullDur = dur;
-    if (!pt.full && pt.fullness >= need) {
-      pt.full = true; pt.fullT = dur; pt.fullness = 0; pt.burp = 0.9;
-      this.ui.banner('瑞吉吃飽了！', '#ffd966');
-      sfx('burp');
-      this.fxRing(pt.x, pt.z, 4, 0.5, [1, 0.85, 0.4]);
-      this.popup(pt.x, pt.z, 2.6, '嗝！', '#ffe58a');
-      this.forNear(pt.x, pt.z, 3.6, (e) => {
-        const d = Math.hypot(e.x - pt.x, e.z - pt.z) || 1;
-        this.hurt(e, 40, { mul: this.petAtk, knock: 5, kx: (e.x - pt.x) / d, kz: (e.z - pt.z) / d, stun: 0.6 });
-      });
-    }
-    if (pt.full) { pt.fullT -= dt; if (pt.fullT <= 0) { pt.full = false; pt.fullness = 0; } }
-    pt.burp = Math.max(0, pt.burp - dt);
-    const fm = pt.full ? 0.6 : 1;
-
-    pt.roarCd -= dt * 1; pt.slideCd -= dt;
+    pt.roarCd -= dt; pt.slideCd -= dt;
     pt.bob += dt;
-
-    let tx; let tz; let sp = 6.2;
-    const busy = pt.pose > 0 || pt.slide > 0;
+    const home = () => ({ x: p.x - p.face * 1.7, z: p.z + 0.9 + Math.sin(pt.bob * 1.5) * 0.25 });
 
     if (pt.slide > 0) {
-      pt.slide -= dt;
+      // 肚皮滑行：以玩家為圓心繞圈（Lv8 兩圈），最後回到角色身旁。
       const sl = lv.slide || 1;
-      const dir = pt.back > 0 && pt.slide < 0.35 ? -1 : 1;
-      pt.x += pt.sdx * 15 * dt * dir; pt.z += pt.sdz * 15 * dt * dir;
-      pt.face = pt.sdx * dir >= 0 ? 1 : -1;
-      const hr = (1.0 + (sl >= 4 ? 0.3 : 0) + (sl >= 7 ? 0.3 : 0));
-      const dmg = 20 + 8 * sl + (sl >= 5 ? 8 : 0);
-      this.forNear(pt.x, pt.z, hr, (e) => {
-        if (e.slideId === pt.slideId) return;
-        e.slideId = pt.slideId;
-        this.hurt(e, dmg, { mul: this.petAtk, stacks: 1, knock: 4, kx: pt.sdx * dir, kz: pt.sdz * dir });
-      });
-      if (rnd() < 0.8) this.burst(pt.x, 0.3, pt.z, 2, { kind: 'glow', color: [0.5, 0.8, 1], speed: 1.5, life: 0.5, size: 0.5, up: 2.5 });
-      if (pt.slide <= 0 && pt.back > 0) { pt.back = 0; }
+      const s = petStats('slide', sl);
+      pt.slide -= dt; pt.slideT += dt;
+      const moveT = pt.slideDur - 0.35;           // 最後 0.35 秒用來回到身邊
+      let target;
+      if (pt.slideT <= moveT) {
+        const q = pt.slideT / moveT;
+        const theta = pt.slideTheta0 + q * TAU * s.laps;
+        const enter = Math.min(1, pt.slideT / 0.25);    // 前 0.25 秒從原位置滑入圓周
+        const rr = s.radius * this.area;
+        const ox = p.x + Math.cos(theta) * rr; const oz = p.z + Math.sin(theta) * rr;
+        target = { x: pt.slideX0 + (ox - pt.slideX0) * enter, z: pt.slideZ0 + (oz - pt.slideZ0) * enter };
+        pt.slideLap = Math.min(s.laps - 1, Math.floor(q * s.laps));
+        pt.face = -Math.sin(theta) >= 0 ? 1 : -1;
+        pt.sdx = -Math.sin(theta); pt.sdz = Math.cos(theta);
+        const key = `${pt.slideId}:${pt.slideLap}`;
+        this.forNear(pt.x, pt.z, s.hit * this.area, (e) => {
+          if (e.slideKey === key) return;
+          e.slideKey = key;
+          this.hurt(e, s.damage, { mul: this.petAtk, stacks: 1, knock: 3, kx: pt.sdx, kz: pt.sdz, source: 'slide' });
+        });
+        if (rnd() < 0.8) this.burst(pt.x, 0.3, pt.z, 2, { kind: 'glow', color: [0.5, 0.8, 1], speed: 1.5, life: 0.5, size: 0.5, up: 2.5 });
+      } else {
+        const h = home(); const q = clamp((pt.slideT - moveT) / 0.35, 0, 1);
+        pt.slideX1 = pt.slideX1 ?? pt.x; pt.slideZ1 = pt.slideZ1 ?? pt.z;
+        target = { x: pt.slideX1 + (h.x - pt.slideX1) * q, z: pt.slideZ1 + (h.z - pt.slideZ1) * q };
+        pt.sdx = 0; pt.sdz = 0;
+      }
+      pt.x = target.x; pt.z = target.z;
+      if (pt.slide <= 0) { pt.slide = 0; pt.slideX1 = null; pt.slideZ1 = null; }
     } else if (pt.pose > 0) {
       // 張嘴吼：先蓄力，再放出聲波
       const r = lv.roar || 1;
@@ -898,12 +1139,11 @@ export class Game {
       const total = 0.85;
       if (!pt.poseFired && pt.pose <= total - 0.4) {
         pt.poseFired = true;
-        const R = (2.9 + 0.35 * r) * this.area * (pt.full ? 1.2 : 1);
-        const dmg = 24 + 9 * r + (r >= 8 ? 14 : 0) + (r >= 4 ? 5 : 0);
-        const stun = r >= 6 ? 1.5 : 0.9;
+        const s = petStats('roar', r);
+        const R = s.radius * this.area;
         this.forNear(pt.x, pt.z, R, (e) => {
           const d = Math.hypot(e.x - pt.x, e.z - pt.z) || 1;
-          this.hurt(e, dmg, { mul: this.petAtk, knock: 6, kx: (e.x - pt.x) / d, kz: (e.z - pt.z) / d, stun, stacks: 1 });
+          this.hurt(e, s.damage, { mul: this.petAtk, knock: 6, kx: (e.x - pt.x) / d, kz: (e.z - pt.z) / d, stun: s.stun, stacks: 1, source: 'roar' });
         });
         this.fxRing(pt.x, pt.z, R, 0.45, [0.7, 0.9, 1]);
         this.fxRing(pt.x, pt.z, R * 0.7, 0.35, [1, 1, 1]);
@@ -911,19 +1151,11 @@ export class Game {
         this.shake = Math.max(this.shake, 0.22);
       }
     } else {
-      // 跟隨玩家，並且去吃附近的小魚
-      const gr = 3.2 + (gl >= 1 ? 1.2 : 0) + (gl >= 4 ? 1.4 : 0);
-      let best = null; let bd = gr * gr;
-      for (const f of this.pickups) {
-        if (f.kind !== 'fish' && f.kind !== 'gold') continue;
-        const d = d2(f.x, f.z, pt.x, pt.z);
-        if (d < bd && d2(f.x, f.z, p.x, p.z) < 100) { bd = d; best = f; }
-      }
-      if (best) { tx = best.x; tz = best.z; sp = 8.5; } else {
-        tx = p.x - p.face * 1.7; tz = p.z + 0.9 + Math.sin(pt.bob * 1.5) * 0.25;
-      }
-      const dx = tx - pt.x; const dz = tz - pt.z; const d = Math.hypot(dx, dz);
+      // 跟隨玩家
+      const h = home();
+      const dx = h.x - pt.x; const dz = h.z - pt.z; const d = Math.hypot(dx, dz);
       if (d > 0.08) {
+        const sp = 6.2;
         const s = Math.min(d * 5, sp * (d > 8 ? 2.2 : 1)) * dt;
         pt.x += (dx / d) * s; pt.z += (dz / d) * s;
         if (Math.abs(dx) > 0.15) pt.face = dx > 0 ? 1 : -1;
@@ -931,33 +1163,29 @@ export class Game {
       if (d2(pt.x, pt.z, p.x, p.z) > 144) { pt.x = p.x - 2; pt.z = p.z + 1; }
     }
 
-    if (!busy) {
+    if (pt.pose <= 0 && pt.slide <= 0) {
       const r = lv.roar || 1;
       if (pt.roarCd <= 0) {
-        const R = (2.9 + 0.35 * r) * this.area;
-        let near = 0;
-        this.forNear(pt.x, pt.z, R + 1.2, () => { near++; });
-        if (near >= 2) {
+        const s = petStats('roar', r);
+        const R = s.radius * this.area;
+        let near = 0; let boss = false;
+        this.forNear(pt.x, pt.z, R + 1.2, (e) => { near++; if (e.boss) boss = true; });
+        if (near >= 2 || boss) {
           pt.pose = 0.85; pt.poseFired = false;
           sfx('roar', 0.15);
-          pt.roarCd = (6.2 - 0.45 * r) * this.cdm * fm;
+          pt.roarCd = s.cooldown * this.cdm;
           pt.face = (this.nearest(pt.x, pt.z, 1, 12)[0]?.x ?? pt.x + pt.face) >= pt.x ? 1 : -1;
         } else pt.roarCd = 0.4;
       } else if (lv.slide && pt.slideCd <= 0) {
-        const sl = lv.slide;
-        const cand = this.nearest(pt.x, pt.z, 14, 11);
-        if (cand.length >= 3) {
-          let best = cand[0]; let bs = -1;
-          for (const c of cand) {
-            let s = 0;
-            for (const o of cand) if (d2(c.x, c.z, o.x, o.z) < 6) s++;
-            if (s > bs) { bs = s; best = c; }
-          }
-          const dx = best.x - pt.x; const dz = best.z - pt.z; const d = Math.hypot(dx, dz) || 1;
-          pt.sdx = dx / d; pt.sdz = dz / d; pt.slide = 0.7; pt.slideId = ++this.nextId;
-          pt.back = sl >= 8 ? 1 : 0;
-          if (pt.back) { pt.slide = 1.1; }
-          pt.slideCd = (6.2 - 0.5 * sl) * this.cdm * fm;
+        const s = petStats('slide', lv.slide);
+        const R = s.radius * this.area;
+        let near = 0;
+        this.forNear(p.x, p.z, R + 2, () => { near++; });
+        if (near >= 3) {
+          pt.slide = pt.slideDur = s.duration * s.laps + 0.35; pt.slideT = 0; pt.slideLap = 0;
+          pt.slideX0 = pt.x; pt.slideZ0 = pt.z; pt.slideTheta0 = Math.atan2(pt.z - p.z, pt.x - p.x);
+          pt.slideId = ++this.nextId;
+          pt.slideCd = s.cooldown * this.cdm;
           sfx('roar', 0.15);
         } else pt.slideCd = 0.5;
       }
@@ -965,22 +1193,75 @@ export class Game {
   }
 
   // ───────────────────────── 敵人 ─────────────────────────
+  rnd() { return rnd(); }
+
   warnBlast(e, x, z, r = 2, delay = 1.2) {
-    if (this.hazards.length >= 48) return;
-    this.hazards.push({ owner: e.id, x, z, r, left: delay, max: delay, dmg: e.dmg, fired: false });
+    if (this.hazards.length >= 72) return;
+    this.hazards.push({ kind: 'blast', owner: e.id, x, z, r, left: delay, max: delay, dmg: e.dmg, fired: false });
+  }
+
+  /** 旋轉光束：先預警 warn 秒，之後持續 dur 秒、每秒轉 w 弧度，起點跟著頭目。 */
+  addBeam(e, ang, { w = 0.7, warn = 1.3, dur = 4, len = 18, width = 1.4 } = {}) {
+    if (this.hazards.length >= 72) return;
+    this.hazards.push({ kind: 'beam', owner: e.id, src: e, ang, w, left: warn, max: warn, dur, t: 0, len, width, dmg: e.dmg });
+  }
+
+  /** 以場地中心為圓心的扇形（安全區輪替用）。 */
+  addSector(e, a0, a1, r, delay) {
+    if (this.hazards.length >= 72) return;
+    this.hazards.push({ kind: 'sector', owner: e.id, a0, a1, r, left: delay, max: delay, dmg: e.dmg * 1.2, fired: false });
+  }
+
+  /** 從頭目位置朝 ang 展開的扇形（蟹鉗橫掃）。 */
+  addCone(e, ang, spread, r, delay) {
+    if (this.hazards.length >= 72) return;
+    this.hazards.push({ kind: 'cone', owner: e.id, x: e.x, z: e.z, ang, spread, r, left: delay, max: delay, dmg: e.dmg * 1.1, fired: false });
+  }
+
+  spawnProp(type, x, z, owner) {
+    const e = this.makeEnemy(type, x, z);
+    e.owner = owner.id;
+    return e;
   }
 
   updateHazards(dt) {
+    const p = this.p;
+    const angDiff = (a, b) => { let d = a - b; while (d > Math.PI) d -= TAU; while (d < -Math.PI) d += TAU; return d; };
     for (const h of this.hazards) {
+      if (h.kind === 'beam') {
+        if (h.src.dead) { h.done = true; continue; }
+        if (h.left > 0) { h.left -= dt; continue; }
+        h.t += dt; h.ang += h.w * dt;
+        if (h.t >= h.dur) { h.done = true; continue; }
+        const ox = h.src.x; const oz = h.src.z;
+        const rx = p.x - ox; const rz = p.z - oz;
+        const along = rx * Math.cos(h.ang) + rz * Math.sin(h.ang);
+        const perp = Math.abs(rx * Math.sin(h.ang) - rz * Math.cos(h.ang));
+        if (along > 0 && along < h.len && perp < h.width / 2 + 0.38) this.hurtPlayer(h.dmg);
+        continue;
+      }
       h.left -= dt;
       if (h.left <= 0 && !h.fired) {
         h.fired = true;
-        if (d2(h.x, h.z, this.p.x, this.p.z) <= (h.r + 0.38) ** 2) this.hurtPlayer(h.dmg);
-        this.fxRing(h.x, h.z, h.r, 0.35, [1, 0.15, 0.35]);
-        sfx('boom', 0.2);
+        if (h.kind === 'sector') {
+          const dist = Math.hypot(p.x, p.z);
+          const mid = (h.a0 + h.a1) / 2; const half = (h.a1 - h.a0) / 2;
+          if (dist <= h.r && Math.abs(angDiff(Math.atan2(p.z, p.x), mid)) <= half) this.hurtPlayer(h.dmg);
+          this.fxRing(0, 0, ARENA_RADIUS, 0.4, [1, 0.15, 0.35]);
+          sfx('boom', 0.2);
+        } else if (h.kind === 'cone') {
+          const dx = p.x - h.x; const dz = p.z - h.z;
+          if (Math.hypot(dx, dz) <= h.r + 0.38 && Math.abs(angDiff(Math.atan2(dz, dx), h.ang)) <= h.spread / 2) this.hurtPlayer(h.dmg);
+          this.fxRing(h.x, h.z, h.r, 0.35, [1, 0.15, 0.35]);
+          sfx('boom', 0.2);
+        } else {
+          if (d2(h.x, h.z, p.x, p.z) <= (h.r + 0.38) ** 2) this.hurtPlayer(h.dmg);
+          this.fxRing(h.x, h.z, h.r, 0.35, [1, 0.15, 0.35]);
+          sfx('boom', 0.2);
+        }
       }
     }
-    this.hazards = this.hazards.filter((h) => h.left > -0.3);
+    this.hazards = this.hazards.filter((h) => (h.kind === 'beam' ? !h.done : h.left > -0.3));
   }
 
   enemyFan(e, angle, count, spread, speed = 4.2) {
@@ -1010,7 +1291,8 @@ export class Game {
     const hpMul = 1 + this.t * 0.0075 + (this.t / 300) ** 2 * 0.5;
     const e = {
       id: ++this.nextId, type, x, z, kx: 0, kz: 0, hp: d.hp * hpMul, maxhp: d.hp * hpMul, r: d.r, speed: d.speed * (1 + this.t / 1800),
-      dmg: d.dmg, size: d.size, frz: 0, frzT: 0, flash: 0, stun: 0, slowT: 0, slowMul: 1, ringCd: 0, boss: !!d.boss, dead: false,
+      dmg: d.dmg, size: d.size, frz: 0, frzT: 0, flash: 0, stun: 0, slowT: 0, slowMul: 1, ringCd: 0, boss: !!d.boss, prop: !!d.prop, elite: !!d.elite, dead: false,
+      name: d.name, vuln: 0, vulnMul: 1, ward: 1,
       shootT: type === 'fan' ? 2.4 + rnd() * 2.4 : 1 + rnd() * 1.5, ph: rnd() * TAU, atkT: 4, state: 0, slideId: 0, exposed: 0,
     };
     this.enemies.push(e);
@@ -1039,19 +1321,7 @@ export class Game {
       this.spawnAcc--;
       if (this.enemies.length < cap) this.spawnAround(this.pickType(), 13 + rnd() * 3);
     }
-    const bt = this.bossIdx < 3 ? [180, 360, 540][this.bossIdx] : this.endless ? 540 + 150 * (this.bossIdx - 2) : Infinity;
-    if (t >= bt) {
-      this.bossIdx++;
-      const e = this.spawnAround('boss', 12);
-      e.hp = e.maxhp = ENEMIES.boss.hp * (1 + 0.9 * (this.bossIdx - 1)) * (1 + t / 600);
-      this.boss = e;
-      e.rank = this.bossIdx;
-      e.name = ['破陣者', '織音者', '終曲指揮'][Math.min(2, e.rank - 1)];
-      e.pattern = 0;
-      this.ui.banner(`⚠ ${e.name}：避開紅色預警，尋找彈幕缺口！`, '#ff6ad5');
-      sfx('boss');
-      this.shake = 0.5;
-    }
+    this.spawnBosses();
     const sw = [240, 480][this.swarmIdx];
     if (sw != null && t >= sw) {
       this.swarmIdx++;
@@ -1066,6 +1336,35 @@ export class Game {
     }
   }
 
+  /** 依時間表出頭目；無盡模式依序輪替，每輪多一隻同時出場。 */
+  spawnBosses() {
+    const t = this.t;
+    let entry = null;
+    if (this.bossIdx < BOSS_SCHEDULE.length) {
+      if (t >= BOSS_SCHEDULE[this.bossIdx].at) entry = BOSS_SCHEDULE[this.bossIdx];
+    } else if (this.endless) {
+      const n = this.bossIdx - BOSS_SCHEDULE.length;
+      if (t >= 540 + 150 * (n + 1)) entry = { id: ENDLESS_ORDER[n % ENDLESS_ORDER.length], endless: true, extra: Math.floor(n / ENDLESS_ORDER.length) };
+    }
+    if (!entry) return;
+    this.bossIdx++;
+    this.spawnBoss(entry.id, entry);
+    for (let i = 0; i < (entry.extra || 0); i++) this.spawnBoss(ENDLESS_ORDER[(this.bossIdx + i + 2) % ENDLESS_ORDER.length], { endless: true });
+  }
+
+  spawnBoss(id, entry = {}) {
+    const def = ENEMIES[id];
+    const e = this.spawnAround(id, 12);
+    const growth = 1 + this.t / 600;
+    e.hp = e.maxhp = def.hp * growth * (entry.endless ? 1.3 : 1);
+    e.bossId = id; e.main = !!entry.main; e.ai = null;
+    this.boss = this.boss && !this.boss.dead ? this.boss : e;
+    this.ui.banner(`⚠ ${def.name}${def.elite ? '（精英）' : ''}：${BOSS_HINT[id]}`, def.elite ? '#7deaff' : '#ff6ad5');
+    sfx('boss');
+    this.shake = 0.5;
+    return e;
+  }
+
   updateEnemies(dt) {
     const p = this.p;
     for (const e of this.enemies) {
@@ -1074,6 +1373,18 @@ export class Game {
       e.ringCd = Math.max(0, e.ringCd - dt);
       this.updateSlow(e, dt);
       e.exposed = Math.max(0, e.exposed - dt);
+      if (e.vuln > 0) e.vuln -= dt;
+      if (e.prop) {
+        if (e.type === 'egg') {
+          e.hatch -= dt;
+          if (e.hatch <= 0) {
+            e.hatching = true; e.dead = true;
+            this.fxRing(e.x, e.z, 1.6, 0.4, [1, .3, .4]);
+            const c = this.makeEnemy('charger', e.x, e.z); c.atkT = 0.8;
+          }
+        }
+        continue;
+      }
       const dx = p.x - e.x; const dz = p.z - e.z;
       const d = Math.hypot(dx, dz) || 1;
       let vx = 0; let vz = 0;
@@ -1103,31 +1414,10 @@ export class Game {
           const px = -uz; const pz = ux;
           ux += px * w; uz += pz * w;
         } else if (e.boss) {
-          e.atkT -= dt;
-          if (!e.state && e.atkT <= 0) {
-            e.atkT = e.hp < e.maxhp * 0.45 ? 3.6 : 5;
-            const pattern = (e.pattern++ + (e.rank || 1) - 1) % 3;
-            if (pattern === 0) {
-              this.charge(e, dx, dz);
-              this.ui.banner('衝鋒預警：往紅線側面移動！', '#ff8ca8');
-            } else if (pattern === 1) {
-              // 留下朝向玩家的寬缺口；缺口方向在預警開始時固定。
-              e.gap = Math.atan2(dz, dx); e.state = 4; e.stateT = 1.2;
-              this.ui.banner('環形彈幕：移向青色缺口！', '#7deaff');
-            } else {
-              for (let i = 0; i < 5; i++) {
-                this.warnBlast(e, p.x + (i - 2) * 2.5, p.z, 1.65, 1.1 + Math.abs(i - 2) * 0.18);
-              }
-              if ((e.rank || 1) >= 3) {
-                this.warnBlast(e, p.x, p.z - 3.2, 1.5, 1.65);
-                this.warnBlast(e, p.x, p.z + 3.2, 1.5, 1.65);
-              }
-              this.ui.banner('落雷預警：離開紅圈！', '#ff8ca8');
-              e.state = 3; e.stateT = 1.8;
-            }
-          }
+          const ai = BOSS_AI[e.bossId];
+          if (ai) { const m = ai(this, e, dt, { dx, dz, d, ux, uz, sp }); ux = m.ux; uz = m.uz; sp = m.sp; }
         }
-        if (e.state === 2) {
+        if (e.boss) { /* 頭目自己管理狀態 */ } else if (e.state === 2) {
           sp = 0; e.stateT -= dt;
           if (e.stateT <= 0) { e.state = 1; e.stateT = 0.85; }
         } else if (e.state === 1) {
@@ -1164,8 +1454,8 @@ export class Game {
         }
       }
 
-      if (d2(e.x, e.z, p.x, p.z) < (e.r + 0.38) ** 2) this.hurtPlayer(e.dmg);
-      if (d > 30 && !e.state) {
+      if (e.dmg > 0 && d2(e.x, e.z, p.x, p.z) < (e.r + 0.38) ** 2) this.hurtPlayer(e.dmg);
+      if (d > 30 && !e.state && !e.boss) {
         const a = rnd() * TAU;
         Object.assign(e, clampArena(p.x + Math.cos(a) * 14, p.z + Math.sin(a) * 10.5, ARENA_RADIUS + 1));
       }
@@ -1190,9 +1480,8 @@ export class Game {
 
   // ───────────────────────── 掉落物 ─────────────────────────
   updatePickups(dt) {
-    const p = this.p; const pt = this.pet;
+    const p = this.p;
     const mr = this.magnet;
-    const gl = this.petSkills.glutton || 0;
     for (const f of this.pickups) {
       f.t += dt;
       const dp = Math.hypot(p.x - f.x, p.z - f.z);
@@ -1209,39 +1498,73 @@ export class Game {
       }
       if (dp < 0.55) {
         f.dead = true;
-        if (f.kind === 'heart') { p.hp = Math.min(p.maxhp, p.hp + f.v); this.num(p.x, p.z, 2.2, `+${f.v}`, '#7dffb0', 1.1); sfx('fish', 0.05); } else { this.addXp(f.v); sfx('fish', 0.04); }
+        if (f.kind === 'heart') { p.hp = Math.min(p.maxhp, p.hp + f.v); this.num(p.x, p.z, 2.2, `+${f.v}`, '#7dffb0', 1.1); sfx('fish', 0.05); } else { this.addXp(f.v); if (f.kind !== 'chest') this.fishEaten++; sfx('fish', 0.04); }
         continue;
-      }
-      // 瑞吉吃魚
-      if ((f.kind === 'fish' || f.kind === 'gold') && !f.dead && d2(f.x, f.z, pt.x, pt.z) < 0.9 * 0.9 && !(pt.pose > 0)) {
-        f.dead = true;
-        this.addXp(f.v);
-        this.fishEaten++;
-        if (!pt.full) pt.fullness += f.kind === 'gold' ? 2 : 1;
-        if (gl >= 6) p.hp = Math.min(p.maxhp, p.hp + 0.6);
-        pt.eat = 0.25;
-        sfx('fish', 0.04);
-        this.burst(pt.x + pt.face * 0.8, 0.9, pt.z, 3, { kind: 'star', color: [0.6, 0.9, 1], speed: 2, life: 0.4, size: 0.3 });
       }
     }
     this.pickups = this.pickups.filter((f) => !f.dead);
-    pt.eat = Math.max(0, (pt.eat || 0) - dt);
   }
 
   // ───────────────────────── 測試用機器人 ─────────────────────────
+  /** 某個地面點在 t 秒後的危險分數（預警圖形、光束、彈幕）。供測試機器人用。 */
+  dangerAt(x, z, ahead = 0.45) {
+    let danger = 0;
+    for (const h of this.hazards) {
+      if (h.kind === 'beam') {
+        const ang = h.ang + (h.left > 0 ? 0 : h.w * ahead);
+        const rx = x - h.src.x; const rz = z - h.src.z;
+        const along = rx * Math.cos(ang) + rz * Math.sin(ang); const perp = Math.abs(rx * Math.sin(ang) - rz * Math.cos(ang));
+        if (along > -1 && along < h.len + 1 && perp < h.width / 2 + 1.0) danger += h.left > 0 ? 3 : 8;
+      } else if (h.left < 1.1 || h.kind === 'blast') {
+        if (h.kind === 'sector') {
+          const mid = (h.a0 + h.a1) / 2; const half = (h.a1 - h.a0) / 2;
+          let df = Math.atan2(z, x) - mid; while (df > Math.PI) df -= TAU; while (df < -Math.PI) df += TAU;
+          if (Math.abs(df) <= half + 0.1) danger += 10;
+        } else if (h.kind === 'cone') {
+          const dx = x - h.x; const dz = z - h.z;
+          let df = Math.atan2(dz, dx) - h.ang; while (df > Math.PI) df -= TAU; while (df < -Math.PI) df += TAU;
+          if (Math.hypot(dx, dz) <= h.r + 0.8 && Math.abs(df) <= h.spread / 2 + 0.15) danger += 10;
+        } else if (d2(x, z, h.x, h.z) <= (h.r + 0.8) ** 2) danger += 10;
+      }
+    }
+    for (const e of this.enemies) {
+      if (e.tele) {
+        const rx = x - e.x; const rz = z - e.z;
+        const along = rx * e.tele.dx + rz * e.tele.dz; const perp = Math.abs(rx * e.tele.dz - rz * e.tele.dx);
+        if (along > -1 && along < e.tele.len && perp < e.tele.w / 2 + 1) danger += 10;
+      }
+      if (e.dead || e.prop) continue;
+      const rr = e.r + 0.9 + (e.boss ? 0.8 : 0);
+      if (d2(x, z, e.x, e.z) < rr * rr) danger += e.boss ? 6 : 1.5;
+    }
+    for (const b of this.eshots) {
+      const fx = b.x + b.vx * ahead; const fz = b.z + b.vz * ahead;
+      if (d2(x, z, fx, fz) < 1.1 * 1.1) danger += 4;
+    }
+    return danger;
+  }
+
   botInput() {
     const p = this.p;
-    let x = 0; let z = 0;
-    for (const e of this.enemies) {
-      const dx = p.x - e.x; const dz = p.z - e.z; const d = Math.hypot(dx, dz);
-      if (d < 4.5) { const w = (4.5 - d) / 4.5; x += (dx / (d || 1)) * w * 2; z += (dz / (d || 1)) * w * 2; }
+    // 八個方向＋原地：預測短時間後的危險，挑分數最低且靠近撿取物的一個。
+    let best = { x: 0, z: 0 }; let bs = Infinity;
+    const wantX = p.x; const wantZ = p.z;
+    let nearest = null; let nd = 64;
+    for (const f of this.pickups) { const d = d2(f.x, f.z, p.x, p.z); if (d < nd) { nd = d; nearest = f; } }
+    for (let k = -1; k < 8; k++) {
+      const dx = k < 0 ? 0 : Math.cos(k * Math.PI / 4); const dz = k < 0 ? 0 : Math.sin(k * Math.PI / 4);
+      const step = this.speed * 0.5;
+      const q = clampArena(p.x + dx * step, p.z + dz * step, ARENA_RADIUS - 0.5);
+      let score = this.dangerAt(q.x, q.z) * 3 + this.dangerAt(p.x + dx * step * 0.5, p.z + dz * step * 0.5, 0.2) * 2;
+      // 靠牆扣分，避免被擠到角落
+      score += Math.max(0, Math.hypot(q.x, q.z) - (ARENA_RADIUS - 4)) * 0.4;
+      if (nearest) score -= (Math.hypot(wantX - nearest.x, wantZ - nearest.z) - Math.hypot(q.x - nearest.x, q.z - nearest.z)) * 0.5;
+      // 沿圓周繞行（光痕才有輸出），沒有撿取物時慢慢轉圈
+      score -= (dx * -Math.sin(this.t * 0.3) + dz * Math.cos(this.t * 0.3)) * 0.15;
+      if (score < bs) { bs = score; best = { x: dx, z: dz }; }
     }
-    let best = null; let bd = 64;
-    for (const f of this.pickups) { const d = d2(f.x, f.z, p.x, p.z); if (d < bd) { bd = d; best = f; } }
-    if (best) { const d = Math.sqrt(bd) || 1; x += ((best.x - p.x) / d) * 0.6; z += ((best.z - p.z) / d) * 0.6; }
-    x += Math.cos(this.t * 0.3) * 0.2; z += Math.sin(this.t * 0.27) * 0.2;
-    this.input.x = x; this.input.z = z;
-    if (!p.mode && p.prayer >= PRAYER_MAX) this.setMode(Math.floor(this.t / 40) % 2 ? 'confess' : 'absolve');
+    this.input.x = best.x; this.input.z = best.z;
+    if (!p.mode && p.prayer >= PRAYER_MAX) this.setMode(this.charId === 'phrolova' ? 'maestro' : Math.floor(this.t / 40) % 2 ? 'confess' : 'absolve');
   }
 
   // ───────────────────────── 渲染 ─────────────────────────
@@ -1287,8 +1610,14 @@ export class Game {
       if (!f || f === 1) {
         if (e.frz > 0) { const q = Math.min(1, e.frz / 8); r = 1 + 0.5 * q; g = 1 + 0.25 * q; b = 1 - 0.3 * q; }
         if (e.stun > 0) { r = 0.8; g = 0.9; b = 1.5; }
+        if (e.boss && e.vuln > 0) { r = 1.45; g = 1.25; b = 0.7; }
+        else if (e.boss && e.ward < 1) { r = 0.7; g = 0.85; b = 1.35; }
+        if (e.type === 'egg') { const q = clamp(1 - e.hatch / 6, 0, 1); r = 1 + q * 0.9; g = 1 - q * 0.4; b = 1 - q * 0.3; }
       }
-      layer.add(e.x, y, e.z, h * asp * sxs, h * sy, roll, r, g, b, e.x > p.x && e.type !== 'hum' && e.type !== 'boss');
+      if (e.boss) y = Math.sin(t * 1.6 + e.ph) * 0.12;
+      layer.add(e.x, y, e.z, h * asp * sxs, h * sy, roll, r, g, b, e.x > p.x && !def.boss && !def.prop && e.type !== 'hum');
+      if (e.boss && e.shield > 0) L.glow.add(e.x, h * 0.5, e.z, h * 1.5, h * 1.5, 0, 0.2 + 0.2 * (e.shield / e.shieldMax), 0.5, 0.8);
+      if (e.type === 'pillar') L.glow.add(e.x, h * 0.6, e.z, 2.6, 2.6, 0, 0.2, 0.55, 0.6);
       sh.add(e.x, 0.02, e.z + 0.02, h * asp * 0.8, h * asp * 0.45, 0, 1, 1, 1);
       if (e.frz > 0) L.star.add(e.x, h * 1.08 + y, e.z, 0.3 + e.frz * 0.035, 0.3 + e.frz * 0.035, t * 2, 1, 0.85, 0.35);
     }
@@ -1333,31 +1662,45 @@ export class Game {
 
   drawPlayer(t) {
     const p = this.p; const L = this.L;
-    const hh = this.sz.phoebe; const asp = this.assets.aspect.phoebe;
+    const key = this.charId === 'phrolova' ? 'phrolova' : 'phoebe';
+    const hh = this.sz[key]; const asp = this.assets.aspect[key];
     const w = p.moving ? Math.sin(p.walk * 11) : Math.sin(t * 2.5) * 0.25;
     const bob = p.moving ? Math.abs(w) * 0.12 : (w + 1) * 0.02;
     const blink = p.inv > 0 && Math.floor(t * 20) % 2 === 0;
     let r = 1; let g = 1; let b = 1;
     if (p.hurt > 0) { r = 2; g = 0.8; b = 0.8; }
     if (blink) { r *= 0.6; g *= 0.6; b *= 0.6; }
-    L.phoebe.add(p.x, bob, p.z, hh * asp * (1 - w * 0.03), hh * (1 + Math.abs(w) * 0.03), p.moving ? w * 0.06 : 0, r, g, b, p.face < 0);
+    L[key].add(p.x, bob, p.z, hh * asp * (1 - w * 0.03), hh * (1 + Math.abs(w) * 0.03), p.moving ? w * 0.06 : 0, r, g, b, p.face < 0);
     L.shadow.add(p.x, 0.02, p.z + 0.05, 1.5, 0.8, 0, 1, 1, 1);
     if (p.mode) {
-      const c = p.mode === 'absolve' ? [1, 0.82, 0.3] : [0.45, 0.85, 1];
+      const c = p.mode === 'absolve' ? [1, 0.82, 0.3] : p.mode === 'maestro' ? [1, 0.25, 0.4] : [0.45, 0.85, 1];
       L.halo.add(p.x, hh + 0.12 + Math.sin(t * 3) * 0.05, p.z, 1.5, 0.56, 0, c[0], c[1], c[2]);
       L.glow.add(p.x, 1, p.z, 3.4, 3.4, 0, c[0] * 0.35, c[1] * 0.35, c[2] * 0.35);
+    }
+    const h = this.hecate;
+    if (h) {
+      const ha = this.assets.aspect.hecate; const hs = this.sz.hecate;
+      L.hecate.add(h.x, 0.35 + Math.sin(h.bob * 3) * 0.14, h.z, hs * ha, hs, Math.sin(h.bob * 2) * 0.05, 1.25, 0.9, 0.95, h.face < 0);
+      L.shadow.add(h.x, 0.02, h.z + 0.05, 1.6, 0.8, 0, 1, 1, 1);
+      L.glow.add(h.x, 1.2, h.z, 3, 3, 0, 0.5, 0.08, 0.16);
+    }
+    if (this.weapons.lily) {
+      const s = skillStats('lily', this.weapons.lily); const R = s.radius * this.area;
+      for (let i = 0; i < s.count; i++) {
+        const a = this.petalAng + i * TAU / s.count;
+        L.lily.add(p.x + Math.cos(a) * R, 0.7, p.z + Math.sin(a) * R, 1.1, 1.1, a * 2, 1, 0.5, 0.6);
+        L.glow.add(p.x + Math.cos(a) * R, 0.7, p.z + Math.sin(a) * R, 1.3, 1.3, 0, 0.6, 0.05, 0.15);
+      }
     }
   }
 
   drawPet(t) {
     const pt = this.pet; const L = this.L;
-    const gl = this.petSkills.glutton || 0;
     const base = this.sz.reggie;
-    let s = pt.full ? 1.2 : 1;
-    if (pt.burp > 0) s *= 1 + Math.sin((pt.burp / 0.9) * Math.PI) * 0.15;
+    const s = 1;
     let sx = 1; let sy = 1; let roll = 0; let y = 0;
-    const open = pt.pose > 0 || pt.eat > 0;
-    if (pt.slide > 0) { sy = 0.72; sx = 1.12; roll = -pt.sdz * 0.15; }
+    const open = pt.pose > 0;
+    if (pt.slide > 0) { sy = 0.72; sx = 1.12; roll = -pt.sdz * 0.15 * pt.face; }
     else if (pt.pose > 0) {
       const q = 1 - pt.pose / 0.85;
       const pulse = q < 0.45 ? 1 + q * 0.5 : 1.22 - (q - 0.45) * 0.4;
@@ -1371,11 +1714,9 @@ export class Game {
     const layer = open ? L.ro : L.rc;
     const asp = this.assets.aspect[open ? 'reggie_open' : 'reggie_closed'];
     const h = base * s;
-    const tint = pt.full ? [1.25, 1.12, 0.95] : [1, 1, 1];
-    layer.add(pt.x, y, pt.z, h * asp * sx, h * sy, roll, tint[0], tint[1], tint[2], pt.face < 0);
+    layer.add(pt.x, y, pt.z, h * asp * sx, h * sy, roll, 1, 1, 1, pt.face < 0);
     L.shadow.add(pt.x, 0.02, pt.z + 0.05, 2.2 * s, 0.9 * s, 0, 1, 1, 1);
-    if (pt.full) L.glow.add(pt.x, 0.9, pt.z, 3.2 * s, 3.2 * s, 0, 0.5, 0.38, 0.12);
-    if (gl >= 0 && pt.pose > 0 && pt.pose > 0.45) {
+    if (pt.pose > 0.45) {
       const q = 1 - (pt.pose - 0.45) / 0.4;
       L.glow.add(pt.x + pt.face * 1.5, 1, pt.z, 1.2 + q * 0.6, 1.2 + q * 0.6, 0, 0.6 * q, 0.8 * q, 1 * q);
     }
@@ -1385,22 +1726,50 @@ export class Game {
     const L = this.L; const p = this.p;
     for (const h of this.hazards) {
       const q = clamp(1 - h.left / h.max, 0, 1);
-      L.dangerRing.add(h.x, 0.065, h.z, h.r * 2, h.r * 2, 0, 1.4, 0.12, 0.25);
-      L.disc.add(h.x, 0.06, h.z, h.r * 2 * q, h.r * 2 * q, 0, 0.7, 0.04, 0.12);
+      if (h.kind === 'beam') {
+        const o = h.src; const c = Math.cos(h.ang); const sn = Math.sin(h.ang);
+        const live = h.left <= 0;
+        const width = live ? h.width : 0.3 + Math.sin(t * 22) * 0.06;
+        const k = live ? 1.15 : 0.7;
+        L.dangerBeam.add(o.x + c * h.len / 2, 0.075, o.z + sn * h.len / 2, h.len, width, -h.ang, 1.3 * k, 0.12 * k, 0.28 * k);
+        if (!live) L.dangerBeam.add(o.x + c * h.len / 2, 0.074, o.z + sn * h.len / 2, h.len * q, h.width, -h.ang, 0.35, 0.03, 0.06);
+      } else if (h.kind === 'sector') {
+        // 扇形用幾條同心環帶近似（每條是一塊不重疊的矩形），亮度隨預警進度增加。
+        const mid = (h.a0 + h.a1) / 2; const span = h.a1 - h.a0; const bands = 6; const dr = h.r / bands;
+        for (let i = 0; i < bands; i++) {
+          const rm = dr * (i + 0.5);
+          L.dangerBeam.add(Math.cos(mid) * rm, 0.066, Math.sin(mid) * rm, dr * 1.02, 2 * rm * Math.sin(span / 2) * 0.98, -mid, 0.22 + 0.5 * q, 0.03, 0.08);
+        }
+      } else if (h.kind === 'cone') {
+        for (let i = -1; i <= 1; i++) {
+          const a = h.ang + i * h.spread / 3;
+          L.dangerBeam.add(h.x + Math.cos(a) * h.r / 2, 0.068, h.z + Math.sin(a) * h.r / 2, h.r, h.r * h.spread / 3 * 0.85, -a, 0.45 + 0.8 * q, 0.06, 0.14);
+        }
+      } else {
+        L.dangerRing.add(h.x, 0.065, h.z, h.r * 2, h.r * 2, 0, 1.4, 0.12, 0.25);
+        L.disc.add(h.x, 0.06, h.z, h.r * 2 * q, h.r * 2 * q, 0, 0.7, 0.04, 0.12);
+      }
+    }
+    // 共鳴柱與織音者之間的連線
+    for (const e of this.enemies) {
+      if (e.type !== 'pillar' || e.dead) continue;
+      const owner = this.enemies.find((o) => o.id === e.owner);
+      if (!owner || owner.dead) continue;
+      const dx = owner.x - e.x; const dz = owner.z - e.z; const len = Math.hypot(dx, dz) || 1;
+      L.beam.add(e.x + dx / 2, 0.5, e.z + dz / 2, len, 0.3, Math.atan2(-dz, dx), 0.12, 0.35, 0.4);
     }
     for (const e of this.enemies) {
+      if (e.tele) L.dangerBeam.add(e.x + e.tele.dx * e.tele.len / 2, 0.07, e.z + e.tele.dz * e.tele.len / 2, e.tele.len, e.tele.w, Math.atan2(-e.tele.dz, e.tele.dx), 1.2, 0.1, 0.25);
       if (e.state === 2) {
         const len = e.chargeSpeed * 0.85;
         L.dangerBeam.add(e.x + e.cdx * len / 2, 0.07, e.z + e.cdz * len / 2, len, e.r * 2 + 0.76, Math.atan2(-e.cdz, e.cdx), 1.2, 0.1, 0.25);
-      } else if (e.state === 4) {
-        L.dangerRing.add(e.x, 0.07, e.z, 6, 6, 0, 1, 0.15, 0.35);
-        L.dangerBeam.add(e.x + Math.cos(e.gap) * 4, 0.08, e.z + Math.sin(e.gap) * 4, 8, 1.4, -e.gap, 0.1, 0.9, 1);
       }
     }
     for (const f of this.trails) {
       const fade = Math.min(1, f.life);
-      L.sigil.add(f.x, 0.04, f.z, f.r * 2, f.r * 2, t * .1, .5 * fade, .4 * fade, .18 * fade);
-      L.prism.add(f.x, .2 + Math.sin(t * 2 + f.x) * .1, f.z, .15, .5, 0, .8 * fade, .7 * fade, .3 * fade);
+      const tc = f.tide ? [.2, .75, .8] : [.5, .4, .18]; const pc = f.tide ? [.3, .9, .9] : [.8, .7, .3];
+      L.sigil.add(f.x, 0.04, f.z, f.r * 2, f.r * 2, t * .1, tc[0] * fade, tc[1] * fade, tc[2] * fade);
+      L.prism.add(f.x, .2 + Math.sin(t * 2 + f.x) * .1, f.z, .15, .5, 0, pc[0] * fade, pc[1] * fade, pc[2] * fade);
     }
 
     // 默禱領域
@@ -1443,6 +1812,17 @@ export class Game {
           const rad = r * (f.style === 'liberation' ? q : .75);
           L.prism.add(f.x + Math.cos(angle) * rad, .4 + q * 1.5, f.z + Math.sin(angle) * rad, .18 + a * .2, .5 + a * .7, angle, c[0] * a, c[1] * a, c[2] * a);
         }
+      } else if (f.kind === 'slash') {
+        const a = (1 - q) ** 0.8; const sz = f.r * 2.46;
+        const c = f.hecate ? [.8, .15, .45] : [1, .22, .38];
+        if (f.full) { for (let k = 0; k < 2; k++) L.slash.add(f.x, .08, f.z, sz, sz, -f.ang + q * TAU * 1.0 + k * Math.PI, c[0] * a, c[1] * a, c[2] * a); }
+        else L.slash.add(f.x, .08, f.z, sz, sz, -f.ang + (f.flip ? -1 : 1) * (0.55 - q * 1.1), c[0] * a, c[1] * a, c[2] * a);
+        L.glow.add(f.x + Math.cos(f.ang) * f.r * .5, .8, f.z + Math.sin(f.ang) * f.r * .5, 1.4 * a, 1.4 * a, 0, c[0] * a * .6, c[1] * a * .6, c[2] * a * .6);
+      } else if (f.kind === 'bloom') {
+        const a = Math.sin(Math.PI * q) * (f.big ? 1 : .9);
+        const sz = f.r * 2 * (0.55 + q * 0.5);
+        L.lily.add(f.x, f.big ? 1.2 : 0.9, f.z, sz, sz, q * 1.2, a, a * .55, a * .6);
+        L.glow.add(f.x, .6, f.z, f.r * 1.6, f.r * 1.6, 0, a * .5, a * .06, a * .14);
       } else if (f.kind === 'ring') {
         const r = f.r * (0.15 + 0.85 * (1 - (1 - q) ** 2));
         const a = (1 - q) * 1.2;
@@ -1451,7 +1831,8 @@ export class Game {
         const a = (1 - q) ** 0.6;
         const ang = Math.atan2(-f.dz, f.dx);
         const w = f.w * (1.2 - q * 0.5);
-        L.beam.add(f.x + f.dx * f.len * 0.5, 0.06, f.z + f.dz * f.len * 0.5, f.len, w, ang, .7 * a, .58 * a, .28 * a);
+        const bc = f.color || [.7, .58, .28];
+        L.beam.add(f.x + f.dx * f.len * 0.5, 0.06, f.z + f.dz * f.len * 0.5, f.len, w, ang, bc[0] * a, bc[1] * a, bc[2] * a);
         for (let i = 0; i < 3; i++) {
           const d = ((t * 14 + i * 5) % f.len);
           L.star.add(f.x + f.dx * d, 0.9, f.z + f.dz * d, 0.7 * a, 0.7 * a, t * 4, a, a * 0.9, a * 0.5);
@@ -1524,8 +1905,9 @@ export class Game {
     this.ui.update({
       hp: p.hp, maxhp: p.maxhp, xp: p.xp, xpNeed: p.need, lvl: p.lvl, time: this.t, kills: this.kills, fish: this.fishEaten,
       prayer: p.prayer, prayerMax: PRAYER_MAX, mode: p.mode, modeLeft: p.modeT,
-      pet: { fullness: Math.min(pt.fullness, pt.need || 12), need: pt.need || 12, full: pt.full, left: pt.fullT, dur: pt.fullDur },
-      boss: this.boss ? { hp: this.boss.hp, maxhp: this.boss.maxhp, name: `${this.boss.name || ENEMIES.boss.name}${this.boss.hp < this.boss.maxhp * 0.45 ? ' · 狂暴' : ''}` } : null,
+      charId: this.charId, notes: Math.floor(this.notes || 0), notesNeed: this.weapons.coda ? skillStats('coda', this.weapons.coda).notes : 6, hasCoda: !!this.weapons.coda,
+      pet: { roar: Math.max(0, pt.roarCd), roarMax: petStats('roar', this.petSkills.roar || 1).cooldown * this.cdm, slide: this.petSkills.slide ? Math.max(0, pt.slideCd) : null, busy: pt.slide > 0 ? '環繞中' : pt.pose > 0 ? '大叫中' : null },
+      bosses: this.enemies.filter((o) => o.boss && !o.dead).slice(0, 3).map((o) => ({ id: o.id, name: o.name, elite: o.elite, hp: o.hp, maxhp: o.maxhp, shield: o.shield > 0 ? o.shield / o.shieldMax : 0, vuln: o.vuln > 0, ward: o.ward < 1, rage: o.hp < o.maxhp * 0.4 })),
     });
   }
 }

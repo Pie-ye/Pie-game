@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-  <title>菲比啾比星光亂鬥 v1.3</title>
+  <title>菲比啾比星光亂鬥 v1.4</title>
   <link rel="stylesheet" href="./style.css">
   <script type="module" src="./src/main.js"></script>
 </head>
@@ -16,16 +16,17 @@
       <div class="hud-left">
         <div class="bar hp"><i id="hp-fill"></i><span id="hp-text">100</span></div>
         <div class="bar prayer"><i id="pr-fill"></i><span id="pr-text">祈願</span></div>
-        <div class="bar pet"><i id="pet-fill"></i><span id="pet-text">瑞吉 肚子餓餓</span></div>
+        <div class="bar pet"><i id="pet-fill"></i><span id="pet-text">瑞吉 吼 就緒</span></div>
         <div class="slots" id="slots"></div>
       </div>
       <div class="hud-center">
         <div id="time">00:00</div>
-        <div class="bar boss" id="boss-bar" hidden><i id="boss-fill"></i><span id="boss-name">失序者</span></div>
+        <div id="boss-bars" hidden></div>
       </div>
       <div class="hud-right">
         <div class="counter"><span>☠</span><b id="kills">0</b><span>🐟</span><b id="fish">0</b></div>
         <div class="btns">
+          <button type="button" id="btn-fx" aria-label="特效亮度" title="特效亮度（F）">✨中</button>
           <button type="button" id="btn-mute" aria-label="音效">🔊</button>
           <button type="button" id="btn-pause" aria-label="暫停">⏸</button>
         </div>

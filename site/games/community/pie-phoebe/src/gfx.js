@@ -41,7 +41,11 @@ export class Layer {
     this.mesh.count = 0;
     scene.add(this.mesh);
     this.mat = mat;
+    this.baseOpacity = opts.opacity ?? 1;
   }
+
+  /** 亮度倍率（只影響特效層）：實際透明度 = 基準透明度 × 倍率。 */
+  setScale(s) { this.mat.opacity = Math.min(1, this.baseOpacity * s); }
 
   begin() { this.n = 0; }
 

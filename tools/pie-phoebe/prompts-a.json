@@ -1,0 +1,62 @@
+{
+ "items": [
+  {
+   "name": "v2_vanguard",
+   "prompt": "solo, no humans, monster, giant armored horned beast knight, heavy cracked crimson and purple armor, glowing pink cracks, huge fists, menacing, standing, full body",
+   "seeds": [
+    11,
+    12,
+    13,
+    14,
+    15,
+    16
+   ]
+  },
+  {
+   "name": "v2_weaver",
+   "prompt": "solo, no humans, floating jellyfish musician monster, teal and white translucent bell body, one large eye, harp strings of light, ribbon tentacles, music notes, full body",
+   "seeds": [
+    11,
+    12,
+    13,
+    14,
+    15,
+    16
+   ]
+  },
+  {
+   "name": "v2_conductor",
+   "prompt": "solo, ghost, orchestra conductor, tall dark violet tailcoat with gold trim, holding glowing baton, broken golden halo, white half mask, floating, full body",
+   "seeds": [
+    11,
+    12,
+    13,
+    14,
+    15,
+    16
+   ]
+  },
+  {
+   "name": "v2_hecate",
+   "prompt": "solo, 1girl, ghostly puppet girl, long black hair, crimson and black gothic dress, red spider lilies, holding large scythe, red eyes, floating, full body",
+   "seeds": [
+    11,
+    12,
+    13,
+    14,
+    15,
+    16
+   ]
+  },
+  {
+   "name": "v2_pillar",
+   "prompt": "solo, no humans, single glowing teal crystal obelisk, tuning fork shape, floating music note, stone base",
+   "seeds": [
+    11,
+    12,
+    13,
+    14
+   ]
+  }
+ ]
+}

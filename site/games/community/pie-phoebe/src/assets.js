@@ -4,9 +4,10 @@ import * as FX from './fxtex.js';
 
 const NAMES = [
   'phoebe', 'reggie_closed', 'reggie_open',
-  'enemy_hum', 'enemy_bat', 'enemy_golem', 'enemy_shooter', 'enemy_boss',
+  'enemy_hum', 'enemy_bat', 'enemy_golem', 'enemy_shooter',
+  'enemy_vanguard', 'enemy_weaver', 'enemy_conductor', 'enemy_crab', 'enemy_lighthouse', 'enemy_hive', 'enemy_obelisk', 'enemy_egg',
   'fish_blue', 'fish_gold', 'heart', 'chest', 'decor_crystal', 'decor_grass',
-  'fx_star', 'fx_mirror', 'fx_shot', 'ground', 'rinascita-plaza',
+  'fx_star', 'fx_mirror', 'fx_shot', 'fx_lily', 'phrolova', 'hecate', 'ground', 'rinascita-plaza',
 ];
 
 function loadImage(name) {
@@ -39,5 +40,6 @@ export async function loadAssets() {
   tex.sigil = makeTexture(FX.sigil());
   tex.prism = makeTexture(FX.prism());
   tex.pillar = makeTexture(FX.pillar());
+  tex.crescent = makeTexture(FX.crescent());
   return { tex, aspect, images: imgs };
 }

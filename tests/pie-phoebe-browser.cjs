@@ -11,7 +11,7 @@ const base = process.env.PHOEBE_TEST_URL || 'http://127.0.0.1:18766/games/commun
     page.on('pageerror', (e) => errors.push(e.message));
     page.on('response', (r) => { if (r.status() >= 400) errors.push(`${r.status()} ${r.url()}`); });
     await page.goto(base); await page.waitForFunction(() => !!window.__pie);
-    assert.match(await page.title(), /v1.3/);
+    assert.match(await page.title(), /v1.4/);
     await page.click('#go');
     await page.keyboard.down('d');
     await page.waitForFunction(() => __pie.game.p.x > 0.5);
@@ -23,19 +23,19 @@ const base = process.env.PHOEBE_TEST_URL || 'http://127.0.0.1:18766/games/commun
       g.weapons = { star: 3, chain: 3, frost: 3, litany: 3, trail: 3 };
       g.petSkills.slide = 3; g.ui.setSlots(g);
       for (const [i, type] of ['charger', 'fan', 'mortar', 'splitter'].entries()) g.makeEnemy(type, i * 2 - 3, -4);
-      const boss = g.makeEnemy('boss', 0, -7);
-      Object.assign(boss, { rank: 3, name: '終曲指揮', pattern: 0 });
-      g.boss = boss; g.charge(boss, 0, 7);
+      g.bossIdx = 99; g.swarmIdx = 99;
+      const boss = g.spawnBoss('conductor', { main: true }); boss.x = 0; boss.z = -7;
+      g.addBeam(boss, Math.PI / 2, { warn: 5, dur: 5, len: 14 }); g.addSector(boss, 0, Math.PI / 3, 25, 5); g.addCone(boss, Math.PI / 2, 1.5, 5, 5);
       g.warnBlast(boss, 3, 1); g.leaveTrail(-2, 1, 1);
       g.buildGrid(); g.cd.chain = 0; g.cd.frost = 0; g.updateNewWeapons(0.01);
       g.hud(); g.mode = 'pause'; g.render();
     });
-    assert.equal(await page.locator('.slot.combo').count(), 3);
-    await page.screenshot({ path: '/tmp/pie-phoebe-v13-desktop.png' });
+    assert.equal(await page.locator('.slot.combo:not(.pending)').count(), 3);
+    await page.screenshot({ path: '/tmp/pie-phoebe-v14-desktop.png' });
     const stats = await page.evaluate(() => {
       const g = __pie.game; g.mode = 'play'; g.p.hp = g.p.maxhp = 100000;
       // Exercise all waves, skills, boss state transitions and late-game spawns.
-      g.t = 530; g.bossIdx = 2; g.swarmIdx = 2; g.pending = 0;
+      g.t = 530; g.bossIdx = 4; g.swarmIdx = 2; g.pending = 0;
       for (let i = 0; i < 1200; i++) {
         if (g.mode === 'levelup') g.pick(0);
         g.input.x = Math.cos(i / 35); g.input.z = Math.sin(i / 35);
@@ -63,13 +63,41 @@ const base = process.env.PHOEBE_TEST_URL || 'http://127.0.0.1:18766/games/commun
     });
     assert.ok(visuals.sigils > 2 && visuals.prisms > 6 && visuals.pillars > 0);
     assert.match(visuals.map, /rinascita-plaza/);
-    await page.screenshot({ path: '/tmp/pie-phoebe-v13-skills.png' });
+    await page.screenshot({ path: '/tmp/pie-phoebe-v14-skills.png' });
     await page.evaluate(() => {
       const g = __pie.game; g.p.x = 17; g.p.z = 0; g.camPos.x = 17; g.camPos.z = 0;
       g.enemies = []; g.fxs = []; g.strikes = []; g.mirrorZone = null; g.weapons = {};
       g.pet.x = 15; g.pet.z = 1; g.render();
     });
-    await page.screenshot({ path: '/tmp/pie-phoebe-v13-map.png' });
+    await page.screenshot({ path: '/tmp/pie-phoebe-v14-map.png' });
+    // v1.4：六隻頭目、弗洛洛整局機器人、特效亮度按鈕、角色選擇
+    const v14 = await page.evaluate(() => {
+      const g = __pie.game; const out = {};
+      g.setChar('phoebe'); g.newRun(); g.mode = 'play'; g.bossIdx = 99; g.swarmIdx = 99; g.bot = true;
+      for (const id of ['vanguard', 'weaver', 'conductor', 'crab', 'lighthouse', 'hive']) {
+        g.enemies = []; g.hazards = []; g.eshots = []; g.t = 400;
+        const e = g.spawnBoss(id, { main: id === 'vanguard' }); e.x = 0; e.z = -6; e.hp = e.maxhp = 1e9;
+        for (let i = 0; i < 240; i++) { g.p.hp = g.p.maxhp = 1e6; g.p.xp = 0; g.pending = 0; g.mode = 'play'; g.update(1 / 30); if (i % 40 === 0) g.render(); }
+        out[id] = { alive: !e.dead, finite: Number.isFinite(e.x + e.z), ai: !!e.ai };
+      }
+      g.setChar('phrolova'); g.newRun(); g.mode = 'play'; g.bossIdx = 99; g.swarmIdx = 99; g.bot = true;
+      g.weapons = { scythe: 3, dream: 3, coda: 3, lily: 3 }; g.petSkills = { roar: 2, slide: 2 }; g.p.hp = g.p.maxhp = 1e6; g.p.prayer = 120;
+      for (let i = 0; i < 900; i++) { g.p.hp = 1e6; g.p.xp = 0; g.pending = 0; g.mode = 'play'; g.update(1 / 30); if (i % 60 === 0) g.render(); }
+      out.phrolova = { kills: g.kills, hecate: Object.keys(g.damageBySkill).includes('hecate'), coda: (g.damageBySkill.coda || 0) > 0, scythe: (g.damageBySkill.scythe || 0) > 0 };
+      g.mode = 'pause'; g.render(); g.setChar('phoebe');
+      return out;
+    });
+    for (const id of ['vanguard', 'weaver', 'conductor', 'crab', 'lighthouse', 'hive']) assert.ok(v14[id].alive && v14[id].finite && v14[id].ai, id);
+    assert.ok(v14.phrolova.kills > 0 && v14.phrolova.scythe && v14.phrolova.coda && v14.phrolova.hecate, JSON.stringify(v14.phrolova));
+    await page.evaluate(() => { __pie.game.mode = 'play'; __pie.game.ui.hideScreen(); });
+    await page.click('#btn-fx'); assert.match(await page.locator('#btn-fx').textContent(), /高/);
+    await page.click('#btn-fx'); await page.click('#btn-fx'); assert.match(await page.locator('#btn-fx').textContent(), /中/);
+    await page.evaluate(() => { __pie.game.mode = 'title'; __pie.ui.title(null, 'phoebe'); });
+    await page.click('.char[data-char="phrolova"]');
+    assert.equal(await page.evaluate(() => __pie.game.charId), 'phrolova');
+    assert.ok(await page.locator('.char.on[data-char="phrolova"]').count());
+    await page.screenshot({ path: '/tmp/pie-phoebe-v14-title.png' });
+    await page.evaluate(() => __pie.game.setChar('phoebe'));
     const phone = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
     phone.on('pageerror', (e) => errors.push(e.message));
     await phone.goto(base); await phone.waitForFunction(() => !!window.__pie);
@@ -84,10 +112,10 @@ const base = process.env.PHOEBE_TEST_URL || 'http://127.0.0.1:18766/games/commun
       g.pendingCards = ['chain', 'frost', 'trail'].map((key) => g.describeCard({ type: 'weapon', key }));
       g.mode = 'levelup'; g.ui.levelup(2, g.pendingCards);
     });
-    await phone.screenshot({ path: '/tmp/pie-phoebe-v13-mobile.png' });
+    await phone.screenshot({ path: '/tmp/pie-phoebe-v14-mobile.png' });
     await phone.locator('.card').last().tap();
     assert.equal(await phone.evaluate(() => __pie.game.weapons.trail), 1);
     assert.deepEqual(errors, []);
-    console.log(JSON.stringify({ passed: true, stats, visuals, errors, checks: ['desktop movement', 'pause', 'new enemy rendering', 'three combos', 'boss warnings', '60s late-game simulation', 'mirror/column/crystal effects', 'map asset', 'mobile drag', 'mobile upgrades'] }));
+    console.log(JSON.stringify({ passed: true, stats, visuals, errors, checks: ['desktop movement', 'pause', 'new enemy rendering', 'three combos', 'boss warnings', '60s late-game simulation', 'mirror/column/crystal effects', 'map asset', 'mobile drag', 'mobile upgrades', 'six bosses', 'phrolova run', 'brightness toggle', 'character select'] }));
   } finally { await browser.close(); }
 })().catch((e) => { console.error(e); process.exitCode = 1; });

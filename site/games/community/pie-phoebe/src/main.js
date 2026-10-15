@@ -1,6 +1,6 @@
 import PieGame from '../../../../sdk/pie-game-sdk.js';
 import { loadAssets } from './assets.js';
-import { Game, loadBest } from './game.js';
+import { Game, loadBest, loadChar, FX_LEVELS } from './game.js';
 import { UI } from './ui.js';
 import * as Audio from './audio.js';
 
@@ -19,6 +19,8 @@ const handlers = {
   onPause: () => (game.mode === 'pause' ? game.resume() : game.pause()),
   onQuit: () => game.quit(),
   onContinue: () => game.continueEndless(),
+  onChar: (id) => { game.setChar(id); ui.title(loadBest(), game.charId); },
+  onFx: () => { ui.refreshFx(FX_LEVELS[game.cycleFxLevel()].name); },
   onMute: () => { Audio.unlock(); Audio.setMuted(!Audio.isMuted()); ui.refreshMute(); },
   onMode: (m) => game.setMode(m),
 };
@@ -41,14 +43,19 @@ window.addEventListener('keydown', (ev) => {
   if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) ev.preventDefault();
   if (ev.repeat && k !== 'arrowup') { keys.add(k); return; }
   keys.add(k);
+  if (game.mode === 'title') {
+    const ids = ['phoebe', 'phrolova']; const i = ids.indexOf(game.charId);
+    if (k === 'arrowleft' || k === 'arrowright') { handlers.onChar(ids[(i + (k === 'arrowright' ? 1 : ids.length - 1)) % ids.length]); return; }
+  }
   if (game.mode === 'title' || game.mode === 'over') { if (k === 'enter' || k === ' ') handlers.onStart(); return; }
   if (game.mode === 'win') { if (k === 'enter') handlers.onStart(); return; }
   if (game.mode === 'levelup') { if (k >= '1' && k <= '3') game.pick(Number(k) - 1); return; }
   if (k === 'p' || k === 'escape') handlers.onPause();
   else if (game.mode === 'pause' && (k === 'enter' || k === ' ')) handlers.onResume();
-  else if (k === 'q') game.setMode('absolve');
+  else if (k === 'q') game.setMode(game.charId === 'phrolova' ? 'maestro' : 'absolve');
   else if (k === 'e') game.setMode('confess');
   else if (k === 'm') handlers.onMute();
+  else if (k === 'f') handlers.onFx();
 });
 window.addEventListener('keyup', (ev) => keys.delete(ev.key.toLowerCase()));
 window.addEventListener('blur', () => { keys.clear(); if (game && game.mode === 'play') game.pause(); });
@@ -104,8 +111,10 @@ async function boot() {
     game = new Game(canvas, nums, assets, ui);
     window.addEventListener('resize', () => game.resize());
     new ResizeObserver(() => game.resize()).observe(app);
+    ui.refreshFx(FX_LEVELS[game.fxLevel].name);
     ui.loaded();
-    ui.title(loadBest());
+    game.setChar(loadChar());
+    ui.title(loadBest(), game.charId);
     if (params.get('bot') === '1') { game.bot = true; game.start(); }
     window.__pie = { game, ui };
     requestAnimationFrame(frame);

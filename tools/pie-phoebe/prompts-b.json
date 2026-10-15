@@ -1,0 +1,50 @@
+{
+ "items": [
+  {
+   "name": "v2_crab",
+   "prompt": "solo, no humans, giant armored crab monster, large seashell shield, huge claws, teal and coral, angry face, full body",
+   "seeds": [
+    11,
+    12,
+    13,
+    14,
+    15,
+    16
+   ]
+  },
+  {
+   "name": "v2_lighthouse",
+   "prompt": "solo, no humans, cute living lighthouse monster, stone tower body with red and white stripes, one big glowing eye lantern on top, small arms and feet, full body",
+   "seeds": [
+    11,
+    12,
+    13,
+    14,
+    15,
+    16
+   ]
+  },
+  {
+   "name": "v2_hive",
+   "prompt": "solo, no humans, big purple egg sac monster, bulbous body with many small teal eyes, smaller eggs clustered on body, slime, full body",
+   "seeds": [
+    11,
+    12,
+    13,
+    14,
+    15,
+    16
+   ]
+  },
+  {
+   "name": "v2_egg",
+   "prompt": "solo, no humans, single small purple egg with one big cracked eye, teal glowing veins",
+   "seeds": [
+    11,
+    12,
+    13,
+    14
+   ]
+  }
+ ]
+}
