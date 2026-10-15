@@ -1,6 +1,6 @@
 // Asset loading: GLB models (Hunyuan3D output, rigged characters), textures, sky panoramas.
 // Missing files fall back to simple primitives so the game always boots.
-import * as THREE from 'three';
+import * as THREE from '../vendor/three.module.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 
 const loader = new GLTFLoader();

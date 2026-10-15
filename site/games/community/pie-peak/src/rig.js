@@ -1,7 +1,7 @@
 // Procedural animation for the Colab-rigged characters (Phoebe, Fluorolo): idle / walk / jump / glide plus
 // real hand-over-hand wall climbing with two-bone IK on arms and legs. Every rotation is expressed in the
 // model's own frame (+Z forward, +X the character's left, +Y up) so bone roll in the GLB does not matter.
-import * as THREE from 'three';
+import * as THREE from '../vendor/three.module.js';
 
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _d = new THREE.Vector3();
 const _q1 = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _q3 = new THREE.Quaternion();

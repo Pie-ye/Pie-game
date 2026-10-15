@@ -1,5 +1,5 @@
 // Small GPU particle pool (points with soft round sprites) for dust, sparks, steam, snow, embers, rain and bursts.
-import * as THREE from 'three';
+import * as THREE from '../vendor/three.module.js';
 
 export class Particles {
   constructor(scene, max = 1400) {

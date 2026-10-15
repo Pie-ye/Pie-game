@@ -1,6 +1,6 @@
 // Three.js view of a Game: terrain meshes merged from the collision boxes, GLB props, items, hazards, the rigged
 // characters, weather particles, sky/fog per biome and the follow camera.
-import * as THREE from 'three';
+import * as THREE from '../vendor/three.module.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
 import { loadModel, place, loadTexture, loadSky, toon, loadCharacter } from './assets.js';
 import { BIOMES } from './worldgen.js';

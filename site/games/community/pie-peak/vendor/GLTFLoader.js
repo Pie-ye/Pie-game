@@ -64,7 +64,7 @@ import {
 	VectorKeyframeTrack,
 	SRGBColorSpace,
 	InstancedBufferAttribute
-} from 'three';
+} from './three.module.js';
 import { toTrianglesDrawMode } from './BufferGeometryUtils.js';
 import { clone } from './SkeletonUtils.js';
 
@@ -2630,6 +2630,7 @@ class GLTFParser {
 		// Track node names, to ensure no duplicates
 		this.nodeNamesUsed = {};
 
+		// pie-peak: the platform CSP (connect-src 'self') forbids fetch() of blob: URLs, which ImageBitmapLoader needs, so always use TextureLoader.
 		// Use an ImageBitmapLoader if imageBitmaps are supported. Moves much of the
 		// expensive work of uploading a texture to the GPU off the main thread.
 
@@ -2651,7 +2652,7 @@ class GLTFParser {
 
 		}
 
-		if ( typeof createImageBitmap === 'undefined' || ( isSafari && safariVersion < 17 ) || ( isFirefox && firefoxVersion < 98 ) ) {
+		if ( true || typeof createImageBitmap === 'undefined' || ( isSafari && safariVersion < 17 ) || ( isFirefox && firefoxVersion < 98 ) ) {
 
 			this.textureLoader = new TextureLoader( this.options.manager );
 
