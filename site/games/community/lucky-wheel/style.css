@@ -24,15 +24,14 @@ h1 { font-size: 1.625rem; margin: 0 0 8px; }
 .wheel-wrap { position: relative; width: 260px; height: 260px; margin: 16px auto; }
 .pointer {
   position: absolute;
-  top: -6px;
+  top: -14px;
   left: 50%;
-  width: 0;
-  height: 0;
-  border-left: 10px solid transparent;
-  border-right: 10px solid transparent;
-  border-top: 18px solid var(--accent);
+  width: 34px;
+  height: 40px;
+  background: url("assets/wheel-pointer.webp") center / contain no-repeat;
+  filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.7));
   transform: translateX(-50%);
-  z-index: 2;
+  z-index: 3;
 }
 .wheel {
   width: 260px;
@@ -41,22 +40,51 @@ h1 { font-size: 1.625rem; margin: 0 0 8px; }
   padding: 0;
   border-radius: 50%;
   position: relative;
-  background: conic-gradient(
-    from -22.5deg,
-    #c45c26 0 45deg,
-    #835f13 45deg 90deg,
-    #0e7354 90deg 135deg,
-    #1f5f7a 135deg 180deg,
-    #98500a 180deg 225deg,
-    #6b6457 225deg 270deg,
-    #57503f 270deg 315deg,
-    #3a3428 315deg 360deg
-  );
-  box-shadow: 0 8px 20px rgba(58, 42, 20, 0.2);
+  overflow: hidden;
+  background: #120d08;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6);
   transition: transform 0ms;
 }
 .wheel.spin {
   transition: transform 2.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+/* 八個扇形：各自貼一張材質，用 clip-path 切成 45 度 */
+.wedge {
+  position: absolute;
+  inset: 0;
+  background: var(--tex) 0 0 / 130px auto;
+  clip-path: polygon(50% 50%, 27.04% -5.4%, 72.96% -5.4%);
+  transform: rotate(calc(var(--i) * 45deg));
+}
+.wedge::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.18);
+}
+.wedge:nth-child(odd)::after { background: rgba(0, 0, 0, 0.32); }
+/* 外圈與中心：金屬貼圖環＋中心徽章 */
+.wheel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: url("assets/tex-gold.webp") 0 0 / 110px auto;
+  -webkit-mask: radial-gradient(circle closest-side, transparent 0 88%, #000 89%);
+  mask: radial-gradient(circle closest-side, transparent 0 88%, #000 89%);
+  pointer-events: none;
+}
+.wheel::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 1;
+  width: 58px;
+  height: 58px;
+  margin: -29px 0 0 -29px;
+  background: url("assets/wheel-hub.webp") center / contain no-repeat;
+  pointer-events: none;
 }
 .label {
   position: absolute;
@@ -64,12 +92,26 @@ h1 { font-size: 1.625rem; margin: 0 0 8px; }
   top: 50%;
   width: 40px;
   margin-left: -20px;
+  z-index: 2;
   color: #fff;
-  font-weight: 700;
+  font-weight: 800;
   font-size: 0.8125rem;
+  text-shadow: 0 0 3px #000, 0 1px 2px #000;
   transform: rotate(calc(var(--i) * 45deg)) translateY(-96px);
   pointer-events: none;
 }
 #status { min-height: 2.4em; }
 #status.win { color: var(--gain); }
 #status.lose { color: var(--loss); }
+
+/* ---------- 貼圖主題（gwentCB01 LoRA 貼圖，assets/*.webp）：兩個外框主題都用同一套 ---------- */
+:root, [data-theme="playful"], [data-theme="cyber"], [data-theme="studio"] {
+  --bg: #1b140c;
+  --ink: #f5e9c8;
+  --muted: #dccaa0;
+  --accent: #e9c45e;
+  --gain: #8fe3a8;
+  --loss: #ff9a88;
+}
+html, body { background: #1b140c url("assets/tex-felt.webp") 0 0 / 180px auto; }
+.wrap { text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7); }

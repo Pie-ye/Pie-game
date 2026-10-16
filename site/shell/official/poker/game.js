@@ -579,7 +579,7 @@ function createPokerModal() {
   modal.setAttribute('aria-hidden', 'true');
   modal.innerHTML = `<div class="friend-modal-card" role="dialog" aria-modal="true" aria-labelledby="pkSitTitle">
     <header class="modal-header">
-      <div><span class="status-pill"><span class="inline-icon" data-icon="dice" aria-hidden="true"></span> 入座</span><h2 id="pkSitTitle">選擇買入金額</h2></div>
+      <div><span class="status-pill"><img class="inline-img" src="${new URL('../../casino/sym-coins.webp', import.meta.url).href}" alt="" draggable="false"> 入座</span><h2 id="pkSitTitle">選擇買入金額</h2></div>
       <button type="button" class="icon-button" data-action="close-pk-sit-modal" aria-label="關閉"><span data-icon="x-close" aria-hidden="true"></span></button>
     </header>
     <div class="pk-sit-body">

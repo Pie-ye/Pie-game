@@ -1,0 +1,349 @@
+{
+ "items": [
+  {
+   "name": "cardback",
+   "prompt": "gwent card back design, ornate gold border, symmetrical central emblem, dark crimson and gold, intricate filigree, no text",
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "w": 512,
+   "h": 768,
+   "lora": 0.9
+  },
+  {
+   "name": "cardback_blue",
+   "prompt": "gwent card back design, ornate silver border, symmetrical central emblem, deep midnight blue and silver, intricate filigree",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 512,
+   "h": 768,
+   "lora": 0.9
+  },
+  {
+   "name": "tex_felt_green",
+   "prompt": "dark green velvet casino cloth texture, subtle damask pattern, seamless tileable texture, flat top view, no objects",
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "tile": true,
+   "lora": 0.4
+  },
+  {
+   "name": "tex_felt_red",
+   "prompt": "deep crimson velvet cloth texture, subtle damask pattern, seamless tileable texture, flat top view, no objects",
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "tile": true,
+   "lora": 0.4
+  },
+  {
+   "name": "tex_felt_blue",
+   "prompt": "midnight blue velvet cloth texture, subtle damask pattern, seamless tileable texture, flat top view, no objects",
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "tile": true,
+   "lora": 0.4
+  },
+  {
+   "name": "tex_parchment",
+   "prompt": "aged cream parchment paper texture, fibers, seamless tileable texture, flat, no objects",
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "tile": true,
+   "lora": 0.4
+  },
+  {
+   "name": "tex_leather",
+   "prompt": "dark brown embossed leather texture, seamless tileable texture, flat, no objects",
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "tile": true,
+   "lora": 0.4
+  },
+  {
+   "name": "tex_gold",
+   "prompt": "polished brushed gold foil metal texture, seamless tileable texture, flat, no objects",
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "tile": true,
+   "lora": 0.4
+  },
+  {
+   "name": "tex_ruby",
+   "prompt": "red ruby crimson metallic foil texture, seamless tileable texture, flat, no objects",
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "tile": true,
+   "lora": 0.4
+  },
+  {
+   "name": "tex_iron",
+   "prompt": "dark iron steel plate texture, scratched, seamless tileable texture, flat, no objects",
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "tile": true,
+   "lora": 0.4
+  },
+  {
+   "name": "tex_stone",
+   "prompt": "dark stone wall texture, seamless tileable texture, flat, no objects",
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "tile": true,
+   "lora": 0.4
+  },
+  {
+   "name": "btn_gold",
+   "prompt": "ornate golden button plate, horizontal banner shape, engraved border, front view, flat, centered, blank, black background",
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "w": 768,
+   "h": 256,
+   "lora": 0.8
+  },
+  {
+   "name": "btn_iron",
+   "prompt": "ornate dark iron button plate with silver trim, horizontal banner shape, engraved border, front view, flat, centered, blank, black background",
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "w": 768,
+   "h": 256,
+   "lora": 0.8
+  },
+  {
+   "name": "chip_gold",
+   "prompt": "casino chip, top view, ornate gold rim, centered, black background, flat",
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "lora": 0.8,
+   "cut": true
+  },
+  {
+   "name": "chip_ruby",
+   "prompt": "casino chip, top view, ornate red and gold rim, centered, black background, flat",
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "lora": 0.8,
+   "cut": true
+  },
+  {
+   "name": "frame_panel",
+   "prompt": "ornate golden picture frame border, empty dark center, symmetrical, front view, flat, black center",
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "lora": 0.8
+  },
+  {
+   "name": "sym_crown",
+   "prompt": "a golden royal crown, emblem in a circular medallion, ornate gold ring border, dark background, centered, front view, flat lighting",
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "lora": 0.8
+  },
+  {
+   "name": "sym_gem",
+   "prompt": "a blue faceted gemstone, emblem in a circular medallion, ornate gold ring border, dark background, centered, front view, flat lighting",
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "lora": 0.8
+  },
+  {
+   "name": "sym_rocket",
+   "prompt": "a rocket ship flying upward, emblem in a circular medallion, ornate gold ring border, dark background, centered, front view, flat lighting",
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "lora": 0.8
+  },
+  {
+   "name": "sym_bank",
+   "prompt": "a stone bank building with columns, emblem in a circular medallion, ornate gold ring border, dark background, centered, front view, flat lighting",
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "lora": 0.8
+  },
+  {
+   "name": "sym_flame",
+   "prompt": "a burning orange flame, emblem in a circular medallion, ornate gold ring border, dark background, centered, front view, flat lighting",
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "lora": 0.8
+  },
+  {
+   "name": "sym_trend",
+   "prompt": "a rising green arrow on a chart, emblem in a circular medallion, ornate gold ring border, dark background, centered, front view, flat lighting",
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "lora": 0.8
+  },
+  {
+   "name": "sym_candles",
+   "prompt": "stock candlestick chart bars red and green, emblem in a circular medallion, ornate gold ring border, dark background, centered, front view, flat lighting",
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "lora": 0.8
+  },
+  {
+   "name": "sym_coins",
+   "prompt": "a pile of gold coins, emblem in a circular medallion, ornate gold ring border, dark background, centered, front view, flat lighting",
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "lora": 0.8
+  },
+  {
+   "name": "coin_heads",
+   "prompt": "ancient gold coin with a crown emblem, top view, black background, centered, flat",
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "lora": 0.8,
+   "cut": true
+  },
+  {
+   "name": "coin_tails",
+   "prompt": "ancient gold coin with a skull emblem, top view, black background, centered, flat",
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "lora": 0.8,
+   "cut": true
+  },
+  {
+   "name": "wheel_rim",
+   "prompt": "ornate golden circular ring frame, empty center, top view, black background, symmetrical, flat",
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "lora": 0.8
+  },
+  {
+   "name": "wheel_hub",
+   "prompt": "ornate golden round hub medallion, top view, black background, centered, flat",
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "lora": 0.8,
+   "cut": true
+  },
+  {
+   "name": "pointer",
+   "prompt": "golden arrow pointer pin pointing down, vertical, black background, centered, flat",
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "w": 512,
+   "h": 768,
+   "lora": 0.8,
+   "cut": true
+  }
+ ]
+}

@@ -338,7 +338,7 @@ function ensureSession() {
   return sessionPromise;
 }
 
-function cardHtml(game, extraTags = [], { community = false } = {}) {
+function cardHtml(game, extraTags = [], { community = false, casino = false } = {}) {
   const tags = [];
   const seen = new Set();
   for (const t of [...(game.tags || []), ...extraTags]) {
@@ -347,7 +347,7 @@ function cardHtml(game, extraTags = [], { community = false } = {}) {
     tags.push(t);
   }
   const data = community ? ` data-community="${escapeHtml(game.id)}"` : '';
-  return `<a class="game-card" href="#/game/${encodeURIComponent(game.id)}"${data}>
+  return `<a class="game-card${casino ? ' is-casino' : ''}" href="#/game/${encodeURIComponent(game.id)}"${data}>
     <h3>${escapeHtml(game.name || game.id)}</h3>
     ${game.author ? `<p class="author">${escapeHtml(game.author)}</p>` : ''}
     ${game.description ? `<p class="desc">${escapeHtml(game.description)}</p>` : ''}
@@ -380,11 +380,11 @@ function renderLobby(view) {
     name: g.name,
     description: g.description,
     tags: ['官方'],
-  })).join('');
+  }, [], { casino: true })).join('');
   let coinCards = '<p class="empty-hint">載入金幣遊戲中…</p>';
   if (catalog.casinoLoaded) {
     coinCards = coin.length
-      ? coin.map((g) => cardHtml(g, ['金幣'], { community: true })).join('')
+      ? coin.map((g) => cardHtml(g, ['金幣'], { community: true, casino: true })).join('')
       : '<p class="empty-hint">目前沒有通過驗證的金幣遊戲。</p>';
   }
   const freeCards = free.length
@@ -656,6 +656,7 @@ function renderCoinUnavailable(view, game) {
 
 async function renderCommunityGame(view, game, seq) {
   const isCoin = game.kind === 'coin';
+  if (isCoin) view.classList.add('casino-skin');
   if (isCoin && catalog.casinoLoaded && !catalog.casinoById.get(game.id)) {
     renderCoinUnavailable(view, game);
     return;
@@ -699,6 +700,8 @@ async function route() {
   cancelWarmQueue();
   const view = document.getElementById('view');
   if (!view) return;
+  // 賭場貼圖主題（casino-skin.css）只套在會扣金幣的遊戲頁；其他頁每次進來先拿掉。
+  view.classList.remove('casino-skin');
   const r = parseRoute();
   if (r.name === 'login') {
     renderLogin(view);
@@ -706,6 +709,7 @@ async function route() {
   }
   if (r.name === 'game' && OFFICIAL_BY_ID[r.id]) {
     // 官方遊戲不需要投稿目錄。
+    view.classList.add('casino-skin');
     await renderOfficialGame(view, OFFICIAL_BY_ID[r.id]);
     return;
   }

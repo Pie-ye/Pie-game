@@ -81,3 +81,42 @@ h1 { font-size: 1.625rem; margin: 0 0 8px; }
 #status { min-height: 2.4em; }
 #status.win { color: var(--gain); }
 #status.lose { color: var(--loss); }
+
+/* ---------- 貼圖主題（gwentCB01 LoRA 貼圖，assets/*.webp）：兩個外框主題都用同一套 ---------- */
+:root, [data-theme="playful"], [data-theme="cyber"], [data-theme="studio"] {
+  --bg: #1b140c;
+  --ink: #f5e9c8;
+  --muted: #dccaa0;
+  --accent: #e9c45e;
+  --gain: #8fe3a8;
+  --loss: #ff9a88;
+}
+html, body { background: #1b140c url("assets/tex-felt.webp") 0 0 / 180px auto; }
+.wrap { text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7); }
+.face {
+  background: center / 100% 100% no-repeat;
+  color: transparent;
+  font-size: 0;
+  box-shadow: none;
+  filter: drop-shadow(0 8px 10px rgba(0, 0, 0, 0.6));
+}
+.heads { background-image: url("assets/coin-heads.webp"); }
+.tails { background-image: url("assets/coin-tails.webp"); }
+.choices button {
+  min-width: 84px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 6px solid transparent;
+  border-image: url("assets/btn-secondary.webp") 12 fill / 6px stretch;
+  border-radius: 0;
+  background: none;
+  color: var(--ink);
+  font-weight: 700;
+  text-shadow: 0 1px 2px #000;
+}
+.choices button.is-active {
+  border: 6px solid transparent;
+  border-image: url("assets/btn-gold.webp") 12 fill / 6px stretch;
+  color: #2a1a05;
+  text-shadow: 0 1px 0 rgba(255, 240, 200, 0.6);
+}

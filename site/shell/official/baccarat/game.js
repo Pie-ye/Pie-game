@@ -167,7 +167,7 @@ async function renderCasinoBaccarat() {
   const html = `
     <div class="bc-wrapper">
       <div class="bc-rules-banner">
-        <span class="inline-icon" data-icon="sparkles" aria-hidden="true"></span>
+        <img class="inline-img" src="${new URL('../../casino/sym-coins.webp', import.meta.url).href}" alt="" draggable="false">
         <span>補牌依標準表自動進行 · 開和時押莊閒退回 · 長期玩一定虧</span>
       </div>
 

@@ -9,14 +9,18 @@ const {
 } = bridge;
 
 
-/* 大獎符號在後端叫 brand，但站內品牌圖示就是 K 棒，跟 candles 幾乎一樣，玩家認不出大獎。
-   畫面上一律改用皇冠圖示並叫「大獎」；後端符號 id 不變（賠付、紀錄、測試都靠它）。 */
+/* 大獎符號在後端叫 brand，畫面上一律用皇冠貼圖並叫「大獎」；後端符號 id 不變（賠付、紀錄、測試都靠它）。
+   符號貼圖是 gwentCB01 LoRA 產的圖（site/shell/casino/sym-*.webp），不再用程式畫的 SVG。 */
 const SLOT_JACKPOT = 'brand';
-const SLOT_SYMBOL_ICONS = { brand: 'crown' };
+const SLOT_SYMBOL_IMAGES = {
+  brand: 'crown', gem: 'gem', rocket: 'rocket', bank: 'bank',
+  flame: 'flame', trend: 'trend', candles: 'candles', coins: 'coins',
+};
 
-function slotIcon(sym) {
-  const name = String(sym || '');
-  return SLOT_SYMBOL_ICONS[name] || name;
+function slotImg(sym, extraClass = '') {
+  const file = SLOT_SYMBOL_IMAGES[String(sym || '')] || 'coins';
+  const src = new URL(`../../casino/sym-${file}.webp`, import.meta.url).href;
+  return `<img class="slot-sym ${extraClass}" src="${escapeHtml(src)}" alt="${escapeHtml(SLOT_SYMBOL_LABELS[sym] || sym || '')}" draggable="false" decoding="async">`;
 }
 
 const SLOT_SYMBOL_LABELS = {
@@ -35,7 +39,7 @@ function slotCellsHtml(symbols, hits) {
     const name = String(sym || '');
     const hit = hitAt[idx] ? ' is-hit' : '';
     const jackpot = name === SLOT_JACKPOT ? ' is-jackpot' : '';
-    return `<span class="slot-cell${hit}${jackpot}"><span class="inline-icon" data-icon="${escapeHtml(slotIcon(name))}" aria-hidden="true"></span></span>`;
+    return `<span class="slot-cell${hit}${jackpot}">${slotImg(name)}</span>`;
   }).join('');
 }
 
@@ -90,13 +94,13 @@ function renderCasinoSlots() {
     const mult = paytable[sym];
     const label = SLOT_SYMBOL_LABELS[sym] || sym;
     const jackpot = sym === SLOT_JACKPOT;
-    return `<tr${jackpot ? ' class="is-jackpot"' : ''}><td><span class="inline-icon" data-icon="${escapeHtml(slotIcon(sym))}" aria-hidden="true"></span> ${escapeHtml(label)}${jackpot ? ' <small>三連一夜致富</small>' : ''}</td><td class="num">×${escapeHtml(String(mult))}</td></tr>`;
+    return `<tr${jackpot ? ' class="is-jackpot"' : ''}><td>${slotImg(sym, 'is-small')} ${escapeHtml(label)}${jackpot ? ' <small>三連一夜致富</small>' : ''}</td><td class="num">×${escapeHtml(String(mult))}</td></tr>`;
   }).join('');
 
   let resultHtml = '<p class="slot-result-empty">按下旋轉，中線三連或任兩枚金幣即派彩。</p>';
   if (last && last.line) {
     const lineIcons = last.line.map((sym) => (
-      `<span class="inline-icon" data-icon="${escapeHtml(slotIcon(sym))}" aria-hidden="true"></span>`
+      slotImg(sym, 'is-small')
     )).join('');
     const payout = Number(last.payout || 0);
     const outcome = payout > 0

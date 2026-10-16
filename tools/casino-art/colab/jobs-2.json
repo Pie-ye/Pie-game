@@ -1,0 +1,226 @@
+{
+ "items": [
+  {
+   "name": "btn_gold",
+   "prompt": "blank rectangular polished gold metal plaque, beveled edges, flat front view, plain, centered, dark background",
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "w": 768,
+   "h": 256,
+   "lora": 0.3
+  },
+  {
+   "name": "btn_iron",
+   "prompt": "blank rectangular dark iron metal plaque with silver beveled edges, flat front view, plain, centered, dark background",
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "w": 768,
+   "h": 256,
+   "lora": 0.3
+  },
+  {
+   "name": "btn_ruby",
+   "prompt": "blank rectangular crimson enamel plaque with gold beveled edges, flat front view, plain, centered, dark background",
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "w": 768,
+   "h": 256,
+   "lora": 0.3
+  },
+  {
+   "name": "tex_felt_green",
+   "prompt": "dark green baize felt fabric texture, soft fibers, seamless tileable texture, flat top view, full frame, no objects, no border",
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "tile": true,
+   "lora": 0.2
+  },
+  {
+   "name": "tex_felt_red",
+   "prompt": "deep crimson velvet fabric texture, soft fibers, seamless tileable texture, flat top view, full frame, no objects, no border",
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "tile": true,
+   "lora": 0.2
+  },
+  {
+   "name": "tex_felt_blue",
+   "prompt": "midnight navy blue velvet fabric texture, soft fibers, seamless tileable texture, flat top view, full frame, no objects, no border",
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "tile": true,
+   "lora": 0.2
+  },
+  {
+   "name": "tex_parchment",
+   "prompt": "old cream parchment paper texture, subtle stains, seamless tileable texture, flat top view, full frame, no objects, no border",
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "tile": true,
+   "lora": 0.2
+  },
+  {
+   "name": "tex_gold",
+   "prompt": "hammered gold metal sheet texture, seamless tileable texture, flat top view, full frame, no objects, no border",
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "tile": true,
+   "lora": 0.25
+  },
+  {
+   "name": "tex_jade",
+   "prompt": "dark green jade stone texture, seamless tileable texture, flat top view, full frame, no objects, no border",
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "tile": true,
+   "lora": 0.25
+  },
+  {
+   "name": "tex_steel",
+   "prompt": "brushed steel metal texture, dark, seamless tileable texture, flat top view, full frame, no objects, no border",
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "tile": true,
+   "lora": 0.25
+  },
+  {
+   "name": "pointer",
+   "prompt": "a single golden arrowhead pointing down, simple, black background, centered, flat",
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "lora": 0.4,
+   "cut": true
+  },
+  {
+   "name": "sym2_trend",
+   "prompt": "a golden arrow rising upward through a chart, game icon inside a round gold medallion frame, dark background, centered, front view, flat",
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "lora": 0.6
+  },
+  {
+   "name": "sym2_candles",
+   "prompt": "candlestick chart with red and green bars, game icon inside a round gold medallion frame, dark background, centered, front view, flat",
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "lora": 0.6
+  },
+  {
+   "name": "sym2_bank",
+   "prompt": "a stone bank building with pillars, game icon inside a round gold medallion frame, dark background, centered, front view, flat",
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "lora": 0.6
+  },
+  {
+   "name": "sym2_rocket",
+   "prompt": "a rocket launching with flame trail, game icon inside a round gold medallion frame, dark background, centered, front view, flat",
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "lora": 0.6
+  },
+  {
+   "name": "sym2_coins",
+   "prompt": "stack of gold coins, game icon inside a round gold medallion frame, dark background, centered, front view, flat",
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "lora": 0.6
+  }
+ ]
+}
