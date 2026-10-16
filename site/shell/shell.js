@@ -7,7 +7,6 @@ import {
   fetchHistory,
   fetchSession,
   getBalance,
-  getSession,
   getUser,
   login as apiLogin,
   logout as apiLogout,
@@ -183,14 +182,9 @@ function detachMenuCloseListener() {
   menuCloseListener = null;
 }
 
-// 不從其他模組 import 新名字：舊版模組可能還在瀏覽器或 CDN 快取裡，缺 export 會讓整個外框載入失敗。
-function playMoneyActive() {
-  const sess = getSession();
-  return Boolean(sess && sess.playMoney);
-}
-
+// 金幣一律是真的帳本餘額（測試金幣模式已關閉）；只有一般遊戲不扣金幣。
 function balanceLabel(value) {
-  return playMoneyActive() ? '無限測試金幣' : `${formatCoins(value)} 金幣`;
+  return `${formatCoins(value)} 金幣`;
 }
 
 function renderChrome() {
@@ -638,7 +632,6 @@ async function renderOfficialGame(view, meta) {
   const sdk = createOfficialSdk({
     api,
     getBalance,
-    isPlayMoney: playMoneyActive,
     setBalance: (n) => {
       setBalance(n);
       renderChrome();

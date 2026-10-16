@@ -330,6 +330,7 @@ export class MultiplayerClient {
     this._handlers[event].push(cb);
   }
 
+  /** 事件：'rooms'（大廳列表有變，payload `{ rooms, total }`）、'joined'、'playerJoined'、'playerLeft'、'hostChanged'、'state'、'message'。 */
   async list() {
     const payload = await this._request({ type: 'list' }, 'rooms');
     return payload.rooms || [];
@@ -425,6 +426,9 @@ export class MultiplayerClient {
     });
     ws.addEventListener('message', (ev) => this._onMessage(ev.data));
     ws.addEventListener('close', () => this._onClose());
+    // 訂閱大廳：房間增減、人數變動由伺服器主動推（'rooms' 事件），不必手動重新整理。
+    // 重連後這裡會再執行一次，所以訂閱不會因斷線而失效。
+    this._send({ type: 'subscribe' });
   }
 
   _parse(raw) {
@@ -512,6 +516,10 @@ export class MultiplayerClient {
     if (msg.type === 'rooms') {
       const waiting = this._takeQueued('rooms');
       if (waiting) waiting.resolve(msg);
+      return;
+    }
+    if (msg.type === 'lobby') {
+      this._emit('rooms', { rooms: msg.rooms || [], total: msg.total || 0 });
       return;
     }
     if (msg.type === 'playerJoined') {

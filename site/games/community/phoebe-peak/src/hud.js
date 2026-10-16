@@ -13,12 +13,13 @@ export function makeHud(game){
   const capEls={};for(const k of Object.keys(COLORS)){const d=document.createElement('div');d.className='cap';d.style.background=COLORS[k];d.style.opacity=.85;caps.append(d);capEls[k]=d;}
   let toastTimer=0,lastSig='',zoneNameShown='';
   function toast(text,ms=3200){if(!text)return;const t=$('toast');t.textContent=text;t.classList.add('on');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('on'),ms);}
-  function iconFor(kind){return `<img alt="${ITEMS[kind].name}" title="${ITEMS[kind].name}" src="./assets/icons/${kind}.png" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'fallback',textContent:'${ITEMS[kind].name}'}))">`;}
+  function iconFor(kind){const img=document.createElement('img');img.alt=ITEMS[kind].name;img.title=ITEMS[kind].name;img.src=`./assets/icons/${kind}.png`;
+    img.onerror=()=>{const f=document.createElement('span');f.className='fallback';f.textContent=ITEMS[kind].name;img.replaceWith(f);};return img;}
   function renderSlots(){
     const sig=game.inv.map(i=>i?i.kind+(i.charges??'')+(i.ammo??'')+(i.cooked?'c':''):'-').join('|')+game.sel+'/'+game.slots;if(sig===lastSig)return;lastSig=sig;
     slotEls.forEach((el,i)=>{el.style.display=i<game.slots?'':'none';const it=game.inv[i];el.classList.toggle('sel',i===game.sel);el.querySelector('img,.fallback')?.remove();
       el.querySelector('.count').textContent=it?(it.ammo!=null?'×'+it.ammo:it.charges!=null?'×'+it.charges:it.cooked?'烤':''):'';
-      if(it){el.insertAdjacentHTML('afterbegin',iconFor(it.kind));el.title=ITEMS[it.kind].name+' — '+ITEMS[it.kind].desc;}else el.title='空格';});
+      if(it){el.prepend(iconFor(it.kind));el.title=ITEMS[it.kind].name+' — '+ITEMS[it.kind].desc;}else el.title='空格';});
   }
   function update(dt,view){
     const info=game.info(),c=info.caps;

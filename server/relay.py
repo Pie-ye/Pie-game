@@ -29,6 +29,7 @@ MAX_STATE_KEY_CHARS = 64
 MAX_STATE_BYTES = 64 * 1024
 AUTH_TIMEOUT_SECONDS = 5
 EMPTY_ROOM_TTL_SECONDS = 60
+LOBBY_PUSH_DELAY_SECONDS = 0.05
 PING_INTERVAL_SECONDS = 25
 IDLE_TIMEOUT_SECONDS = 75
 
@@ -48,6 +49,7 @@ class Connection:
     last_seen: float
     room_id: str | None = None
     message_times: deque[float] = field(default_factory=deque)
+    lobby_subscribed: bool = False
     heartbeat_task: asyncio.Task[None] | None = None
 
     @property
@@ -127,6 +129,7 @@ class Relay:
         self.connections: set[Connection] = set()
         self._pending_connections = 0
         self._cleanup_task: asyncio.Task[None] | None = None
+        self._lobby_tasks: dict[str, asyncio.Task[None]] = {}
         self._closing = False
 
     async def start(self) -> None:
@@ -135,6 +138,12 @@ class Relay:
 
     async def close(self) -> None:
         self._closing = True
+        for task in list(self._lobby_tasks.values()):
+            task.cancel()
+        for task in list(self._lobby_tasks.values()):
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+        self._lobby_tasks.clear()
         if self._cleanup_task is not None:
             self._cleanup_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
@@ -304,6 +313,8 @@ class Relay:
         message_type = payload["type"]
         handlers = {
             "list": self._list_rooms,
+            "subscribe": self._subscribe_lobby,
+            "unsubscribe": self._unsubscribe_lobby,
             "create": self._create_room,
             "join": self._join_room,
             "leave": self._leave_command,
@@ -319,21 +330,59 @@ class Relay:
             return
         await handler(connection, payload)
 
-    async def _list_rooms(self, connection: Connection, _: dict[str, Any]) -> None:
-        # 只回前 50 間（人多的、先開的優先），並附上總數，避免 list 變成放大攻擊。
+    def _visible_rooms(self, game_id: str) -> list[Room]:
+        # 沒人的房（等 TTL 清掉、或房主斷線重連的空檔）不列出，免得大廳出現進不去的幽靈房。
         visible = [
             room
             for room in self.rooms.values()
-            if room.game_id == connection.game_id and not room.private
+            if room.game_id == game_id
+            and not room.private
+            and not (not room.players and room.empty_since is not None)
         ]
         visible.sort(key=lambda room: (-len(room.players), room.created_at))
-        await connection.ws.send_json(
-            {
-                "type": "rooms",
-                "rooms": [room.snapshot() for room in visible[:MAX_ROOMS_PER_LIST]],
-                "total": len(visible),
-            }
-        )
+        return visible
+
+    def _rooms_payload(self, game_id: str, message_type: str) -> dict[str, Any]:
+        # 只回前 50 間（人多的、先開的優先），並附上總數，避免 list 變成放大攻擊。
+        visible = self._visible_rooms(game_id)
+        return {
+            "type": message_type,
+            "rooms": [room.snapshot() for room in visible[:MAX_ROOMS_PER_LIST]],
+            "total": len(visible),
+        }
+
+    async def _list_rooms(self, connection: Connection, _: dict[str, Any]) -> None:
+        await connection.ws.send_json(self._rooms_payload(connection.game_id, "rooms"))
+
+    async def _subscribe_lobby(self, connection: Connection, _: dict[str, Any]) -> None:
+        """訂閱大廳：之後房間增減或人數變動，伺服器主動推 `lobby`（不必重新整理）。"""
+        connection.lobby_subscribed = True
+        if connection.room_id is None:
+            await connection.ws.send_json(self._rooms_payload(connection.game_id, "lobby"))
+
+    async def _unsubscribe_lobby(self, connection: Connection, _: dict[str, Any]) -> None:
+        connection.lobby_subscribed = False
+
+    def _notify_lobby(self, game_id: str) -> None:
+        """房間列表有變：合併 50 ms 內的連續變動，推給同遊戲、尚未入房的訂閱者。"""
+        if self._closing or game_id in self._lobby_tasks:
+            return
+        self._lobby_tasks[game_id] = asyncio.create_task(self._push_lobby(game_id))
+
+    async def _push_lobby(self, game_id: str) -> None:
+        try:
+            await asyncio.sleep(LOBBY_PUSH_DELAY_SECONDS)
+        finally:
+            self._lobby_tasks.pop(game_id, None)
+        listeners = [
+            connection
+            for connection in list(self.connections)
+            if connection.game_id == game_id
+            and connection.lobby_subscribed
+            and connection.room_id is None
+        ]
+        if listeners:
+            await self._broadcast(listeners, self._rooms_payload(game_id, "lobby"))
 
     async def _create_room(self, connection: Connection, payload: dict[str, Any]) -> None:
         if connection.room_id is not None:
@@ -377,6 +426,7 @@ class Relay:
         self.rooms[room_id] = room
         connection.room_id = room_id
         await self._send_joined(connection, room)
+        self._notify_lobby(room.game_id)
 
     async def _join_room(self, connection: Connection, payload: dict[str, Any]) -> None:
         if connection.room_id is not None:
@@ -436,6 +486,7 @@ class Relay:
             existing_players,
             {"type": "playerJoined", "player": connection.player},
         )
+        self._notify_lobby(room.game_id)
 
     async def _leave_command(self, connection: Connection, _: dict[str, Any]) -> None:
         if connection.room_id is None:
@@ -453,6 +504,7 @@ class Relay:
 
         was_host = room.host is connection
         room.players.remove(connection)
+        self._notify_lobby(room.game_id)
         await self._broadcast(
             room.players,
             {"type": "playerLeft", "playerId": connection.user_id},

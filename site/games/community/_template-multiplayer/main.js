@@ -29,8 +29,7 @@ if (!init.user) {
     client.on('reconnected', () => { statusEl.textContent = '已重連'; });
     client.on('error', (err) => { statusEl.textContent = `錯誤：${err.code || ''}`; });
 
-    async function refresh() {
-      const rooms = await client.list();
+    function renderRooms(rooms) {
       roomsEl.innerHTML = '';
       rooms.forEach((room) => {
         const li = document.createElement('li');
@@ -39,6 +38,11 @@ if (!init.user) {
         roomsEl.appendChild(li);
       });
     }
+    async function refresh() {
+      renderRooms(await client.list());
+    }
+    // 大廳即時：別人開房、進出時伺服器會主動推，不必重新整理。
+    client.on('rooms', (msg) => renderRooms(msg.rooms));
 
     document.getElementById('refresh').addEventListener('click', refresh);
     document.getElementById('create').addEventListener('click', () => client.create({ maxPlayers: 4, private: false, name: '範本房' }));

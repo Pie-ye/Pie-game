@@ -482,3 +482,64 @@ async def test_heartbeat_send_failure_closes_connection() -> None:
     await asyncio.wait_for(relay._heartbeat(connection), timeout=1)
 
     assert socket.closed
+
+
+@pytest.mark.asyncio
+async def test_subscribed_lobby_gets_live_room_updates(aiohttp_client) -> None:
+    client, _ = await make_relay_client(aiohttp_client)
+    watcher = await connect_and_auth(client, "watcher")
+    other_game = await connect_and_auth(client, "other", "game-b")
+    host = await connect_and_auth(client, "host")
+    guest = await connect_and_auth(client, "guest")
+
+    await watcher.send_json({"type": "subscribe"})
+    await other_game.send_json({"type": "subscribe"})
+    assert await watcher.receive_json(timeout=1) == {"type": "lobby", "rooms": [], "total": 0}
+    assert await other_game.receive_json(timeout=1) == {"type": "lobby", "rooms": [], "total": 0}
+
+    await host.send_json({"type": "create", "maxPlayers": 2, "private": False, "name": "Live"})
+    assert (await host.receive_json(timeout=1))["type"] == "joined"
+    pushed = await watcher.receive_json(timeout=1)
+    assert pushed["type"] == "lobby"
+    assert [(room["name"], room["playerCount"]) for room in pushed["rooms"]] == [("Live", 1)]
+    room_id = pushed["rooms"][0]["id"]
+
+    await guest.send_json({"type": "join", "roomId": room_id})
+    assert (await guest.receive_json(timeout=1))["type"] == "joined"
+    assert (await host.receive_json(timeout=1))["type"] == "playerJoined"
+    pushed = await watcher.receive_json(timeout=1)
+    assert pushed["rooms"][0]["playerCount"] == 2
+
+    # 不同遊戲的大廳、已在房內的人都不會收到推送。
+    with pytest.raises(asyncio.TimeoutError):
+        await other_game.receive_json(timeout=0.2)
+    await host.send_json({"type": "ping"})
+    assert await host.receive_json(timeout=1) == {"type": "pong"}
+
+    await guest.send_json({"type": "leave"})
+    assert (await host.receive_json(timeout=1))["type"] == "playerLeft"
+    pushed = await watcher.receive_json(timeout=1)
+    assert pushed["rooms"][0]["playerCount"] == 1
+
+    await watcher.send_json({"type": "unsubscribe"})
+    await host.send_json({"type": "leave"})
+    with pytest.raises(asyncio.TimeoutError):
+        await watcher.receive_json(timeout=0.2)
+
+
+@pytest.mark.asyncio
+async def test_unsubscribed_connection_gets_no_push_and_empty_rooms_are_hidden(aiohttp_client) -> None:
+    client, relay = await make_relay_client(aiohttp_client)
+    quiet = await connect_and_auth(client, "quiet")
+    host = await connect_and_auth(client, "host")
+
+    await host.send_json({"type": "create", "maxPlayers": 2, "private": False, "name": "Ghost"})
+    assert (await host.receive_json(timeout=1))["type"] == "joined"
+    with pytest.raises(asyncio.TimeoutError):
+        await quiet.receive_json(timeout=0.2)
+
+    await host.send_json({"type": "leave"})
+    await asyncio.sleep(0.1)
+    assert relay.rooms  # 空房還在等 TTL
+    await quiet.send_json({"type": "list"})
+    assert await quiet.receive_json(timeout=1) == {"type": "rooms", "rooms": [], "total": 0}

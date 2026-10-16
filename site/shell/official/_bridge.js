@@ -87,8 +87,7 @@ export function createBridge(gameId) {
   }
 
   function balanceText(balance) {
-    const playMoney = Boolean(sdk && typeof sdk.isPlayMoney === 'function' && sdk.isPlayMoney());
-    return playMoney ? '無限測試金幣' : `${balance.toLocaleString('zh-TW')} 金幣`;
+    return `${balance.toLocaleString('zh-TW')} 金幣`;
   }
 
   function setCasinoBalance(value) {

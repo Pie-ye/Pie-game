@@ -2,7 +2,7 @@ import { API_ORIGIN, USE_MOCK } from './config.js';
 import { mockRequest } from './dev-mock.js';
 
 let csrfToken = null;
-let session = null; // { user, balance, playMoney }
+let session = null; // { user, balance }
 let unauthorizedHandler = null;
 
 export function setUnauthorizedHandler(fn) {
@@ -35,8 +35,7 @@ export function applyAuthPayload(payload) {
   if (payload.csrfToken) csrfToken = payload.csrfToken;
   const user = payload.user || null;
   const balance = payload.balance != null ? Number(payload.balance) : (session ? session.balance : 0);
-  const playMoney = payload.playMoney != null ? Boolean(payload.playMoney) : Boolean(session && session.playMoney);
-  session = user ? { user, balance, playMoney } : null;
+  session = user ? { user, balance } : null;
   if (!user) csrfToken = payload.csrfToken || csrfToken;
 }
 

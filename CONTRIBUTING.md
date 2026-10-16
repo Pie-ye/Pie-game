@@ -134,7 +134,7 @@ site/games/community/
 
 | 成員 | 說明 |
 | --- | --- |
-| `list()` | 公開房間 |
+| `list()` | 公開房間（一次性查詢；平常聽 `rooms` 事件即可，SDK 連線後自動訂閱大廳） |
 | `create({maxPlayers, private, name})` | 建房，回 `joined` |
 | `join(roomIdOrCode)` | 6 碼當私人代碼，其餘當 roomId |
 | `leave()` | 離開房間 |
@@ -146,7 +146,7 @@ site/games/community/
 | `room` | 目前房間快照 |
 | `isHost` | 是否為房主 |
 
-事件：`joined`、`playerJoined`、`playerLeft`、`hostChanged`、`message`、`state`、`error`、`disconnected`、`reconnected`。
+事件：`rooms`（大廳房間增減或人數變動，伺服器主動推，`{rooms, total}`；已在房內不會收到）、`joined`、`playerJoined`、`playerLeft`、`hostChanged`、`message`、`state`、`error`、`disconnected`、`reconnected`。
 
 SDK 只接受 `event.source === window.parent` 的訊息；會自動回 `pong`；斷線用指數退避重連，並向外框要新 ticket（`pg:ticket`），成功後自動回到原房。
 
@@ -156,7 +156,7 @@ SDK 只接受 `event.source === window.parent` 的訊息；會自動回 `pong`�
 - 單則訊息 ≤ 16 KB
 - 每連線 20 則／秒
 - 房名 ≤ 40 字元（超過回 `bad_message`）
-- `list` 最多回 50 間（人多的、先開的優先），另附 `total` 總數
+- `list` 與 `rooms` 事件最多回 50 間（人多的、先開的優先），另附 `total` 總數；沒人的空房不列出
 - `setState` 每房最多 64 個 key、key ≤ 64 字元、整份 state ≤ 64 KB（超過回 `state_too_large`）
 - 伺服器重啟會清空所有房間（請自己處理斷線）
 - 房主裁定規則，**不能用金幣**

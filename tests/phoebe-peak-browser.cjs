@@ -7,7 +7,7 @@ const base=process.env.PEAK_TEST_URL||process.env.EGG_TEST_URL||'http://127.0.0.
   const errors=[],checks=[];const ok=n=>checks.push(n);
   try{
     const page=await browser.newPage({viewport:{width:1100,height:700}});
-    page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&!/404|Failed to load resource/.test(m.text()))errors.push(m.text());});
+    page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&!/404|Failed to load resource|cloudflareinsights/.test(m.text()))errors.push(m.text());});
     await page.goto(base+'?seed=20000');await page.waitForFunction(()=>!!window.__peak,null,{timeout:180000});ok('scene boots');
     assert.equal(await page.isVisible('#menu'),true);assert.match(await page.textContent('#daily'),/今日山脈 #20000/);
     assert.equal(await page.evaluate(()=>[...document.querySelectorAll('.asc')].filter(b=>!b.disabled).length),1,'only the first ascent is unlocked');

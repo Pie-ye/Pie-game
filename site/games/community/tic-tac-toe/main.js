@@ -37,6 +37,7 @@ const turnEl = document.getElementById('turn');
 const netEl = document.getElementById('net');
 const boardEl = document.getElementById('board');
 const codeInput = document.getElementById('code');
+const playersEl = document.getElementById('players');
 
 let client = null;
 let game = emptyGame();
@@ -46,6 +47,21 @@ function markFor(userId) {
   if (userId && userId === game.xId) return 'X';
   if (userId && userId === game.oId) return 'O';
   return '';
+}
+
+function nameOf(userId) {
+  const found = players.find((p) => p.id === userId);
+  return found ? (found.displayName || found.username || '玩家') : '';
+}
+
+/** 牌桌上目前坐了誰（X、O 與其他觀戰者），玩家進出時即時更新。 */
+function seatLine() {
+  const x = nameOf(game.xId) || '空位';
+  const o = nameOf(game.oId) || '空位';
+  const watchers = players
+    .filter((p) => p.id !== game.xId && p.id !== game.oId)
+    .map((p) => p.displayName || p.username || '玩家');
+  return `X：${x}　O：${o}${watchers.length ? `　觀戰：${watchers.join('、')}` : ''}`;
 }
 
 function showLobby() {
@@ -67,6 +83,7 @@ function renderBoard() {
   const room = client && client.room;
   const code = room && room.code ? `　代碼 ${room.code}` : '';
   meta.textContent = `你是 ${mine || '觀戰'}${client && client.isHost ? '（房主）' : ''}${code}`;
+  playersEl.textContent = seatLine();
   if (game.status === 'waiting') turnEl.textContent = '等待對手加入';
   else if (game.status === 'x-win') turnEl.textContent = 'X 勝';
   else if (game.status === 'o-win') turnEl.textContent = 'O 勝';
@@ -153,21 +170,14 @@ function applyMove(fromId, i) {
   });
 }
 
-async function refreshRooms() {
-  if (!client) return;
-  let rooms;
-  try {
-    rooms = await client.list();
-  } catch (err) {
-    hello.textContent = `讀取房間列表失敗：${(err && (err.code || err.message)) || err}`;
-    return;
-  }
+function renderRooms(rooms) {
   roomsEl.innerHTML = '';
   if (!rooms.length) {
     const li = document.createElement('li');
     li.textContent = '目前沒有公開房';
     li.style.cursor = 'default';
     roomsEl.appendChild(li);
+    PieGame.setHeight();
     return;
   }
   rooms.forEach((room) => {
@@ -182,6 +192,19 @@ async function refreshRooms() {
     });
     roomsEl.appendChild(li);
   });
+  PieGame.setHeight();
+}
+
+async function refreshRooms() {
+  if (!client) return;
+  let rooms;
+  try {
+    rooms = await client.list();
+  } catch (err) {
+    hello.textContent = `讀取房間列表失敗：${(err && (err.code || err.message)) || err}`;
+    return;
+  }
+  renderRooms(rooms);
 }
 
 function onJoined(msg) {
@@ -205,13 +228,19 @@ if (!init.user) {
     client = await PieGame.multiplayer.connect();
     hello.textContent = `你好，${client.me.displayName}。開房或加入一場兩人對戰。`;
     client.on('joined', onJoined);
+    // 大廳即時：別人開房、進出時伺服器會主動推列表，不必重新整理。
+    client.on('rooms', (msg) => {
+      if (!client.room) renderRooms(msg.rooms);
+    });
     client.on('playerJoined', (msg) => {
-      if (msg.player) players.push(msg.player);
+      if (msg.player && !players.some((p) => p.id === msg.player.id)) players.push(msg.player);
       seatPlayers(players);
+      renderBoard();
     });
     client.on('playerLeft', (msg) => {
       players = players.filter((p) => p.id !== msg.playerId);
       seatPlayers(players);
+      renderBoard();
     });
     client.on('hostChanged', () => {
       seatPlayers(players);

@@ -2,7 +2,6 @@
 export function createOfficialSdk({
   api,
   getBalance,
-  isPlayMoney = () => false,
   setBalance,
   toast,
   refreshHistory,
@@ -12,7 +11,6 @@ export function createOfficialSdk({
   return {
     api,
     getBalance,
-    isPlayMoney,
     setBalance,
     toast,
     refreshHistory,
