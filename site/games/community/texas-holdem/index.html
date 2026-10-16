@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>德州撲克</title>
+  <link rel="stylesheet" href="./style.css">
+  <script type="module" src="./main.js"></script>
+</head>
+<body>
+  <main class="wrap">
+    <h1>德州撲克</h1>
+    <p id="net" class="net" hidden>連線中斷，正在重連…</p>
+    <section id="lobby">
+      <p id="hello">連線中…</p>
+      <div class="row">
+        <button type="button" id="createPublic">開公開桌</button>
+        <button type="button" id="createPrivate">開私人桌</button>
+        <button type="button" id="refresh">重新整理</button>
+      </div>
+      <label class="join">代碼 <input id="code" maxlength="6" autocomplete="off"> <button type="button" id="joinCode">加入</button></label>
+      <ul id="rooms"></ul>
+      <p class="fine">虛擬籌碼 1,000、盲注 10／20，沒籌碼自動補滿。這是遊戲內籌碼，不會動到金幣。</p>
+    </section>
+    <section id="table" hidden>
+      <p id="meta"></p>
+      <div class="felt" id="felt">
+        <div id="seats"></div>
+        <div class="center">
+          <div id="board" class="cards"></div>
+          <p id="pot"></p>
+          <p id="msg" aria-live="polite"></p>
+        </div>
+      </div>
+      <div id="mine" class="mine"></div>
+      <div id="actions" class="actions" hidden>
+        <button type="button" id="fold">棄牌</button>
+        <button type="button" id="checkcall">過牌</button>
+        <div class="raise" id="raiseBox">
+          <input type="range" id="raiseRange" aria-label="加注金額">
+          <input type="number" id="raiseInput" aria-label="加注到">
+          <div class="quick">
+            <button type="button" data-q="min">最小</button>
+            <button type="button" data-q="half">½ 池</button>
+            <button type="button" data-q="pot">滿池</button>
+            <button type="button" data-q="all">全下</button>
+          </div>
+          <button type="button" id="raise">加注</button>
+        </div>
+      </div>
+      <p id="resultLine" class="result" aria-live="polite"></p>
+      <div class="row"><button type="button" id="leave">離開牌桌</button></div>
+    </section>
+  </main>
+</body>
+</html>

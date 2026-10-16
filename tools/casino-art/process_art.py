@@ -93,6 +93,8 @@ plate(leather, gold, 'panel', size=(128, 128), radius=14, rim_w=5, dim=0.7)
 import shutil
 GAME_ASSETS = {
     'coin-flip': ['coin-heads', 'coin-tails', 'tex-felt', 'btn-secondary', 'btn-gold', 'btn-primary', 'panel'],
+    'texas-holdem': ['cardback', 'tex-parchment', 'tex-iron', 'tex-ruby-smooth', 'tex-felt', 'tex-leather', 'tex-gold',
+                     'btn-secondary', 'btn-gold', 'btn-primary', 'chip', 'chip-active', 'panel'],
     'lucky-wheel': ['tex-gold', 'tex-ruby-smooth', 'tex-jade', 'tex-navy', 'tex-leather', 'tex-iron', 'tex-stone', 'tex-steel',
                     'wheel-hub', 'wheel-pointer', 'tex-felt', 'panel'],
 }

@@ -1,0 +1,117 @@
+/* 德州撲克：固定用貼圖主題（gwentCB01 LoRA 貼圖在 assets/），兩個外框主題看到的一樣。 */
+:root, [data-theme="playful"], [data-theme="cyber"], [data-theme="studio"] {
+  --ink: #f5e9c8;
+  --muted: #dccaa0;
+  --accent: #e9c45e;
+  --gain: #8fe3a8;
+  --loss: #ff9a88;
+}
+html, body { margin: 0; background: #1b140c url("assets/tex-felt.webp") 0 0 / 180px auto; color: var(--ink); font: 1rem/1.5 sans-serif; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7); }
+.wrap { max-width: 760px; margin: 0 auto; padding: 12px 16px 24px; }
+h1 { font-size: 1.5rem; margin: 0 0 8px; text-align: center; }
+.net { background: #7a1f1a; padding: 8px 12px; border-radius: 8px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; justify-content: center; }
+.fine { color: var(--muted); font-size: 0.8125rem; text-align: center; }
+button, input {
+  font: inherit;
+  min-height: 40px;
+  padding: 0 14px;
+  color: var(--ink);
+}
+button {
+  border: 6px solid transparent;
+  border-image: url("assets/btn-secondary.webp") 12 fill / 6px stretch;
+  background: none;
+  font-weight: 700;
+  cursor: pointer;
+}
+button:hover:not(:disabled) { filter: brightness(1.18); }
+button:disabled { filter: grayscale(0.8) brightness(0.65); cursor: not-allowed; }
+#createPublic, #raise, #checkcall { border-image-source: url("assets/btn-primary.webp"); color: #fff4d2; }
+input { border: 1px solid rgba(233, 196, 94, 0.6); background: rgba(20, 12, 6, 0.75); border-radius: 6px; }
+#rooms { list-style: none; padding: 0; }
+#rooms li {
+  padding: 10px 14px; margin: 6px 0; cursor: pointer;
+  border: 6px solid transparent; border-image: url("assets/panel.webp") 10 fill / 6px stretch;
+}
+#rooms li:hover { filter: brightness(1.2); }
+.join { display: block; text-align: center; }
+.join input { width: 7em; text-transform: uppercase; text-align: center; }
+#meta { text-align: center; color: var(--muted); margin: 0 0 6px; }
+
+/* 牌桌 */
+.felt {
+  position: relative;
+  height: 440px;
+  border: 9px solid transparent;
+  border-radius: 999px;
+  /* 內層絨布、外層金屬貼圖環（同一個 border-radius） */
+  background:
+    radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 45%, rgba(0, 0, 0, 0.55)) padding-box,
+    url("assets/tex-felt.webp") 0 0 / 150px auto padding-box,
+    url("assets/tex-gold.webp") 0 0 / 120px auto border-box;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6);
+  margin: 8px 0 10px;
+}
+.center { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); text-align: center; width: 60%; }
+#pot { margin: 6px 0 0; font-weight: 800; color: var(--accent); min-height: 1.4em; }
+#msg { margin: 2px 0 0; color: var(--muted); min-height: 1.4em; font-size: 0.875rem; }
+
+.cards { display: flex; gap: 5px; justify-content: center; }
+.card {
+  position: relative; display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
+  width: 44px; height: 62px; border-radius: 5px; border: 1px solid #6e5320;
+  background: url("assets/tex-parchment.webp") center / cover;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+  text-shadow: none; line-height: 1; user-select: none;
+}
+.card b, .card i { font-style: normal; font-weight: 800; color: transparent; background: url("assets/tex-iron.webp") 0 0 / 90px auto; -webkit-background-clip: text; background-clip: text; filter: brightness(0.35) contrast(1.4); }
+.card b { font-size: 1.15rem; }
+.card i { font-size: 1.35rem; }
+.card.red b, .card.red i { background-image: url("assets/tex-ruby-smooth.webp"); filter: saturate(1.4); }
+.card.back { background: url("assets/cardback.webp") center / 100% 100% no-repeat; border-color: #c8a040; }
+.card.empty { background: rgba(0, 0, 0, 0.28); border: 1px dashed rgba(233, 196, 94, 0.35); box-shadow: none; }
+.cards.small .card { width: 28px; height: 40px; }
+.cards.small .card b { font-size: 0.8rem; }
+.cards.small .card i { font-size: 0.9rem; }
+.mine { min-height: 70px; margin: 4px 0; }
+.mine .card { width: 56px; height: 80px; }
+.mine .card b { font-size: 1.4rem; }
+.mine .card i { font-size: 1.7rem; }
+
+.seat { position: absolute; transform: translate(-50%, -50%); text-align: center; width: 124px; }
+.seat .plate {
+  display: flex; flex-direction: column; gap: 1px; align-items: center; padding: 4px 6px; margin-top: 3px; font-size: 0.8125rem;
+  border: 5px solid transparent; border-image: url("assets/panel.webp") 10 fill / 5px stretch;
+}
+.seat .nm { font-weight: 700; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seat .chips { color: var(--accent); font-variant-numeric: tabular-nums; }
+.seat .status { color: var(--muted); font-size: 0.75rem; }
+.seat.me .nm { color: var(--accent); }
+.seat.folded { opacity: 0.5; }
+.seat.actor .plate { filter: drop-shadow(0 0 6px var(--accent)) brightness(1.15); }
+.seat .timer { color: #fff; background: #7a1f1a; border-radius: 9px; padding: 0 7px; font-size: 0.75rem; }
+.seat .bet {
+  position: absolute; left: 50%; top: -20px; transform: translateX(-50%);
+  min-width: 34px; padding: 1px 9px; border-radius: 12px; font-size: 0.75rem; font-weight: 800; color: #fff;
+  background: url("assets/chip-active.webp") center / 100% 100% no-repeat; text-shadow: 0 0 3px #000;
+}
+.badge { display: inline-block; margin-left: 4px; padding: 0 5px; border-radius: 8px; background: #3a2a12; border: 1px solid var(--accent); font-size: 0.6875rem; }
+.badge.d { background: var(--accent); color: #2a1a05; text-shadow: none; }
+
+.actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center; margin: 8px 0; }
+.actions[hidden], .raise[hidden] { display: none; }
+.raise { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: center; }
+.raise input[type=range] { min-height: 0; width: 160px; padding: 0; }
+.raise input[type=number] { width: 6em; }
+.quick { display: flex; gap: 4px; }
+.quick button { min-height: 32px; padding: 0 8px; font-size: 0.8125rem; }
+.result { text-align: center; min-height: 1.5em; color: var(--accent); }
+
+@media (max-width: 560px) {
+  .felt { height: 380px; }
+  .seat { width: 96px; }
+  .card { width: 36px; height: 52px; }
+  .cards.small .card { width: 22px; height: 32px; }
+  .seat .plate { font-size: 0.75rem; }
+}

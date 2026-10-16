@@ -1,0 +1,10 @@
+{
+  "id": "texas-holdem",
+  "name": "德州撲克",
+  "kind": "free",
+  "multiplayer": true,
+  "author": "Pie-ye",
+  "entry": "index.html",
+  "description": "二到六人牌桌，虛擬籌碼。房主的瀏覽器發牌並裁定，玩家進出即時顯示。",
+  "tags": ["多人", "撲克"]
+}

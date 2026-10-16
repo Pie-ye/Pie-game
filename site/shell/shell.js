@@ -38,7 +38,6 @@ const THEME_KEY = 'pg_theme';
 export const OFFICIAL_GAMES = [
   { id: 'slots', name: '拉霸', description: '三輪拉霸', historyGame: 'slots', firstGet: '/api/casino/slots/config' },
   { id: 'blackjack', name: '21 點', description: '對莊家比點', historyGame: 'blackjack', firstGet: '/api/casino/blackjack' },
-  { id: 'poker', name: '德州撲克', description: '多人牌桌', historyGame: 'poker', firstGet: '/api/casino/poker/tables' },
   { id: 'dragon', name: '射龍門', description: '門柱比大小', historyGame: 'dragon_gate', firstGet: '/api/casino/dragon' },
   { id: 'niuniu', name: '妞妞', description: '五張比牌型', historyGame: 'niu_niu', firstGet: '/api/casino/niuniu/config' },
   { id: 'baccarat', name: '百家樂', description: '閒莊和', historyGame: 'baccarat', firstGet: '/api/casino/baccarat/config' },
@@ -338,7 +337,7 @@ function ensureSession() {
   return sessionPromise;
 }
 
-function cardHtml(game, extraTags = [], { community = false, casino = false } = {}) {
+function cardHtml(game, extraTags = [], { community = false } = {}) {
   const tags = [];
   const seen = new Set();
   for (const t of [...(game.tags || []), ...extraTags]) {
@@ -347,7 +346,7 @@ function cardHtml(game, extraTags = [], { community = false, casino = false } = 
     tags.push(t);
   }
   const data = community ? ` data-community="${escapeHtml(game.id)}"` : '';
-  return `<a class="game-card${casino ? ' is-casino' : ''}" href="#/game/${encodeURIComponent(game.id)}"${data}>
+  return `<a class="game-card" href="#/game/${encodeURIComponent(game.id)}"${data}>
     <h3>${escapeHtml(game.name || game.id)}</h3>
     ${game.author ? `<p class="author">${escapeHtml(game.author)}</p>` : ''}
     ${game.description ? `<p class="desc">${escapeHtml(game.description)}</p>` : ''}
@@ -380,11 +379,11 @@ function renderLobby(view) {
     name: g.name,
     description: g.description,
     tags: ['官方'],
-  }, [], { casino: true })).join('');
+  })).join('');
   let coinCards = '<p class="empty-hint">載入金幣遊戲中…</p>';
   if (catalog.casinoLoaded) {
     coinCards = coin.length
-      ? coin.map((g) => cardHtml(g, ['金幣'], { community: true, casino: true })).join('')
+      ? coin.map((g) => cardHtml(g, ['金幣'], { community: true })).join('')
       : '<p class="empty-hint">目前沒有通過驗證的金幣遊戲。</p>';
   }
   const freeCards = free.length
