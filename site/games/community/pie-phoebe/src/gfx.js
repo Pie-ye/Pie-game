@@ -25,7 +25,7 @@ export class Layer {
       map: texture,
       transparent: !useTest,
       alphaTest: useTest ? opts.alphaTest : 0,
-      depthWrite: useTest,
+      depthWrite: opts.depthWrite ?? useTest,
       blending: opts.additive ? THREE.AdditiveBlending : THREE.NormalBlending,
       side: THREE.DoubleSide,
       toneMapped: false,

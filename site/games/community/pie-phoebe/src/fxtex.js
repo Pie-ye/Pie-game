@@ -103,15 +103,3 @@ export function pillar() {
   ctx.fillStyle = fade; ctx.fillRect(0, 0, 128, 512);
   return c;
 }
-
-/** 彎月斬：朝 +x 方向、約 120 度的白熱弧刃，邊緣柔化（弗洛洛的彼岸斬）。 */
-export function crescent() {
-  const [c, ctx] = mk(256, 256);
-  ctx.translate(128, 128);
-  for (const [w, a, blur] of [[34, 0.22, 14], [20, 0.55, 8], [8, 1, 2]]) {
-    ctx.strokeStyle = `rgba(255,255,255,${a})`; ctx.lineWidth = w; ctx.lineCap = 'round';
-    ctx.shadowColor = 'rgba(255,255,255,0.9)'; ctx.shadowBlur = blur;
-    ctx.beginPath(); ctx.arc(0, 0, 104, -1.05, 1.05); ctx.stroke();
-  }
-  return c;
-}

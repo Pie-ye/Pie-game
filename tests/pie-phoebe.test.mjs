@@ -593,3 +593,24 @@ test('v1.4 effects are dimmer than v1.3 and the brightness setting scales them',
   g.setFxLevel('high'); assert.ok(layer.mat.opacity > 0.28);
   assert.equal(g.cycleFxLevel(), 'low');
 });
+
+// ───────────────────────── v1.4.1 弗洛洛貼紙風特效 ─────────────────────────
+test('phrolova effects are sticker kinds, the attack pose lasts a moment, and notes pop up', () => {
+  const g = phro(); g.weapons = { scythe: 4, dream: 3, coda: 3 }; g.cd.scythe = 0; g.cd.dream = 0; g.cd.coda = 0;
+  const e = g.makeEnemy('golem', 2, 0); e.hp = e.maxhp = 1e9; g.makeEnemy('golem', 3, 1).hp = 1e9;
+  g.buildGrid(); g.updatePhrolova(0.01); for (let i = 0; i < 8; i++) g.updatePhrolova(0.05);
+  const kinds = new Set(g.fxs.map((f) => f.kind));
+  for (const k of ['slash', 'bloom', 'flower', 'note']) assert.ok(kinds.has(k), `${k} fx`);
+  assert.ok(g.p.atkT > 0, 'attack pose is on');
+  assert.ok(g.fxs.find((f) => f.kind === 'bloom').flowers.length >= 3);
+  g.notes = 6; g.cd.coda = 0; g.buildGrid(); g.updatePhrolova(0.01);
+  assert.ok(g.fxs.some((f) => f.kind === 'burst'), 'coda uses the burst sticker');
+  g.weapons = {}; g.slashes = []; for (let i = 0; i < 14; i++) g.update(0.05);
+  assert.equal(g.p.atkT, 0, 'attack pose ends');
+});
+
+test('no additive glow is spent on phrolova skills: the old lily and crescent layers are gone', async () => {
+  const src = (await import('node:fs')).readFileSync(new URL('../site/games/community/pie-phoebe/src/game.js', import.meta.url), 'utf8');
+  assert.ok(!/L\.lily\b|L\.slash\b|tex\.crescent|fx_lily'/.test(src));
+  assert.ok(/L\.pslash/.test(src) && /L\.pstand/.test(src) && /L\.phrolovaAtk/.test(src));
+});

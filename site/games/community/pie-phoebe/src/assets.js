@@ -7,7 +7,8 @@ const NAMES = [
   'enemy_hum', 'enemy_bat', 'enemy_golem', 'enemy_shooter',
   'enemy_vanguard', 'enemy_weaver', 'enemy_conductor', 'enemy_crab', 'enemy_lighthouse', 'enemy_hive', 'enemy_obelisk', 'enemy_egg',
   'fish_blue', 'fish_gold', 'heart', 'chest', 'decor_crystal', 'decor_grass',
-  'fx_star', 'fx_mirror', 'fx_shot', 'fx_lily', 'phrolova', 'hecate', 'ground', 'rinascita-plaza',
+  'fx_star', 'fx_mirror', 'fx_shot', 'phrolova', 'phrolova_atk', 'hecate',
+  'fx_slash', 'fx_lily_stand', 'fx_lily_flat', 'fx_burst', 'fx_note', 'ground', 'rinascita-plaza',
 ];
 
 function loadImage(name) {
@@ -40,6 +41,5 @@ export async function loadAssets() {
   tex.sigil = makeTexture(FX.sigil());
   tex.prism = makeTexture(FX.prism());
   tex.pillar = makeTexture(FX.pillar());
-  tex.crescent = makeTexture(FX.crescent());
   return { tex, aspect, images: imgs };
 }

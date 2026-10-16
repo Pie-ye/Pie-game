@@ -8,6 +8,9 @@ import { skillStats, skillSummary, petStats, clampArena, ARENA_RADIUS } from './
 const TAU = Math.PI * 2;
 const rnd = Math.random;
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+const easeOutBack = (x) => 1 + 2.70158 * (x - 1) ** 3 + 1.70158 * (x - 1) ** 2;
+/** 貼紙式彈出：開頭快速彈出（略微過衝），結尾縮小一點再消失。q 是 0..1 的進度。 */
+const stickerPop = (q, inEnd = 0.3) => (q < inEnd ? Math.max(0.001, easeOutBack(q / inEnd)) : 1 - Math.max(0, q - 0.75) / 0.25 * 0.3);
 const d2 = (ax, az, bx, bz) => { const dx = ax - bx; const dz = az - bz; return dx * dx + dz * dz; };
 const CS = 2;                       // 空間雜湊格子大小
 const MAX_ENEMY_R = 1.9;
@@ -94,7 +97,16 @@ export class Game {
     L.chest = solid(tex.chest, 8, 4);
     L.phoebe = solid(tex.phoebe, 2, 5);
     L.phrolova = solid(tex.phrolova, 2, 5);
+    L.phrolovaAtk = solid(tex.phrolova_atk, 2, 5);
     L.hecate = solid(tex.hecate, 2, 5);
+    // 弗洛洛的特效是貼紙風的實心圖（不加亮），所以不受亮度設定影響，也不會過曝。
+    // 貼地的圖案畫在角色之前、不寫入深度，所以永遠在角色與敵人腳下，不會遮住他們。
+    const decal = (t, max, order) => new Layer(sc, t, max, { alphaTest: 0.4, flat: true, order, depthWrite: false });
+    L.pslash = decal(tex.fx_slash, 40, 2.6);
+    L.pflat = decal(tex.fx_lily_flat, 24, 2.5);
+    L.pburst = decal(tex.fx_burst, 12, 2.4);
+    L.pstand = new Layer(sc, tex.fx_lily_stand, 160, { alphaTest: 0.4, order: 8 });
+    L.pnote = new Layer(sc, tex.fx_note, 60, { alphaTest: 0.4, center: true, order: 9 });
     L.rc = solid(tex.reggie_closed, 2, 5);
     L.ro = solid(tex.reggie_open, 2, 5);
     // v1.4：技能特效整體變淡（基準透明度約為 v1.3 的六成）。可用亮度設定再乘 0.55／1／1.45。
@@ -112,9 +124,7 @@ export class Game {
     L.star = add(tex.fx_star, 700, 9, { center: true, opacity: .55 });
     L.glow = add(tex.glow, 900, 9, { center: true, opacity: .28 });
     L.eshot = add(tex.fx_shot, 600, 9, { center: true });
-    L.slash = add(tex.crescent, 40, 7, { flat: true, opacity: .55 });
-    L.lily = add(tex.fx_lily, 60, 8, { center: true, opacity: .5 });
-    this.fxLayers = ['disc', 'ring', 'beam', 'sigil', 'prism', 'pillar', 'halo', 'mirror', 'star', 'glow', 'slash', 'lily'].map((k) => L[k]);
+    this.fxLayers = ['disc', 'ring', 'beam', 'sigil', 'prism', 'pillar', 'halo', 'mirror', 'star', 'glow'].map((k) => L[k]);
     this.setFxLevel(loadFxLevel());
 
     // 尺寸（高度，世界單位）
@@ -264,11 +274,11 @@ export class Game {
     if (phrolova) {
       this.forNear(p.x, p.z, 7, (e) => this.hurt(e, 70, { stacks: 2, source: 'prayer' }));
       this.hecate = { x: p.x + 1.5, z: p.z - 1, ang: 0, cd: 0.3, n: 0, face: 1, bob: 0 };
-      this.sigilFx(p.x, p.z, 7, 'liberation');
+      this.fxs.push({ kind: 'burst', x: p.x, z: p.z, r: 5.5, t: 0, life: 0.7 });
+      p.atkT = 0.5;
       sfx('mode'); this.shake = Math.max(this.shake, 0.25);
       this.ui.banner('樂章 ・ 赫卡忒降臨', '#ff5470');
-      this.fxRing(p.x, p.z, 7, 0.7, [1, 0.25, 0.4]);
-      this.burst(p.x, 1, p.z, 40, { kind: 'glow', color: [1, 0.25, 0.4], speed: 6, life: 0.9, size: 0.7 });
+      this.flowerConfetti(p.x, p.z, 10);
       return;
     }
     this.forNear(p.x, p.z, 7, (e) => this.hurt(e, m === 'absolve' ? 90 : 40, { stacks: m === 'absolve' ? 1 : 3, source: 'prayer' }));
@@ -603,7 +613,7 @@ export class Game {
     Object.assign(p, clampArena(p.x, p.z));
     if (ix > 0.1) p.face = 1; else if (ix < -0.1) p.face = -1;
     if (p.moving) p.walk += dt * (0.6 + il);
-    p.inv = Math.max(0, p.inv - dt); p.hurt = Math.max(0, p.hurt - dt);
+    p.inv = Math.max(0, p.inv - dt); p.hurt = Math.max(0, p.hurt - dt); p.atkT = Math.max(0, (p.atkT || 0) - dt);
     p.hp = Math.min(p.maxhp, p.hp + (this.confess ? 2.25 : 0.25) * dt);
 
     // 祈願
@@ -766,7 +776,27 @@ export class Game {
   }
 
   addNotes(n) {
-    this.notes = Math.min(6, this.notes + n * (this.maestro ? 2 : 1));
+    const gain = n * (this.maestro ? 2 : 1);
+    this.notes = Math.min(6, this.notes + gain);
+    for (let i = 0; i < Math.min(2, Math.ceil(gain)); i++) {
+      this.fxs.push({ kind: 'note', x: this.p.x + (rnd() - 0.5) * 0.8, z: this.p.z, dx: (rnd() - 0.5) * 1.2, t: -i * 0.12, life: 0.8 });
+    }
+  }
+
+  /** 地面上綻放的彼岸花：一朵平貼的大花加數朵站立的花，依序彈出。 */
+  bloomFx(x, z, r, life, flowers) {
+    const list = [];
+    for (let i = 0; i < flowers; i++) list.push({ a: rnd() * TAU, rr: Math.sqrt(rnd()) * r * 0.8, delay: 0.05 + i * 0.07, sz: rnd() * 0.5 });
+    this.fxs.push({ kind: 'bloom', x, z, r, t: 0, life, flowers: list });
+  }
+
+  /** 噴出的小朵彼岸花（貼紙風「彩帶」）。 */
+  flowerConfetti(x, z, n, ang = null) {
+    for (let i = 0; i < n; i++) {
+      const a = ang == null ? rnd() * TAU : ang + (rnd() - 0.5) * 1.4;
+      const v = 2.2 + rnd() * 2.6;
+      this.fxs.push({ kind: 'flower', x, z, vx: Math.cos(a) * v, vz: Math.sin(a) * v, t: 0, life: 0.55 + rnd() * 0.2, spin: (rnd() - 0.5) * 3 });
+    }
   }
 
   /** 弗洛洛的技能：彼岸斬、轉生之夢、緋紅終章、彼岸花環，以及樂章中的赫卡忒。 */
@@ -788,7 +818,8 @@ export class Game {
       sl.done = true;
       const s = skillStats('scythe', W.scythe || 1);
       const R = s.radius * this.area; let hit = 0;
-      this.fxs.push({ kind: 'slash', x: p.x, z: p.z, ang: sl.ang, r: R, t: 0, life: 0.24, flip: sl.flip });
+      this.fxs.push({ kind: 'slash', x: p.x, z: p.z, ang: sl.ang, r: R, t: 0, life: 0.3, flip: sl.flip });
+      p.atkT = 0.3; this.flowerConfetti(p.x + Math.cos(sl.ang) * R * 0.7, p.z + Math.sin(sl.ang) * R * 0.7, 2, sl.ang);
       this.forNear(p.x, p.z, R, (e) => {
         let df = Math.atan2(e.z - p.z, e.x - p.x) - sl.ang;
         while (df > Math.PI) df -= TAU; while (df < -Math.PI) df += TAU;
@@ -808,8 +839,8 @@ export class Game {
         const s = skillStats('dream', W.dream);
         this.cd.dream = s.cooldown * this.cdm;
         const R = s.radius * this.area;
-        this.sigilFx(target.x, target.z, R, 'bloom');
-        this.fxs.push({ kind: 'bloom', x: target.x, z: target.z, r: R, t: 0, life: 0.7 });
+        this.bloomFx(target.x, target.z, R, 0.8, 4);
+        p.atkT = 0.4;
         this.forNear(target.x, target.z, R, (e) => {
           this.hurt(e, s.damage, { stacks: 2, stun: 0.9, source: 'dream' });
           this.slow(e, s.duration, 0.45);
@@ -824,14 +855,14 @@ export class Game {
       if (this.notes >= s.notes && this.cd.coda <= 0 && this.nearest(p.x, p.z, 1, 9).length) {
         this.notes = 0; this.cd.coda = s.cooldown * this.cdm;
         const R = s.radius * this.area;
-        this.fxs.push({ kind: 'bloom', x: p.x, z: p.z, r: R, t: 0, life: 0.9, big: true });
-        this.sigilFx(p.x, p.z, R, 'liberation');
+        this.fxs.push({ kind: 'burst', x: p.x, z: p.z, r: R, t: 0, life: 0.65 });
+        p.atkT = 0.5;
         this.forNear(p.x, p.z, R, (e) => {
           const dx = p.x - e.x; const dz = p.z - e.z; const d = Math.hypot(dx, dz) || 1;
           const boom = this.syn('finale') && e.frz >= 3;
           if (boom) e.frz = Math.max(0, e.frz - 3);
           const dealt = this.hurt(e, s.damage * (boom ? 1.7 : 1), { stacks: 3, knock: Math.min(8, d * 2.2), kx: dx / d, kz: dz / d, source: 'coda' });
-          if (boom) { this.addSyn('finale', dealt * (1 - 1 / 1.7), e.x, e.z, '花海！'); this.sigilFx(e.x, e.z, 1.2, 'bloom'); }
+          if (boom) { this.addSyn('finale', dealt * (1 - 1 / 1.7), e.x, e.z, '花海！'); this.bloomFx(e.x, e.z, 1.4, 0.6, 1); }
         });
         this.ui.banner('緋紅終章！', '#ff5470'); sfx('boom', 0.1); this.shake = Math.max(this.shake, 0.3);
       }
@@ -865,7 +896,7 @@ export class Game {
           const a = Math.atan2(tgt.z - h.z, tgt.x - h.x);
           h.face = Math.cos(a) >= 0 ? 1 : -1;
           const R = (big ? 5.2 : 4.4) * this.area;
-          this.fxs.push({ kind: 'slash', x: h.x, z: h.z, ang: a, r: R, t: 0, life: 0.3, flip: h.n % 2, hecate: true, full: big });
+          this.fxs.push({ kind: 'slash', x: h.x, z: h.z, ang: a, r: R, t: 0, life: 0.34, flip: h.n % 2, hecate: true, full: big });
           const dmg = (30 + 1.6 * p.lvl) * (big ? 1.8 : 1);
           this.forNear(h.x, h.z, R, (e) => {
             if (!big) {
@@ -1662,34 +1693,36 @@ export class Game {
 
   drawPlayer(t) {
     const p = this.p; const L = this.L;
-    const key = this.charId === 'phrolova' ? 'phrolova' : 'phoebe';
-    const hh = this.sz[key]; const asp = this.assets.aspect[key];
+    const phro = this.charId === 'phrolova';
+    const key = phro ? 'phrolova' : 'phoebe';
+    const spriteKey = phro && p.atkT > 0 ? 'phrolova_atk' : key;     // 施法時換成攻擊姿勢
+    const hh = this.sz[key]; const asp = this.assets.aspect[spriteKey];
     const w = p.moving ? Math.sin(p.walk * 11) : Math.sin(t * 2.5) * 0.25;
     const bob = p.moving ? Math.abs(w) * 0.12 : (w + 1) * 0.02;
     const blink = p.inv > 0 && Math.floor(t * 20) % 2 === 0;
     let r = 1; let g = 1; let b = 1;
     if (p.hurt > 0) { r = 2; g = 0.8; b = 0.8; }
     if (blink) { r *= 0.6; g *= 0.6; b *= 0.6; }
-    L[key].add(p.x, bob, p.z, hh * asp * (1 - w * 0.03), hh * (1 + Math.abs(w) * 0.03), p.moving ? w * 0.06 : 0, r, g, b, p.face < 0);
+    (spriteKey === 'phrolova_atk' ? L.phrolovaAtk : L[key]).add(p.x, bob, p.z, hh * asp * (1 - w * 0.03), hh * (1 + Math.abs(w) * 0.03), p.moving ? w * 0.06 : 0, r, g, b, p.face < 0);
     L.shadow.add(p.x, 0.02, p.z + 0.05, 1.5, 0.8, 0, 1, 1, 1);
-    if (p.mode) {
-      const c = p.mode === 'absolve' ? [1, 0.82, 0.3] : p.mode === 'maestro' ? [1, 0.25, 0.4] : [0.45, 0.85, 1];
+    if (p.mode === 'maestro') L.pflat.add(p.x, 0.03, p.z + 0.1, 3.8, 3.8, t * 0.5, 1, 1, 1);
+    else if (p.mode) {
+      const c = p.mode === 'absolve' ? [1, 0.82, 0.3] : [0.45, 0.85, 1];
       L.halo.add(p.x, hh + 0.12 + Math.sin(t * 3) * 0.05, p.z, 1.5, 0.56, 0, c[0], c[1], c[2]);
       L.glow.add(p.x, 1, p.z, 3.4, 3.4, 0, c[0] * 0.35, c[1] * 0.35, c[2] * 0.35);
     }
     const h = this.hecate;
     if (h) {
       const ha = this.assets.aspect.hecate; const hs = this.sz.hecate;
-      L.hecate.add(h.x, 0.35 + Math.sin(h.bob * 3) * 0.14, h.z, hs * ha, hs, Math.sin(h.bob * 2) * 0.05, 1.25, 0.9, 0.95, h.face < 0);
+      L.hecate.add(h.x, 0.35 + Math.sin(h.bob * 3) * 0.14, h.z, hs * ha, hs, Math.sin(h.bob * 2) * 0.05, 1, 1, 1, h.face < 0);
       L.shadow.add(h.x, 0.02, h.z + 0.05, 1.6, 0.8, 0, 1, 1, 1);
-      L.glow.add(h.x, 1.2, h.z, 3, 3, 0, 0.5, 0.08, 0.16);
     }
     if (this.weapons.lily) {
       const s = skillStats('lily', this.weapons.lily); const R = s.radius * this.area;
       for (let i = 0; i < s.count; i++) {
         const a = this.petalAng + i * TAU / s.count;
-        L.lily.add(p.x + Math.cos(a) * R, 0.7, p.z + Math.sin(a) * R, 1.1, 1.1, a * 2, 1, 0.5, 0.6);
-        L.glow.add(p.x + Math.cos(a) * R, 0.7, p.z + Math.sin(a) * R, 1.3, 1.3, 0, 0.6, 0.05, 0.15);
+        const fa = this.assets.aspect.fx_lily_stand;
+        L.pstand.add(p.x + Math.cos(a) * R, 0.05, p.z + Math.sin(a) * R, 0.95 * fa, 0.95, Math.sin(a * 2 + t * 3) * 0.12, 1, 1, 1);
       }
     }
   }
@@ -1813,16 +1846,42 @@ export class Game {
           L.prism.add(f.x + Math.cos(angle) * rad, .4 + q * 1.5, f.z + Math.sin(angle) * rad, .18 + a * .2, .5 + a * .7, angle, c[0] * a, c[1] * a, c[2] * a);
         }
       } else if (f.kind === 'slash') {
-        const a = (1 - q) ** 0.8; const sz = f.r * 2.46;
-        const c = f.hecate ? [.8, .15, .45] : [1, .22, .38];
-        if (f.full) { for (let k = 0; k < 2; k++) L.slash.add(f.x, .08, f.z, sz, sz, -f.ang + q * TAU * 1.0 + k * Math.PI, c[0] * a, c[1] * a, c[2] * a); }
-        else L.slash.add(f.x, .08, f.z, sz, sz, -f.ang + (f.flip ? -1 : 1) * (0.55 - q * 1.1), c[0] * a, c[1] * a, c[2] * a);
-        L.glow.add(f.x + Math.cos(f.ang) * f.r * .5, .8, f.z + Math.sin(f.ang) * f.r * .5, 1.4 * a, 1.4 * a, 0, c[0] * a * .6, c[1] * a * .6, c[2] * a * .6);
+        // 貼紙風彎月斬：彈出、掃過、縮回。赫卡忒的斬偏紫。
+        const sz = f.r * 2 * 0.95 * stickerPop(q, 0.35);
+        const c = f.hecate ? [0.72, 0.5, 1] : [1, 1, 1];
+        const base = -f.ang + (f.flip ? -1 : 1) * (0.6 - q * 1.2);
+        if (f.full) {
+          for (let k = 0; k < 2; k++) L.pslash.add(f.x, 0.08, f.z, sz * 1.1, sz * 1.1, base + k * Math.PI + q * Math.PI, c[0], c[1], c[2]);
+        } else L.pslash.add(f.x, 0.08, f.z, sz, sz, base, c[0], c[1], c[2]);
       } else if (f.kind === 'bloom') {
-        const a = Math.sin(Math.PI * q) * (f.big ? 1 : .9);
-        const sz = f.r * 2 * (0.55 + q * 0.5);
-        L.lily.add(f.x, f.big ? 1.2 : 0.9, f.z, sz, sz, q * 1.2, a, a * .55, a * .6);
-        L.glow.add(f.x, .6, f.z, f.r * 1.6, f.r * 1.6, 0, a * .5, a * .06, a * .14);
+        // 彼岸花綻放：平貼地面的大花，加上幾朵站立的花依序長出來。
+        if (f.t < 0) continue;
+        const s = stickerPop(q, 0.25);
+        L.pflat.add(f.x, 0.05, f.z, f.r * 2.1 * s, f.r * 2.1 * s, q * 0.8, 1, 1, 1);
+        const fa = this.assets.aspect.fx_lily_stand;
+        for (const fl of f.flowers) {
+          const lq = clamp((q - fl.delay) / 0.35, 0, 1);
+          if (lq <= 0) continue;
+          const hs = (1.1 + fl.sz) * stickerPop(lq, 0.5) * (1 - Math.max(0, q - 0.8) / 0.2 * 0.5);
+          L.pstand.add(f.x + Math.cos(fl.a) * fl.rr, 0.02, f.z + Math.sin(fl.a) * fl.rr, hs * fa, hs, Math.sin(fl.a * 3) * 0.1, 1, 1, 1);
+        }
+      } else if (f.kind === 'burst') {
+        // 緋紅終章／樂章：漫畫爆炸貼紙，音符被往中心牽引。
+        const s = stickerPop(q, 0.2);
+        L.pburst.add(f.x, 0.06, f.z, f.r * 1.7 * s, f.r * 1.7 * s, q * 0.5, 1, 1, 1);
+        for (let i = 0; i < 8; i++) {
+          const a = i * TAU / 8 + q * 3.2; const rr = f.r * (1 - q * 0.85);
+          const ns = 0.8 * stickerPop(q, 0.2);
+          L.pnote.add(f.x + Math.cos(a) * rr, 0.9 + Math.sin(q * 10 + i) * 0.12, f.z + Math.sin(a) * rr, ns, ns, Math.sin(q * 12 + i) * 0.2, 1, 1, 1);
+        }
+      } else if (f.kind === 'note') {
+        if (f.t < 0) continue;
+        const ns = 0.75 * stickerPop(q, 0.25);
+        L.pnote.add(f.x + f.dx * q + Math.sin(q * 9) * 0.15, 1.9 + q * 1.3, f.z, ns, ns, Math.sin(q * 9) * 0.2, 1, 1, 1);
+      } else if (f.kind === 'flower') {
+        const fa = this.assets.aspect.fx_lily_stand;
+        const hs = 0.55 * (1 - q * 0.5);
+        L.pstand.add(f.x + f.vx * f.t, 0.3 + Math.sin(q * Math.PI) * 1.0, f.z + f.vz * f.t, hs * fa, hs, f.spin * f.t, 1, 1, 1);
       } else if (f.kind === 'ring') {
         const r = f.r * (0.15 + 0.85 * (1 - (1 - q) ** 2));
         const a = (1 - q) * 1.2;

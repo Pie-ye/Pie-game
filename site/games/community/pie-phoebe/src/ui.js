@@ -151,7 +151,7 @@ export class UI {
     const pet = charId === 'phrolova' ? 'reggie_open' : 'reggie_open';
     this.screen.innerHTML = `
       <div class="card-wrap">
-        <div class="logo">菲比啾比<br>星光亂鬥 v1.4</div>
+        <div class="logo">菲比啾比<br>星光亂鬥 v1.4.1</div>
         <p class="sub">黎那汐塔・啟明廣場｜選擇角色，帶著瑞吉撐過十二分鐘，擊敗三位主線頭目。</p>
         <div class="chars" role="radiogroup" aria-label="選擇角色">${Object.values(CHARACTERS).map((c) => `
           <button type="button" class="char ${c.id === charId ? 'on' : ''}" data-char="${c.id}" role="radio" aria-checked="${c.id === charId}">

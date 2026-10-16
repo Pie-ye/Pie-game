@@ -1,8 +1,21 @@
-# 菲比啾比星光亂鬥 v1.4
+# 菲比啾比星光亂鬥 v1.4.1
 
 three.js 做的類吸血鬼倖存者（俯視、自動攻擊、撿小魚升級）。可選角色是《鳴潮》的菲比（網路暱稱「菲比啾比」）與弗洛洛，寵物是海獅「瑞吉」。同人作品，角色屬於各自的權利人。
 
 目標：撐過 12 分鐘，並擊敗第 3、6、9 分鐘出現的三位主線頭目，之後可繼續無盡模式。期間還會出現三位精英頭目（不影響勝利，擊敗會掉寶箱）。時間到但頭目仍存活時需繼續戰鬥。最佳紀錄存在 `localStorage` 的 `pg-phoebe-best`，音效開關 `pg-phoebe-mute`，角色 `pg-phoebe-char`，特效亮度 `pg-phoebe-fx`。
+
+## v1.4.1：弗洛洛重新設計與攻擊特效
+
+- 弗洛洛的角色圖、攻擊姿勢與赫卡忒，改用專案裡的「菲比 Q 版」畫風 LoRA（Anima 底模）在 Colab 上重新生成：粗黑框、平塗、貼紙風，與菲比、瑞吉的畫風一致。施法時會換成攻擊姿勢。
+- 弗洛洛的攻擊特效全部改成同畫風的貼紙圖，不再用加亮混合的光暈，所以不會過曝，也不受亮度按鈕影響：
+  - 彼岸斬：紅色彎月斬貼紙，彈出、掃過、縮回，並噴出小朵彼岸花。
+  - 轉生之夢：地面綻放一朵大彼岸花，周圍依序長出站立的花。
+  - 緋紅終章／樂章開場：漫畫爆炸貼紙，8 個音符被牽引到中心。
+  - 彼岸花環：數朵站立的彼岸花繞身旋轉。
+  - 累積音符：每得到音符就從頭上冒出音符貼紙。
+  - 赫卡忒：新的貼紙風造型，斬擊偏紫色；樂章期間腳下有旋轉的彼岸花圈。
+- 貼地的特效畫在角色與敵人腳下，不會遮住他們。
+- 這批圖由 `Container/colab_lora/phoebe_chibi_anima_v1.safetensors`（以 anima-base-v1.0 訓練）產生；底模 Anima 的授權是 CircleStone 非商業授權，上線前請自行評估用途。
 
 ## v1.4 更新
 
@@ -107,8 +120,8 @@ three.js 做的類吸血鬼倖存者（俯視、自動攻擊、撿小魚升級�
 
 - 菲比、瑞吉、舊敵人、道具、星光、鏡環、地板圖由 Grok 圖像生成。生成提示與後處理腳本在 `tools/pie-phoebe/`。
 - v1.4 新增的六隻頭目、共鳴柱、噪卵、赫卡忒由 Google Colab 上的 Animagine XL 4.0（SDXL 動漫模型）生成，兩個 T4 工作階段並行；腳本 `tools/pie-phoebe/colab-img.py`、挑選與去背 `process_v14.py`，流程見 `tools/pie-phoebe/COLAB-ART.md`。
-- 弗洛洛的 Q 版圖來自專案圖庫（備份於 `tools/pie-phoebe/refs/`），彼岸花特效 `fx_lily.png` 由 Colab 生成。
-- 光暈、環、光束、彎月斬、陰影等純漸層貼圖由 `src/fxtex.js` 在執行時畫出。
+- v1.4.1 起，弗洛洛、赫卡忒與她的攻擊特效（`phrolova*.png`、`hecate.png`、`fx_slash/lily_stand/lily_flat/burst/note.png`）由菲比 Q 版 LoRA（Anima）在 Colab 生成，流程見 `tools/pie-phoebe/COLAB-ART.md`。原圖庫的弗洛洛圖備份在 `tools/pie-phoebe/refs/`。
+- 光暈、環、光束、陰影等純漸層貼圖由 `src/fxtex.js` 在執行時畫出。
 - 地圖由內建 imagegen 生成，檔案為 `assets/rinascita-plaza.png`；完整提示詞在 [MAP-ART.md](./MAP-ART.md)。
 - 音效：菲比與瑞吉叫聲是真實取樣（`assets/audio/`），其餘音效由 WebAudio 即時合成。只有菲比會喊「菲比啾比」；弗洛洛沒有語音。
   - 菲比：`phoebe_1..4.mp3`，一般施法不播放，僅在開場、擊敗主線頭目與勝利時嘗試播放；共用 12 秒間隔。
@@ -124,7 +137,7 @@ three.js 做的類吸血鬼倖存者（俯視、自動攻擊、撿小魚升級�
 | `src/bosses.js` | 六隻頭目的 AI 與機制 |
 | `src/data.js` | 角色、技能、被動、敵人、頭目時間表、連攜設定 |
 | `src/skills.js`、`src/balance.js` | 技能與瑞吉數值、平衡倍率（由校準腳本產生）、廣場邊界 |
-| `src/gfx.js` | InstancedMesh 看板與地面貼花 |
+| `src/gfx.js` | InstancedMesh 看板與地面貼花（含不寫入深度的貼地圖層） |
 | `src/ui.js`、`style.css` | HUD、角色選擇與各畫面 |
 | `src/audio.js` | 合成音效 |
 

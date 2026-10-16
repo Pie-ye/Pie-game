@@ -31,3 +31,28 @@ v1.4 新增的 2D 素材（六隻頭目、共鳴柱、噪卵、赫卡忒、彼�
 | fx_lily | fx_lily_1（黑底，裁切並加圓形遮罩） |
 
 原圖不入庫（每張約 1 MB）。重新生成只要重跑上面流程，種子固定時結果可重現。
+
+## v1.4.1：用菲比 Q 版 LoRA 重做弗洛洛與特效
+
+LoRA：`Container/colab_lora/phoebe_chibi_anima_v1.safetensors`（kohya 格式、rank 64、以 `anima-base-v1.0` 訓練，觸發詞 `phoebe_chibi, chibi_style`，風格詞 `thick black outline, flat cel shading, sticker art style`）。檔案不入庫。
+
+1. `colab new --gpu L4 -s pie-lora`。
+2. 上傳並執行 `lora/colab-setup-comfy.py`：安裝 ComfyUI、下載 Anima 三個檔案（`anima-base-v1.0`、`qwen_3_06b_base`、`qwen_image_vae`，皆在 `circlestone-labs/Anima`）。
+3. LoRA 約 184 MB，單檔上傳會被 Colab 擋掉（SSL EOF）。切成 20 MB 的段落逐段 `colab upload`，在遠端合併並比對 sha256。
+4. `lora/colab-gen-comfy.py` 會啟動 ComfyUI 伺服器並用 API 送工作：UNETLoader → LoraLoaderModelOnly → KSampler（er_sde、30 步、CFG 4.5、simple）→ VAEDecode。CLIPLoader 的 type 用 `stable_diffusion`（ComfyUI 會自動認出 Anima 的文字編碼器）。工作清單是 `lora/jobs-phro1.json`、`jobs-phro2.json`。
+5. 單張約 25 秒（1024×1024，L4）。`process_lora.py` 去背、裁切、量化，並把彎月斬翻轉、補成圓心在畫面中央的正方形。
+
+提示詞心得：
+- 要弗洛洛的特徵就逐項描述（淡薄荷綠長髮、黃色漸層髮尾、雙辮、左眼繃帶、單隻紅眼、紅色單泡袖洋裝、肩上的彼岸花、粉色疊裙、黑絲襪、紅鞋）。第一版用 aqua hair 會變成飽和青色；LoRA 會帶出菲比的十字髮飾，要在負面詞加 `hair ornament, hair clip, cross, hat`。
+- 特效圖加 `no humans` 並在負面詞排除 `1girl, character, face, hand`。「單一花瓣」會畫成整朵站立的花，正好拿來當站立彼岸花。音符會被畫成蘋果，只有 `music note` 配紅色圓底那張可用。
+
+| 素材 | 原圖 |
+| --- | --- |
+| phrolova | p_a_1 |
+| phrolova_atk | atk_4 |
+| hecate | hecate_3 |
+| fx_slash | fx_slash_6（左右翻轉） |
+| fx_lily_stand | fx_petal_2 |
+| fx_lily_flat | fx_lilyflat_4 |
+| fx_burst | fx_burst_2 |
+| fx_note | fx_note_6 |
