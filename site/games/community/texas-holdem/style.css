@@ -19,8 +19,8 @@ button, input {
   color: var(--ink);
 }
 button {
-  border: 6px solid transparent;
-  border-image: url("assets/btn-secondary.webp") 12 fill / 6px stretch;
+  border: 3px solid transparent;
+  border-image: url("assets/btn-secondary.webp") 3 fill / 3px stretch;
   background: none;
   font-weight: 700;
   cursor: pointer;
@@ -32,7 +32,7 @@ input { border: 1px solid rgba(233, 196, 94, 0.6); background: rgba(20, 12, 6, 0
 #rooms { list-style: none; padding: 0; }
 #rooms li {
   padding: 10px 14px; margin: 6px 0; cursor: pointer;
-  border: 6px solid transparent; border-image: url("assets/panel.webp") 10 fill / 6px stretch;
+  border: 3px solid transparent; border-image: url("assets/panel.webp") 3 fill / 3px stretch;
 }
 #rooms li:hover { filter: brightness(1.2); }
 .join { display: block; text-align: center; }
@@ -43,7 +43,7 @@ input { border: 1px solid rgba(233, 196, 94, 0.6); background: rgba(20, 12, 6, 0
 .felt {
   position: relative;
   height: 440px;
-  border: 9px solid transparent;
+  border: 3px solid transparent;
   border-radius: 999px;
   /* 內層絨布、外層金屬貼圖環（同一個 border-radius） */
   background:
@@ -82,7 +82,7 @@ input { border: 1px solid rgba(233, 196, 94, 0.6); background: rgba(20, 12, 6, 0
 .seat { position: absolute; transform: translate(-50%, -50%); text-align: center; width: 124px; }
 .seat .plate {
   display: flex; flex-direction: column; gap: 1px; align-items: center; padding: 4px 6px; margin-top: 3px; font-size: 0.8125rem;
-  border: 5px solid transparent; border-image: url("assets/panel.webp") 10 fill / 5px stretch;
+  border: 3px solid transparent; border-image: url("assets/panel.webp") 3 fill / 3px stretch;
 }
 .seat .nm { font-weight: 700; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .seat .chips { color: var(--accent); font-variant-numeric: tabular-nums; }

@@ -16,8 +16,8 @@
 /* ---------- 牌桌：絨布底＋金屬邊 ---------- */
 html .casino-skin .game-stage {
   padding: var(--s3);
-  border: 8px solid transparent;
-  border-image: url("casino/btn-gold.webp") 12 fill / 8px round;
+  border: 3px solid transparent;
+  border-image: url("casino/panel.webp") 3 fill / 3px stretch;
   border-radius: 12px;
   background: var(--sk-felt) 0 0 / 180px auto;
   /* 在牌桌裡重新定義語意色：所有遊戲 CSS 用到的 var(--ink)、var(--line) 都自動變成淺字深底。 */
@@ -52,8 +52,8 @@ html .casino-skin :is(
   .card, .slot-main, .slot-paytable-wrap, .bj-result, .bc-rules-card, .nn-rules, .dg-payout-box,
   .pg-dock, .nn-waiting, .bc-rules-banner, .dg-status-banner
 ) {
-  border: 6px solid transparent;
-  border-image: url("casino/panel.webp") 10 fill / 6px stretch;
+  border: 3px solid transparent;
+  border-image: url("casino/panel.webp") 3 fill / 3px stretch;
   border-radius: 8px;
   background: none;
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
@@ -80,8 +80,8 @@ html .casino-skin .bj-hand.is-active {
 
 /* ---------- 按鈕 ---------- */
 html .casino-skin :is(.primary-button, .secondary-button, .outlined-button, .back-button, .pg-seg) {
-  border: 6px solid transparent;
-  border-image: url("casino/btn-secondary.webp") 12 fill / 6px stretch;
+  border: 3px solid transparent;
+  border-image: url("casino/btn-secondary.webp") 3 fill / 3px stretch;
   border-radius: 0;
   background: none;
   box-shadow: none;
@@ -212,7 +212,7 @@ html .casino-skin .slot-cell.is-hit {
 }
 
 html .casino-skin .slot-cell.is-hit .slot-sym {
-  filter: drop-shadow(0 0 8px var(--sk-gold)) brightness(1.2);
+  filter: drop-shadow(0 0 4px var(--sk-gold));
 }
 
 .slot-sym {
@@ -238,8 +238,8 @@ html .casino-skin .slot-cell.is-hit .slot-sym {
 }
 
 html .casino-skin .slot-payline {
-  height: 4px;
-  margin-top: -2px;
+  height: 2px;
+  margin-top: -1px;
   background: var(--sk-gold-tex) 0 0 / 96px auto;
   box-shadow: 0 0 6px rgba(0, 0, 0, 0.8);
 }
@@ -250,8 +250,8 @@ html .casino-skin .slot-cell.is-jackpot .slot-sym {
 
 /* ---------- 結果橫幅：金牌／鐵牌／皮革 ---------- */
 html .casino-skin :is(.nn-result, .bc-result-banner, .dg-result-badge) {
-  border: 6px solid transparent;
-  border-image: url("casino/btn-gold.webp") 12 fill / 6px stretch;
+  border: 3px solid transparent;
+  border-image: url("casino/btn-gold.webp") 3 fill / 3px stretch;
   border-radius: 0;
   background: none;
   color: #2a1a05;

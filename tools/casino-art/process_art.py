@@ -31,9 +31,15 @@ def tex(root, name, out, size=256, bright=1.0, sat=1.0):
     if sat != 1.0: im = ImageEnhance.Color(im).enhance(sat)
     save(im, out)
     return im
+def calm(im, solid, keep=0.15, blur=2):
+    # 簡約：材質只留一點點紋理，主色是純色
+    return Image.blend(im.filter(ImageFilter.GaussianBlur(blur)), Image.new('RGB', im.size, solid), 1 - keep)
 felt = tex(R2, 'tex_felt_green_5', 'tex-felt', bright=0.55, sat=0.8)
+save(calm(felt, (12, 36, 25), 0.12), 'tex-felt')
 tex(R2, 'tex_felt_red_5', 'tex-felt-red', bright=0.8)
 leather = tex(R1.parent / 'r1', 'tex_leather_2', 'tex-leather', bright=0.85)
+leather = calm(leather, (31, 23, 16), 0.2, 1)
+save(leather, 'tex-leather')
 gold = tex(R2, 'tex_gold_4', 'tex-gold')
 ruby = tex(R1.parent / 'r1', 'tex_ruby_4', 'tex-ruby')
 ruby_smooth = ImageEnhance.Brightness(ruby.filter(ImageFilter.GaussianBlur(3))).enhance(1.25)
@@ -77,17 +83,18 @@ def plate(fill, rim, name, size=(128, 64), radius=10, rim_w=6, dim=1.0):
     im = Image.composite(body, edge, inner)
     # 立體感：上緣亮、下緣暗
     shade = Image.linear_gradient('L').resize(size)
-    hi = ImageChops.multiply(shade.point(lambda v: 255 - v), Image.new('L', size, 70))
-    lo = ImageChops.multiply(shade, Image.new('L', size, 90))
+    hi = ImageChops.multiply(shade.point(lambda v: 255 - v), Image.new("L", size, 26))
+    lo = ImageChops.multiply(shade, Image.new("L", size, 36))
     im = Image.composite(Image.new('RGB', size, (255, 240, 200)), im, hi)
     im = Image.composite(Image.new('RGB', size, (0, 0, 0)), im, lo)
     out = im.convert('RGBA'); out.putalpha(mask)
     save(out, name, None, 90)
-plate(ruby, gold, 'btn-primary', dim=0.9)
-plate(iron, steel, 'btn-secondary', dim=0.8)
-gold_smooth = ImageEnhance.Brightness(gold.filter(ImageFilter.GaussianBlur(4))).enhance(1.05)
-plate(gold_smooth, gold, 'btn-gold', dim=1.0)
-plate(leather, gold, 'panel', size=(128, 128), radius=14, rim_w=5, dim=0.7)
+bronze = Image.blend(gold, Image.new('RGB', gold.size, (60, 42, 14)), 0.45).filter(ImageFilter.GaussianBlur(1))
+soft_gold = Image.blend(gold.filter(ImageFilter.GaussianBlur(6)), Image.new('RGB', gold.size, (214, 178, 92)), 0.7)
+plate(calm(ruby, (92, 22, 30), 0.12, 6), bronze, 'btn-primary', radius=6, rim_w=2)
+plate(calm(iron, (44, 40, 38), 0.12, 6), bronze, 'btn-secondary', radius=6, rim_w=2)
+plate(soft_gold, soft_gold, 'btn-gold', radius=6, rim_w=2)
+plate(calm(leather, (28, 20, 14), 0.1, 2), bronze, 'panel', size=(128, 128), radius=8, rim_w=2)
 
 # 投稿遊戲在 iframe 裡跑，跨 origin 取不到外框的貼圖，所以各自帶一份到 assets/。
 import shutil
@@ -103,3 +110,10 @@ for game, names in GAME_ASSETS.items():
     dest.mkdir(parents=True, exist_ok=True)
     for n in names:
         shutil.copy(OUT / f'{n}.webp', dest / f'{n}.webp')
+
+# 轉盤扇形：簡約，主色為低彩度純色、只留一點材質
+WHEEL = {'gold': (176, 140, 60), 'ruby-smooth': (112, 30, 38), 'jade': (30, 82, 60), 'navy': (28, 42, 84),
+         'leather': (54, 38, 28), 'iron': (62, 60, 58), 'stone': (46, 46, 50), 'steel': (82, 88, 98)}
+for name, color in WHEEL.items():
+    base = Image.open(OUT / f'tex-{name}.webp').convert('RGB')
+    calm(base, color, 0.18, 3).save(OUT.parents[1] / 'games/community/lucky-wheel/assets' / f'tex-{name}.webp', quality=82)

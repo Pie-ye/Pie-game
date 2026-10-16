@@ -60,9 +60,9 @@ h1 { font-size: 1.625rem; margin: 0 0 8px; }
   content: "";
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.18);
+  background: rgba(0, 0, 0, 0.38);
 }
-.wedge:nth-child(odd)::after { background: rgba(0, 0, 0, 0.32); }
+.wedge:nth-child(odd)::after { background: rgba(0, 0, 0, 0.5); }
 /* 外圈與中心：金屬貼圖環＋中心徽章 */
 .wheel::before {
   content: "";
@@ -70,8 +70,8 @@ h1 { font-size: 1.625rem; margin: 0 0 8px; }
   inset: 0;
   z-index: 1;
   background: url("assets/tex-gold.webp") 0 0 / 110px auto;
-  -webkit-mask: radial-gradient(circle closest-side, transparent 0 88%, #000 89%);
-  mask: radial-gradient(circle closest-side, transparent 0 88%, #000 89%);
+  -webkit-mask: radial-gradient(circle closest-side, transparent 0 95%, #000 96%);
+  mask: radial-gradient(circle closest-side, transparent 0 95%, #000 96%);
   pointer-events: none;
 }
 .wheel::after {

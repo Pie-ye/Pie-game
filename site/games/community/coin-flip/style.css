@@ -106,8 +106,8 @@ html, body { background: #1b140c url("assets/tex-felt.webp") 0 0 / 180px auto; }
   min-width: 84px;
   min-height: 44px;
   padding: 0 16px;
-  border: 6px solid transparent;
-  border-image: url("assets/btn-secondary.webp") 12 fill / 6px stretch;
+  border: 3px solid transparent;
+  border-image: url("assets/btn-secondary.webp") 3 fill / 3px stretch;
   border-radius: 0;
   background: none;
   color: var(--ink);
@@ -115,8 +115,8 @@ html, body { background: #1b140c url("assets/tex-felt.webp") 0 0 / 180px auto; }
   text-shadow: 0 1px 2px #000;
 }
 .choices button.is-active {
-  border: 6px solid transparent;
-  border-image: url("assets/btn-gold.webp") 12 fill / 6px stretch;
+  border: 3px solid transparent;
+  border-image: url("assets/btn-gold.webp") 3 fill / 3px stretch;
   color: #2a1a05;
   text-shadow: 0 1px 0 rgba(255, 240, 200, 0.6);
 }
