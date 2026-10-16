@@ -1,0 +1,173 @@
+{
+ "items": [
+  {
+   "name": "b2-slots",
+   "prompt": "giant slot machine shaped building, red and gold, one single small building, isolated on plain white background, wide margins around, front view, no humans",
+   "neg": "city, cityscape, many buildings, skyscrapers, crowd, dense, background scenery, sky, ground, street, text",
+   "seeds": [
+    3,
+    4
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.6,
+   "cut": true
+  },
+  {
+   "name": "b2-blackjack",
+   "prompt": "playing card tower building, green felt, spades, one single small building, isolated on plain white background, wide margins around, front view, no humans",
+   "neg": "city, cityscape, many buildings, skyscrapers, crowd, dense, background scenery, sky, ground, street, text",
+   "seeds": [
+    3,
+    4
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.6,
+   "cut": true
+  },
+  {
+   "name": "b2-dragon",
+   "prompt": "chinese pagoda gate with golden dragon, red pillars, one single small building, isolated on plain white background, wide margins around, front view, no humans",
+   "neg": "city, cityscape, many buildings, skyscrapers, crowd, dense, background scenery, sky, ground, street, text",
+   "seeds": [
+    3,
+    4
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.6,
+   "cut": true
+  },
+  {
+   "name": "b2-niuniu",
+   "prompt": "bull head shaped building, orange red, one single small building, isolated on plain white background, wide margins around, front view, no humans",
+   "neg": "city, cityscape, many buildings, skyscrapers, crowd, dense, background scenery, sky, ground, street, text",
+   "seeds": [
+    3,
+    4
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.6,
+   "cut": true
+  },
+  {
+   "name": "b2-baccarat",
+   "prompt": "luxury opera house, purple and gold columns, one single small building, isolated on plain white background, wide margins around, front view, no humans",
+   "neg": "city, cityscape, many buildings, skyscrapers, crowd, dense, background scenery, sky, ground, street, text",
+   "seeds": [
+    3,
+    4
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.6,
+   "cut": true
+  },
+  {
+   "name": "b2-coinflip",
+   "prompt": "small coin shop with giant gold coin on roof, one single small building, isolated on plain white background, wide margins around, front view, no humans",
+   "neg": "city, cityscape, many buildings, skyscrapers, crowd, dense, background scenery, sky, ground, street, text",
+   "seeds": [
+    3,
+    4
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.6,
+   "cut": true
+  },
+  {
+   "name": "b2-wheel",
+   "prompt": "carnival tower with big colorful prize wheel, one single small building, isolated on plain white background, wide margins around, front view, no humans",
+   "neg": "city, cityscape, many buildings, skyscrapers, crowd, dense, background scenery, sky, ground, street, text",
+   "seeds": [
+    3,
+    4
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.6,
+   "cut": true
+  },
+  {
+   "name": "b2-snake",
+   "prompt": "green snake coiled around retro arcade building, one single small building, isolated on plain white background, wide margins around, front view, no humans",
+   "neg": "city, cityscape, many buildings, skyscrapers, crowd, dense, background scenery, sky, ground, street, text",
+   "seeds": [
+    3,
+    4
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.6,
+   "cut": true
+  },
+  {
+   "name": "b2-tictactoe",
+   "prompt": "arcade building with big X and O on facade, blue pink, one single small building, isolated on plain white background, wide margins around, front view, no humans",
+   "neg": "city, cityscape, many buildings, skyscrapers, crowd, dense, background scenery, sky, ground, street, text",
+   "seeds": [
+    3,
+    4
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.6,
+   "cut": true
+  },
+  {
+   "name": "b2-phoebe",
+   "prompt": "idol stage building with pink stars, one single small building, isolated on plain white background, wide margins around, front view, no humans",
+   "neg": "city, cityscape, many buildings, skyscrapers, crowd, dense, background scenery, sky, ground, street, text",
+   "seeds": [
+    3,
+    4
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.6,
+   "cut": true
+  },
+  {
+   "name": "b2-egg",
+   "prompt": "egg shaped cafe building, cream and orange, one single small building, isolated on plain white background, wide margins around, front view, no humans",
+   "neg": "city, cityscape, many buildings, skyscrapers, crowd, dense, background scenery, sky, ground, street, text",
+   "seeds": [
+    3,
+    4
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.6,
+   "cut": true
+  },
+  {
+   "name": "b2-peak",
+   "prompt": "snowy mountain lodge with ropes, ice blue, one single small building, isolated on plain white background, wide margins around, front view, no humans",
+   "neg": "city, cityscape, many buildings, skyscrapers, crowd, dense, background scenery, sky, ground, street, text",
+   "seeds": [
+    3,
+    4
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.6,
+   "cut": true
+  },
+  {
+   "name": "b2-texas",
+   "prompt": "western saloon casino with cowboy hat sign, wood, one single small building, isolated on plain white background, wide margins around, front view, no humans",
+   "neg": "city, cityscape, many buildings, skyscrapers, crowd, dense, background scenery, sky, ground, street, text",
+   "seeds": [
+    3,
+    4
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.6,
+   "cut": true
+  }
+ ]
+}

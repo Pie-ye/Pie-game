@@ -1,0 +1,52 @@
+{
+ "items": [
+  {
+   "name": "cz-dragon",
+   "prompt": "neon dragon coiling around red neon sign, lanterns, cyberpunk casino building wall, black chrome, neon lights, rain, magenta cyan, flat wall mural, centered emblem, ornate border, no door, no windows, front view",
+   "neg": "person, girl, character, text, letters, perspective, city street, door, doorway, interior, gold, golden, yellow",
+   "seeds": [
+    11,
+    12
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.7
+  },
+  {
+   "name": "cz-texas",
+   "prompt": "poker chips and cards and a cowboy hat, orange neon, cyberpunk casino building wall, black chrome, neon lights, rain, magenta cyan, flat wall mural, centered emblem, ornate border, no door, no windows, front view",
+   "neg": "person, girl, character, text, letters, perspective, city street, door, doorway, interior, gold, golden, yellow",
+   "seeds": [
+    11,
+    12
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.7
+  },
+  {
+   "name": "cz-coinflip",
+   "prompt": "giant coin with star, flying coins, cyan neon, cyberpunk casino building wall, black chrome, neon lights, rain, magenta cyan, flat wall mural, centered emblem, ornate border, no door, no windows, front view",
+   "neg": "person, girl, character, text, letters, perspective, city street, door, doorway, interior, gold, golden, yellow",
+   "seeds": [
+    11,
+    12
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.7
+  },
+  {
+   "name": "cz-wheel",
+   "prompt": "colorful roulette wheel with neon ring, cyberpunk casino building wall, black chrome, neon lights, rain, magenta cyan, flat wall mural, centered emblem, ornate border, no door, no windows, front view",
+   "neg": "person, girl, character, text, letters, perspective, city street, door, doorway, interior, gold, golden, yellow",
+   "seeds": [
+    11,
+    12
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.7
+  }
+ ]
+}

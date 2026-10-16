@@ -146,7 +146,7 @@ async function renderCasinoBaccarat() {
     const isSelected = side === opt.id;
     return `
       <button type="button" class="pg-seg${isSelected ? ' is-active' : ''}" data-action="bc-select-side" data-side="${opt.id}" data-key="${sideKeys[opt.id]}" aria-pressed="${isSelected}" title="${escapeHtml(opt.desc)}">
-        <span class="pg-seg-main">${escapeHtml(opt.label)}</span>
+        <span class="pg-seg-main">${escapeHtml(opt.label)}</span><span class="pg-seg-sub">${escapeHtml(opt.desc)}</span>
       </button>
     `;
   }).join('');
@@ -167,11 +167,11 @@ async function renderCasinoBaccarat() {
   const html = `
     <div class="bc-wrapper">
       <div class="bc-rules-banner">
-        <img class="inline-img" src="${new URL('../../casino/sym-coins.webp', import.meta.url).href}" alt="" draggable="false">
+        <span class="bc-crest" aria-hidden="true">♛</span>
         <span>補牌依標準表自動進行 · 開和時押莊閒退回 · 長期玩一定虧</span>
       </div>
 
-      <div class="bc-table card">
+      <div class="bc-table">
         <div class="bc-hands-row">
           <div class="bc-side">
             <div class="bc-side-header">
@@ -191,11 +191,10 @@ async function renderCasinoBaccarat() {
             <div class="bc-cards">${bankerCardsHtml}</div>
           </div>
         </div>
-
+        <div class="bc-zones pg-dock-pick" role="group" aria-label="押哪一邊">${sideChoicesHtml}</div>
       </div>
 
       <div class="pg-dock casino-sticky-actions">
-        <div class="pg-dock-pick" role="group" aria-label="押哪一邊">${sideChoicesHtml}</div>
         <div class="pg-dock-bet" role="group" aria-label="押注">
           ${betChipsHtml}
           <input type="number" id="bcBetInput" class="pg-bet-input" min="${minBet}" max="${maxBet}" value="${bet}" step="1" aria-label="自訂押注" ${busy ? 'disabled' : ''} />
@@ -207,7 +206,8 @@ async function renderCasinoBaccarat() {
         </div>
       </div>
 
-      <section class="card bc-rules-card">
+      <details class="bc-rules-card">
+        <summary>百家樂規則與賠率說明</summary>
         <div class="section-heading">
           <div>
             <p class="eyebrow">百家樂規則與賠率說明</p>
@@ -234,7 +234,7 @@ async function renderCasinoBaccarat() {
             </ul>
           </div>
         </div>
-      </section>
+      </details>
     </div>
   `;
 

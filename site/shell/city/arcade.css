@@ -1,0 +1,218 @@
+/* 街機開機轉場（arcade-boot.js） */
+.ab {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: #04010a;
+  overflow: hidden;
+  transform-origin: 50% 50%;
+  cursor: progress;
+}
+
+.ab-room {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(60% 50% at 50% 55%, color-mix(in srgb, var(--accent) 28%, transparent), transparent 70%),
+    radial-gradient(90% 80% at 50% 50%, #120629 0%, #04010a 80%);
+  will-change: transform;
+}
+
+.ab-cabinet {
+  position: relative;
+  height: min(88vh, calc(94vw / var(--aspect, 0.68)));
+  aspect-ratio: var(--aspect, 0.68);
+  filter: drop-shadow(0 0 40px color-mix(in srgb, var(--accent) 55%, transparent));
+}
+
+.ab-art {
+  width: 100%;
+  height: 100%;
+  display: block;
+  user-select: none;
+}
+
+/* 螢幕位置：把原本貼圖裡的螢幕蓋成黑色（貼圖已經是黑螢幕，這層主要做玻璃反光） */
+.ab-glass {
+  position: absolute;
+  left: var(--sl);
+  top: var(--st);
+  width: var(--sw);
+  height: var(--sh);
+  border-radius: 4% / 6%;
+  background:
+    linear-gradient(120deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0) 38%),
+    #02010a;
+  box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.9);
+}
+
+.ab-fallback {
+  position: absolute;
+  inset: 0;
+  border-radius: 8% 8% 3% 3%;
+  background: linear-gradient(180deg, #3b1a6e, #170a33);
+  border: 6px solid #0b0714;
+  box-shadow: inset 0 0 0 4px var(--accent);
+}
+
+.ab-crt {
+  position: absolute;
+  border-radius: 3.5% / 6%;
+  overflow: hidden;
+  background: #02010a;
+  box-shadow: 0 0 0 6px #0b0714, 0 0 60px color-mix(in srgb, var(--accent) 45%, transparent), inset 0 0 90px rgba(0, 0, 0, 0.85);
+  font-family: var(--font-display, ui-monospace, monospace);
+  color: var(--accent);
+}
+
+.ab-crt[hidden] {
+  display: none;
+}
+
+.ab-line {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(closest-side, #fff, color-mix(in srgb, var(--accent) 70%, #fff) 70%, #02010a 100%);
+  transform: scale(0.002, 0.006);
+}
+
+.ab-content {
+  position: absolute;
+  inset: 0;
+  padding: 5% 6%;
+  display: grid;
+  grid-template-rows: auto 1fr auto auto;
+  gap: 0.6em;
+  text-shadow: 0 0 0.45em currentColor;
+}
+
+.ab-log {
+  margin: 0;
+  font: inherit;
+  font-size: 1em;
+  line-height: 1.45;
+  white-space: pre;
+  color: #9dffcf;
+  text-shadow: 0 0 0.4em #29ff9a;
+}
+
+.ab-title {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 0.2em;
+  opacity: 0;
+  transform: scale(0.9);
+  transition: opacity 0.2s, transform 0.25s cubic-bezier(.2, 1.4, .4, 1);
+  text-align: center;
+}
+
+.ab-title.is-on {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.ab-kicker {
+  font-size: 0.8em;
+  letter-spacing: 0.4em;
+  color: #fff;
+  opacity: 0.8;
+}
+
+.ab-title b {
+  font-size: 3.4em;
+  line-height: 1.1;
+  color: #fff;
+  -webkit-text-stroke: 0.04em #0b0714;
+  paint-order: stroke fill;
+  text-shadow: 0 0 0.35em var(--accent), 0.06em 0.06em 0 var(--accent);
+}
+
+.ab-sub {
+  font-size: 0.85em;
+  color: color-mix(in srgb, var(--accent) 70%, #fff);
+  max-width: 80%;
+}
+
+.ab-bar {
+  height: 0.9em;
+  border: 0.14em solid var(--accent);
+  border-radius: 0.2em;
+  padding: 0.12em;
+}
+
+.ab-bar i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: repeating-linear-gradient(90deg, var(--accent) 0 0.5em, transparent 0.5em 0.62em);
+  box-shadow: 0 0 0.6em var(--accent);
+}
+
+.ab-start {
+  text-align: center;
+  font-size: 1.1em;
+  letter-spacing: 0.5em;
+  color: #fff;
+  visibility: hidden;
+  padding-top: 0.2em;
+}
+
+.ab-start.is-on {
+  visibility: visible;
+  animation: abBlink 0.28s steps(2, jump-none) infinite;
+}
+
+@keyframes abBlink {
+  50% { opacity: 0.15; }
+}
+
+/* 掃描線＋螢幕邊緣暗角＋輕微閃爍 */
+.ab-scan {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.28) 0 1px, transparent 1px 3px),
+    radial-gradient(120% 100% at 50% 50%, transparent 60%, rgba(0, 0, 0, 0.55) 100%);
+  animation: abFlicker 0.12s steps(2) infinite;
+}
+
+@keyframes abFlicker {
+  50% { opacity: 0.88; }
+}
+
+.ab-flash {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ab-plain {
+  display: grid;
+  place-items: center;
+}
+
+.ab-plain-text {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #fff;
+}
+
+/* 城市進入遊戲時鍵盤焦點不要閃 */
+.city.is-entering .city-canvas {
+  cursor: progress;
+}
+
+/* 開機畫面上放目前這棟房子，讓轉場跟城市連在一起 */
+.ab-house {
+  height: 7.5em;
+  max-width: 14em;
+  object-fit: contain;
+  filter: drop-shadow(0 0 0.6em var(--accent)) drop-shadow(0.1em 0.1em 0 #0b0714);
+  image-rendering: auto;
+}

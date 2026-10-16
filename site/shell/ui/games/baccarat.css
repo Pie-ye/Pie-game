@@ -1,0 +1,12 @@
+.gx-baccarat {
+  --gx-accent: #b66cff;
+  --gx-accent-2: #ffd7ff;
+  --gx-panel: rgba(24,8,48,.9);
+  --gx-base: #0d0420;
+  --gx-bg-dim: .72;
+  --gx-text: #f4eaff;
+  --gx-muted: #a99bc9;
+  --gx-ink: #0b0714;
+  --gx-radius: 10px;
+  --gx-font-head: "Noto Serif TC","Songti TC",serif;
+}

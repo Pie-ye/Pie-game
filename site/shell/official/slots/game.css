@@ -1,181 +1,210 @@
-.pg-official-slots {
-  display: block;
-  color: var(--ink);
-}
+/* 拉霸：霓虹老虎機機台。黑色鉻金屬機身、洋紅／青色霓虹、跑馬燈、紅色圓頂 SPIN。 */
+.pg-official-slots { display: block; }
 
 .pg-official-slots .slot-layout {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(calc(var(--control-h) * 5), 1fr);
-  gap: var(--s5);
+  grid-template-columns: minmax(0, 640px) minmax(240px, 300px);
+  justify-content: center;
+  gap: 26px;
   align-items: start;
 }
 
-.pg-official-slots .slot-main,
-.pg-official-slots .slot-paytable-wrap {
-  padding: var(--s4);
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  box-shadow: var(--elev-1);
+/* 機身 */
+.pg-official-slots .slot-cab {
+  position: relative;
+  padding: 18px 20px 20px;
+  border-radius: 26px 26px 14px 14px;
+  border: 5px solid var(--gx-ink);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), transparent 22%),
+    linear-gradient(90deg, #1a1030, #2b1b52 50%, #1a1030);
+  box-shadow: 0 0 0 3px var(--gx-accent), 0 0 46px rgba(255, 59, 92, 0.45), 8px 10px 0 var(--gx-ink);
+}
+
+/* 跑馬燈：一圈燈泡輪流亮 */
+.pg-official-slots .slot-marquee {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 6px 10px;
+}
+
+.pg-official-slots .slot-marquee i {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--gx-ink);
+  background: #ffe9a8;
+  box-shadow: 0 0 10px #ffd23a;
+  animation: slotBulb 1.2s steps(1) infinite;
+  animation-delay: calc(var(--i) * 0.08s);
+}
+
+@keyframes slotBulb { 50% { background: #6a3a1a; box-shadow: none; } }
+
+.pg-official-slots .slot-plate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin: 0 auto 14px;
+  padding: 8px 18px;
+  width: fit-content;
+  border-radius: 10px;
+  border: 4px solid var(--gx-ink);
+  background: #0b0718;
+  box-shadow: 0 0 0 2px var(--gx-accent-2), 0 0 18px rgba(53, 240, 255, 0.5);
+  font: 900 13px/1 var(--font-mono);
+  letter-spacing: 0.3em;
+  color: var(--gx-accent-2);
+}
+
+.pg-official-slots .slot-plate b {
+  font: 900 24px/1 var(--font-display);
+  letter-spacing: 0.1em;
+  color: #fff;
+  -webkit-text-stroke: 2px var(--gx-ink);
+  paint-order: stroke fill;
+  text-shadow: 0 0 14px var(--gx-accent), 2px 2px 0 var(--gx-accent);
 }
 
 .pg-official-slots .slot-machine {
-  padding: var(--s3);
-  background: var(--inset);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  overflow: hidden;
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) 14px;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 4px solid var(--gx-ink);
+  background: #05020c;
+  box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.9), 0 0 0 3px var(--gx-accent-2);
 }
 
+/* 兩側的 LED 燈條 */
+.pg-official-slots .slot-led {
+  border-radius: 7px;
+  background: repeating-linear-gradient(180deg, var(--gx-accent) 0 14px, #1c0d3d 14px 24px);
+  background-size: 100% 48px;
+  box-shadow: 0 0 12px var(--gx-accent);
+  animation: slotLed 0.9s linear infinite;
+}
+
+.pg-official-slots .slot-led.is-right { animation-direction: reverse; background-image: repeating-linear-gradient(180deg, var(--gx-accent-2) 0 14px, #1c0d3d 14px 24px); box-shadow: 0 0 12px var(--gx-accent-2); }
+@keyframes slotLed { to { background-position-y: 48px; } }
+
 .pg-official-slots .slot-window {
+  --cell: clamp(78px, 12vw, 104px);
   position: relative;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--s2);
-  height: calc(var(--control-h) * 4.8);
+  gap: 8px;
+  height: calc(var(--cell) * 3);
   overflow: hidden;
 }
 
 .pg-official-slots .slot-reel {
   overflow: hidden;
-  background: var(--sheet);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
+  border-radius: 10px;
+  border: 3px solid var(--gx-ink);
+  background: linear-gradient(180deg, #e9e4f5, #fff 40%, #e9e4f5);
+  box-shadow: inset 0 10px 14px rgba(0, 0, 0, 0.35), inset 0 -10px 14px rgba(0, 0, 0, 0.35);
 }
 
-.pg-official-slots .slot-strip {
-  display: flex;
-  flex-direction: column;
-}
+.pg-official-slots .slot-strip { display: flex; flex-direction: column; }
 
 .pg-official-slots .slot-cell {
   display: grid;
   place-items: center;
-  flex: 0 0 calc(var(--control-h) * 1.6);
-  color: var(--ink-soft);
-  border-bottom: 1px solid var(--hairline);
+  flex: 0 0 var(--cell);
+  height: var(--cell);
 }
 
-.pg-official-slots .slot-cell.is-hit {
-  color: var(--gain);
-  background: var(--primary-soft);
-}
+.pg-official-slots .slot-sym { width: 78%; height: 78%; object-fit: contain; filter: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.25)); }
+.pg-official-slots .slot-sym.is-small { width: 26px; height: 26px; vertical-align: middle; filter: none; }
+.pg-official-slots .slot-cell.is-hit { background: radial-gradient(circle, #fff3b0, transparent 70%); animation: slotHit 0.5s ease-in-out infinite alternate; }
+.pg-official-slots .slot-cell.is-hit .slot-sym { animation: slotPop 0.5s ease-in-out infinite alternate; }
+@keyframes slotHit { to { background-color: rgba(255, 59, 92, 0.25); } }
+@keyframes slotPop { to { transform: scale(1.18) rotate(-4deg); } }
 
-.pg-official-slots .slot-cell.is-jackpot {
-  color: var(--brand);
-}
-
-.pg-official-slots .inline-icon {
-  display: inline-grid;
-  place-items: center;
-  width: calc(var(--control-h) * 0.9);
-  height: calc(var(--control-h) * 0.9);
-  vertical-align: middle;
-}
-
-.pg-official-slots .inline-icon svg {
-  width: 100%;
-  height: 100%;
-}
-
+/* 中線：紅色雷射 */
 .pg-official-slots .slot-payline {
   position: absolute;
+  left: -4px;
+  right: -4px;
   top: 50%;
-  right: 0;
-  left: 0;
-  height: 1px;
-  background: var(--brand);
+  height: 4px;
+  margin-top: -2px;
+  background: #ff2b5c;
+  box-shadow: 0 0 12px #ff2b5c, 0 0 2px #fff;
   pointer-events: none;
 }
 
+.pg-official-slots .slot-payline::before,
+.pg-official-slots .slot-payline::after {
+  content: "";
+  position: absolute;
+  top: -8px;
+  border: 10px solid transparent;
+}
+
+.pg-official-slots .slot-payline::before { left: 0; border-left-color: #ff2b5c; }
+.pg-official-slots .slot-payline::after { right: 0; border-right-color: #ff2b5c; }
+
+.pg-official-slots .slot-gloss {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(115deg, rgba(255, 255, 255, 0.22), transparent 30%);
+}
+
+/* LCD 結果列 */
 .pg-official-slots .slot-result {
-  min-height: var(--control-h);
-  margin: var(--s3) 0;
-  padding: var(--s2) var(--s3);
+  margin: 14px 0;
+  padding: 10px 14px;
+  min-height: 52px;
+  border-radius: 8px;
+  border: 3px solid var(--gx-ink);
+  background: #061a12;
+  box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.8), 0 0 0 2px #1fb26b;
   text-align: center;
+  font-family: var(--font-mono);
 }
 
-.pg-official-slots .slot-result-empty,
-.pg-official-slots .slot-rtp {
-  margin: 0;
-  color: var(--ink-faint);
-  font-size: var(--fs-caption);
+.pg-official-slots .slot-result-empty { margin: 0; color: #7ff0b4; font-size: 14px; }
+.pg-official-slots .slot-result-line { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.pg-official-slots .slot-win { color: #fff3b0; font-size: 22px; text-shadow: 0 0 12px #ffd23a; }
+.pg-official-slots .slot-miss { color: #8fb0a0; }
+
+/* 控制列：籌碼＋紅色大按鈕 */
+.pg-official-slots .pg-dock { box-shadow: 0 0 0 2px var(--gx-accent-2) inset, 5px 5px 0 var(--gx-ink); }
+
+.pg-official-slots .slot-spin {
+  min-width: 190px;
+  min-height: 64px;
+  font-size: 24px;
+  border-radius: 40px;
+  background: radial-gradient(circle at 50% 25%, #ff7a8a, #e0173f 55%, #8f0b26);
+  box-shadow: 0 7px 0 var(--gx-ink), 0 0 26px rgba(255, 43, 92, 0.7), inset 0 3px 0 rgba(255, 255, 255, 0.5);
 }
 
-.pg-official-slots .slot-result-line {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--s2);
+.pg-official-slots .slot-spin:active:not(:disabled) { transform: translateY(6px); box-shadow: 0 1px 0 var(--gx-ink), 0 0 12px rgba(255, 43, 92, 0.7); }
+
+/* 賠付表：全息面板 */
+.pg-official-slots .slot-paytable-wrap {
+  padding: 16px;
+  border-radius: 14px;
+  border: 4px solid var(--gx-ink);
+  background: linear-gradient(180deg, rgba(53, 240, 255, 0.12), rgba(255, 43, 214, 0.1)), rgba(8, 4, 24, 0.9);
+  box-shadow: 0 0 0 2px var(--gx-accent-2), 0 0 26px rgba(53, 240, 255, 0.3), 5px 5px 0 var(--gx-ink);
 }
 
-.pg-official-slots .slot-result-line .inline-icon {
-  width: var(--control-h);
-  height: var(--control-h);
+.pg-official-slots .slot-paytable td { vertical-align: middle; }
+.pg-official-slots .slot-paytable tr.is-jackpot td { color: #fff3b0; font-weight: 900; text-shadow: 0 0 10px #ffd23a; }
+.pg-official-slots .slot-paytable small { color: var(--gx-accent-2); font-weight: 700; }
+.pg-official-slots .slot-rtp { margin: 10px 0 0; font-size: 12px; color: var(--gx-muted); }
+
+@media (max-width: 900px) {
+  .pg-official-slots .slot-layout { grid-template-columns: minmax(0, 1fr); }
 }
 
-.pg-official-slots .slot-win {
-  color: var(--gain);
-}
-
-.pg-official-slots .slot-miss {
-  color: var(--ink-soft);
-}
-
-.pg-official-slots .eyebrow {
-  margin: 0 0 var(--s2);
-  color: var(--ink-faint);
-  font-size: var(--fs-micro);
-  font-weight: 700;
-  letter-spacing: var(--ls-micro);
-  text-transform: uppercase;
-}
-
-.pg-official-slots .slot-paytable {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--fs-caption);
-}
-
-.pg-official-slots .slot-paytable th,
-.pg-official-slots .slot-paytable td {
-  padding: var(--s2);
-  border-bottom: 1px solid var(--hairline);
-  text-align: left;
-}
-
-.pg-official-slots .slot-paytable .num {
-  text-align: right;
-}
-
-.pg-official-slots .slot-paytable .inline-icon {
-  width: calc(var(--control-h) * 0.55);
-  height: calc(var(--control-h) * 0.55);
-}
-
-.pg-official-slots .slot-paytable .is-jackpot {
-  color: var(--brand);
-}
-
-.pg-official-slots .slot-rtp {
-  margin-top: var(--s3);
-}
-
-@media (max-width: 767px) {
-  .pg-official-slots .slot-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .pg-official-slots .slot-paytable-wrap {
-    order: 2;
-  }
-
-  .pg-official-slots .slot-window {
-    height: calc(var(--control-h) * 4.2);
-  }
-
-  .pg-official-slots .slot-cell {
-    flex-basis: calc(var(--control-h) * 1.4);
-  }
-
+@media (prefers-reduced-motion: reduce) {
+  .pg-official-slots .slot-marquee i, .pg-official-slots .slot-led, .pg-official-slots .slot-cell.is-hit, .pg-official-slots .slot-cell.is-hit .slot-sym { animation: none; }
 }

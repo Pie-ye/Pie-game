@@ -120,7 +120,8 @@ export function setRollingText(el, nextText) {
  * 只包住「同步換掉 DOM」那一段，網路等待不能放進來，否則畫面會凍住。
  */
 export function swapView(update) {
-  if (!motionEnabled() || typeof document.startViewTransition !== 'function' || document.hidden) {
+  // 街機開機轉場自己會蓋住整個畫面，再疊一層 View Transition 會讓它被凍結成截圖。
+  if (!motionEnabled() || typeof document.startViewTransition !== 'function' || document.hidden || document.getElementById('arcadeBoot')) {
     update();
     return;
   }

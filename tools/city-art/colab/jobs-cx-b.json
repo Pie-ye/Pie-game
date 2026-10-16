@@ -1,0 +1,52 @@
+{
+ "items": [
+  {
+   "name": "cx-dragon",
+   "prompt": "neon dragon coiling around a sign, cyberpunk casino building wall, black chrome panel, magenta and cyan neon tubes, circuit lines, holographic glow, rain, flat wall mural, centered emblem, front view",
+   "neg": "gold, golden, ornate, art deco, palace, temple, traditional, pastel, person, girl, character, city street, perspective, door, doorway, text, letters",
+   "seeds": [
+    11,
+    12
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.7
+  },
+  {
+   "name": "cx-texas",
+   "prompt": "poker chips and cards and a cowboy hat, cyberpunk casino building wall, black chrome panel, magenta and cyan neon tubes, circuit lines, holographic glow, rain, flat wall mural, centered emblem, front view",
+   "neg": "gold, golden, ornate, art deco, palace, temple, traditional, pastel, person, girl, character, city street, perspective, door, doorway, text, letters",
+   "seeds": [
+    11,
+    12
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.7
+  },
+  {
+   "name": "cx-coinflip",
+   "prompt": "giant spinning coin with star, cyberpunk casino building wall, black chrome panel, magenta and cyan neon tubes, circuit lines, holographic glow, rain, flat wall mural, centered emblem, front view",
+   "neg": "gold, golden, ornate, art deco, palace, temple, traditional, pastel, person, girl, character, city street, perspective, door, doorway, text, letters",
+   "seeds": [
+    11,
+    12
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.7
+  },
+  {
+   "name": "cx-wheel",
+   "prompt": "roulette wheel with neon ring, cyberpunk casino building wall, black chrome panel, magenta and cyan neon tubes, circuit lines, holographic glow, rain, flat wall mural, centered emblem, front view",
+   "neg": "gold, golden, ornate, art deco, palace, temple, traditional, pastel, person, girl, character, city street, perspective, door, doorway, text, letters",
+   "seeds": [
+    11,
+    12
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.7
+  }
+ ]
+}

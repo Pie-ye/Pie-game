@@ -1,0 +1,52 @@
+{
+ "items": [
+  {
+   "name": "t-v1-0",
+   "prompt": "giant glowing slot machine with three reels of sevens, neon sign emblem, hot magenta and electric cyan neon, black chrome wall, flat wall mural, centered emblem, ornate border, no door, no windows, front view",
+   "neg": "person, girl, character, text, letters, perspective, city street, door, doorway, interior, gold, golden, art deco, temple, palace",
+   "seeds": [
+    11,
+    12
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.7
+  },
+  {
+   "name": "t-v1-1",
+   "prompt": "neon dragon coiling around a sign, lanterns, neon sign emblem, hot magenta and electric cyan neon, black chrome wall, flat wall mural, centered emblem, ornate border, no door, no windows, front view",
+   "neg": "person, girl, character, text, letters, perspective, city street, door, doorway, interior, gold, golden, art deco, temple, palace",
+   "seeds": [
+    11,
+    12
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.7
+  },
+  {
+   "name": "t-v2-0",
+   "prompt": "giant glowing slot machine with three reels of sevens, holographic emblem, hot pink and electric blue, dark glass wall, flat wall mural, centered emblem, ornate border, no door, no windows, front view",
+   "neg": "person, girl, character, text, letters, perspective, city street, door, doorway, interior, gold, golden, yellow, temple, palace",
+   "seeds": [
+    11,
+    12
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.7
+  },
+  {
+   "name": "t-v2-1",
+   "prompt": "neon dragon coiling around a sign, lanterns, holographic emblem, hot pink and electric blue, dark glass wall, flat wall mural, centered emblem, ornate border, no door, no windows, front view",
+   "neg": "person, girl, character, text, letters, perspective, city street, door, doorway, interior, gold, golden, yellow, temple, palace",
+   "seeds": [
+    11,
+    12
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.7
+  }
+ ]
+}

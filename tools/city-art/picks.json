@@ -1,0 +1,21 @@
+{
+ "hero": 5,
+ "robot": 2,
+ "arcade": 3,
+ "fac-slots": 11,
+ "fac-blackjack": 11,
+ "fac-baccarat": 12,
+ "fac-niuniu": 11,
+ "fac-dragon": 12,
+ "fac-texas": 12,
+ "fac-coinflip": 11,
+ "fac-wheel": 11,
+ "fac-phoebe": 3,
+ "fac-egg": 2,
+ "fac-peak": 1,
+ "fac-snake": 1,
+ "fac-tictactoe": 2,
+ "bg-casino": 1,
+ "bg-phoebe": 1,
+ "bg-arcade": 22
+}

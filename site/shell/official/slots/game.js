@@ -16,10 +16,11 @@ const SLOT_SYMBOL_IMAGES = {
   brand: 'crown', gem: 'gem', rocket: 'rocket', bank: 'bank',
   flame: 'flame', trend: 'trend', candles: 'candles', coins: 'coins',
 };
+const SLOT_SYMBOL_ICON = new URL('../../ui/art/', import.meta.url).href;
 
 function slotImg(sym, extraClass = '') {
   const file = SLOT_SYMBOL_IMAGES[String(sym || '')] || 'coins';
-  const src = new URL(`../../casino/sym-${file}.webp`, import.meta.url).href;
+  const src = `${SLOT_SYMBOL_ICON}ico-${file}.webp`;
   return `<img class="slot-sym ${extraClass}" src="${escapeHtml(src)}" alt="${escapeHtml(SLOT_SYMBOL_LABELS[sym] || sym || '')}" draggable="false" decoding="async">`;
 }
 
@@ -97,7 +98,7 @@ function renderCasinoSlots() {
     return `<tr${jackpot ? ' class="is-jackpot"' : ''}><td>${slotImg(sym, 'is-small')} ${escapeHtml(label)}${jackpot ? ' <small>三連一夜致富</small>' : ''}</td><td class="num">×${escapeHtml(String(mult))}</td></tr>`;
   }).join('');
 
-  let resultHtml = '<p class="slot-result-empty">按下旋轉，中線三連或任兩枚金幣即派彩。</p>';
+  let resultHtml = '<p class="slot-result-empty">按 SPIN，中線三連或任兩枚金幣即派彩。</p>';
   if (last && last.line) {
     const lineIcons = last.line.map((sym) => (
       slotImg(sym, 'is-small')
@@ -109,25 +110,32 @@ function renderCasinoSlots() {
     resultHtml = `<div class="slot-result-line">${lineIcons} ${outcome}</div>`;
   }
 
+  const topPay = Number(paytable[SLOT_JACKPOT] || 0);
+  const bulbs = Array.from({ length: 15 }, (_, i) => `<i style="--i:${i}"></i>`).join('');
   const html = `
     <div class="slot-layout" data-spinning="${spinning ? '1' : '0'}">
-      <div class="slot-main">
+      <div class="slot-cab">
+        <div class="slot-marquee" aria-hidden="true">${bulbs}</div>
+        <div class="slot-plate"><span>SUPER</span><b>JACKPOT${topPay ? ` ×${topPay}` : ''}</b><span>SLOTS</span></div>
         <div class="slot-machine">
+          <div class="slot-led" aria-hidden="true"></div>
           <div class="slot-window">
             ${reelsHtml}
             <div class="slot-payline" aria-hidden="true"></div>
+            <div class="slot-gloss" aria-hidden="true"></div>
           </div>
+          <div class="slot-led is-right" aria-hidden="true"></div>
         </div>
         <div class="slot-result">${resultHtml}</div>
         <div class="pg-dock casino-sticky-actions">
-          <div class="pg-dock-bet" role="group" aria-label="押注"><span class="pg-dock-label">押注</span>${betsHtml}</div>
+          <div class="pg-dock-bet" role="group" aria-label="押注"><span class="pg-dock-label">BET</span>${betsHtml}</div>
           <div class="pg-dock-act">
-            <button type="button" class="primary-button pg-dock-primary" data-action="slot-spin" ${canSpin ? '' : 'disabled'}>${spinning ? '轉動中…' : `旋轉 · ${Number(bet).toLocaleString('zh-TW')}`}</button>
+            <button type="button" class="primary-button pg-dock-primary slot-spin" data-action="slot-spin" ${canSpin ? '' : 'disabled'}>${spinning ? '轉動中…' : `SPIN · ${Number(bet).toLocaleString('zh-TW')}`}</button>
           </div>
         </div>
       </div>
       <aside class="slot-paytable-wrap pg-aside">
-        <p class="eyebrow">賠付表</p>
+        <p class="eyebrow">PAYTABLE 賠付表</p>
         <table class="slot-paytable">
           <thead><tr><th>符號</th><th class="num">倍數</th></tr></thead>
           <tbody>

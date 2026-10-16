@@ -1,0 +1,12 @@
+.gx-coin-flip {
+  --gx-accent: #ffc61a;
+  --gx-accent-2: #fff3b0;
+  --gx-panel: rgba(34,24,4,.9);
+  --gx-base: #140e02;
+  --gx-bg-dim: .74;
+  --gx-text: #f4eaff;
+  --gx-muted: #a99bc9;
+  --gx-ink: #0b0714;
+  --gx-radius: 20px;
+  --gx-font-head: var(--font-display);
+}

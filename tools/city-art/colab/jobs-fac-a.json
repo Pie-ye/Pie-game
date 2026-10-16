@@ -1,0 +1,121 @@
+{
+ "items": [
+  {
+   "name": "fac-slots",
+   "prompt": "giant slot machine front with reels and triple seven, cyberpunk night casino facade, black glass chrome, giant neon marquee bulbs, magenta cyan gold neon, wet reflections, flat front elevation, symmetrical, full frame, entrance door at bottom center",
+   "neg": "people, character, text, letters, perspective, side view, cityscape, many buildings, sky, street",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.75
+  },
+  {
+   "name": "fac-blackjack",
+   "prompt": "giant playing cards ace of spades, green felt, cyberpunk night casino facade, black glass chrome, giant neon marquee bulbs, magenta cyan gold neon, wet reflections, flat front elevation, symmetrical, full frame, entrance door at bottom center",
+   "neg": "people, character, text, letters, perspective, side view, cityscape, many buildings, sky, street",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.75
+  },
+  {
+   "name": "fac-baccarat",
+   "prompt": "luxury gold chandelier and purple velvet, cyberpunk night casino facade, black glass chrome, giant neon marquee bulbs, magenta cyan gold neon, wet reflections, flat front elevation, symmetrical, full frame, entrance door at bottom center",
+   "neg": "people, character, text, letters, perspective, side view, cityscape, many buildings, sky, street",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.75
+  },
+  {
+   "name": "fac-niuniu",
+   "prompt": "red bull head emblem and gold, cyberpunk night casino facade, black glass chrome, giant neon marquee bulbs, magenta cyan gold neon, wet reflections, flat front elevation, symmetrical, full frame, entrance door at bottom center",
+   "neg": "people, character, text, letters, perspective, side view, cityscape, many buildings, sky, street",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.75
+  },
+  {
+   "name": "fac-dragon",
+   "prompt": "golden dragon on red lacquer gate, cyberpunk night casino facade, black glass chrome, giant neon marquee bulbs, magenta cyan gold neon, wet reflections, flat front elevation, symmetrical, full frame, entrance door at bottom center",
+   "neg": "people, character, text, letters, perspective, side view, cityscape, many buildings, sky, street",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.75
+  },
+  {
+   "name": "fac-texas",
+   "prompt": "poker chips and cowboy hat neon, orange, cyberpunk night casino facade, black glass chrome, giant neon marquee bulbs, magenta cyan gold neon, wet reflections, flat front elevation, symmetrical, full frame, entrance door at bottom center",
+   "neg": "people, character, text, letters, perspective, side view, cityscape, many buildings, sky, street",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.75
+  },
+  {
+   "name": "fac-coinflip",
+   "prompt": "giant gold coin emblem, cyberpunk night casino facade, black glass chrome, giant neon marquee bulbs, magenta cyan gold neon, wet reflections, flat front elevation, symmetrical, full frame, entrance door at bottom center",
+   "neg": "people, character, text, letters, perspective, side view, cityscape, many buildings, sky, street",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.75
+  },
+  {
+   "name": "fac-wheel",
+   "prompt": "roulette wheel emblem, colorful, cyberpunk night casino facade, black glass chrome, giant neon marquee bulbs, magenta cyan gold neon, wet reflections, flat front elevation, symmetrical, full frame, entrance door at bottom center",
+   "neg": "people, character, text, letters, perspective, side view, cityscape, many buildings, sky, street",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.75
+  },
+  {
+   "name": "bg-casino",
+   "prompt": "cyberpunk night city casino strip skyline, heavy rain, neon signs without text, magenta cyan gold, dark purple sky, wet street, no humans, wide panorama",
+   "neg": "people, text, letters, character",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1536,
+   "h": 640,
+   "lora": 0.7
+  }
+ ]
+}

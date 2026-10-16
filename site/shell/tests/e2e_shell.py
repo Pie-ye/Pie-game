@@ -270,6 +270,13 @@ def wait_inited(page, game_id=None, timeout_ms=5000):
     return frame
 
 
+def click_logout(page):
+    """登出鍵在右上角選單面板裡，沒展開時要先打開。"""
+    if not page.locator("#logoutBtn").is_visible():
+        page.locator("#userMenuToggle").click()
+    page.locator("#logoutBtn").click()
+
+
 def login_mock(page):
     page.goto(MOCK_URL + "#/login")
     page.get_by_label("使用者名稱").fill("pgtest")
@@ -312,7 +319,29 @@ def main() -> int:
         page.set_viewport_size({"width": 1280, "height": 800})
 
         # 2. guest can browse lobby (no redirect on community)
+        # 首頁是橫向卷軸的遊戲城；清單大廳搬到 #/list。
         page.goto(MOCK_URL + "#/")
+        page.wait_for_selector(".city-canvas")
+        check("city-canvas", page.locator(".city-canvas").count() == 1, "no canvas")
+        check("no-brand-topbar", page.locator(".brand").count() == 0, "brand still present")
+        check("city-fullscreen", page.evaluate("document.querySelector('.city').getBoundingClientRect().height") >= 790,
+              str(page.evaluate("document.querySelector('.city').getBoundingClientRect().height")))
+        check("menu-sound-switch", page.locator("#menuSound").count() == 1, "no sound switch in menu")
+        check("menu-hidden-until-open", not page.locator("#menuSound").is_visible(), "menu open by default")
+        check("city-map-dots", page.locator(".city-map-dot").count() >= 8,
+              str(page.locator(".city-map-dot").count()))
+        page.keyboard.press("ArrowUp")
+        page.wait_for_timeout(300)
+        check("city-no-enter-away-from-door", page.locator("#arcadeBoot").count() == 0, "boot started without a door")
+        page.locator(".city-map-dot").first.click()
+        page.wait_for_selector("#cityPlaque:not([hidden])", timeout=8000)
+        page.keyboard.press("ArrowUp")
+        page.wait_for_selector("#arcadeBoot", timeout=3000)
+        page.keyboard.press("Space")  # 任意鍵快轉
+        page.wait_for_function("location.hash.startsWith('#/game/')", timeout=8000)
+        page.wait_for_function("!document.getElementById('arcadeBoot')", timeout=8000)
+        check("city-enter-game", page.evaluate("location.hash").startswith("#/game/"), page.evaluate("location.hash"))
+        page.goto(MOCK_URL + "#/list")
         page.wait_for_selector("#lobbyOfficial")
         check("guest-lobby", page.get_by_role("heading", name="官方遊戲").count() == 1,
               page.locator("#view").inner_text()[:200])
@@ -324,7 +353,7 @@ def main() -> int:
         check("login-user", "pgtest" in page.locator("#authSlot").inner_text(),
               page.locator("#authSlot").inner_text())
 
-        page.goto(MOCK_URL + "#/")
+        page.goto(MOCK_URL + "#/list")
         page.wait_for_selector("#lobbyOfficial .game-card")
         for heading in ("官方遊戲", "金幣遊戲", "一般遊戲", "多人遊戲"):
             loc = page.get_by_role("heading", name=heading)
@@ -348,12 +377,16 @@ def main() -> int:
               or page.locator("#officialRoot").count() == 1,
               page.locator("#view").inner_text()[:300])
 
-        page.goto(MOCK_URL + "#/")
+        page.goto(MOCK_URL + "#/list")
         page.wait_for_selector("#lobbyOfficial .game-card")
         page.wait_for_timeout(500)
         for theme in ("cyber", "playful"):
+            # 主題選單住在右上角的選單面板裡，要先打開
+            if not page.locator("#themeSelect").is_visible():
+                page.locator("#userMenuToggle").click()
             page.locator("#themeSelect").select_option(theme)
             page.wait_for_timeout(150)
+            page.locator("body").click(position={"x": 2, "y": 300})
             html_theme = page.locator("html").get_attribute("data-theme")
             check(f"theme-{theme}", html_theme == theme, html_theme or "")
             page.set_viewport_size({"width": 1280, "height": 800})
@@ -470,9 +503,9 @@ def main() -> int:
 
         # session 失效時按登出：伺服器回 401，本機狀態一樣要清掉
         page.evaluate("() => window.__pgMock.expireSession()")
-        page.locator("#logoutBtn").click()
+        click_logout(page)
         page.wait_for_timeout(500)
-        check("logout-401-clears-local", page.locator("#authSlot").get_by_role("link", name="登入").count() == 1,
+        check("logout-401-clears-local", page.locator("#authSlot #menuLogin").count() == 1,
               page.locator("#authSlot").inner_text())
         check("logout-401-hides-balance", not page.locator("#balancePill").is_visible(), "balance pill still visible")
         check("logout-401-toast", "已登出" in page.locator("#toast").inner_text(), page.locator("#toast").inner_text())
@@ -513,7 +546,7 @@ def main() -> int:
             check("mobile-betbar-in-view", False, f"box={box}")
         page.set_viewport_size({"width": 1280, "height": 800})
 
-        page.locator("#logoutBtn").click()
+        click_logout(page)
         page.wait_for_timeout(400)
         page.goto(MOCK_URL + "#/game/tic-tac-toe")
         page.wait_for_selector("iframe.community-frame")
@@ -527,7 +560,7 @@ def main() -> int:
         else:
             check("mp-user-null", False, "no frame")
 
-        check("a11y-login-named", page.get_by_role("link", name="登入").count() >= 1, "missing")
+        check("a11y-login-named", page.locator("#menuLogin").count() >= 1, "missing")
         page.goto(MOCK_URL + "#/game/coin-flip")
         page.wait_for_selector("iframe.community-frame")
         check("a11y-fullscreen", page.get_by_role("button", name="全螢幕").count() == 1, "missing")

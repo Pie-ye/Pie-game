@@ -1,0 +1,121 @@
+{
+ "items": [
+  {
+   "name": "bg-casino",
+   "prompt": "cyberpunk night city casino strip skyline, heavy rain, neon signs without text, magenta cyan gold, dark purple sky, wet street, no humans, wide panorama",
+   "neg": "people, text, letters, character",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1536,
+   "h": 640,
+   "lora": 0.7
+  },
+  {
+   "name": "wall-slots",
+   "prompt": "giant glowing slot machine with three reels of sevens, cyberpunk casino building wall, black chrome, neon lights, rain, magenta cyan gold, flat wall mural, centered emblem, ornate border, no door, no windows, front view",
+   "neg": "door, doorway, corridor, hallway, interior, person, girl, character, text, letters, perspective, city",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.7
+  },
+  {
+   "name": "wall-blackjack",
+   "prompt": "giant ace of spades and queen of hearts playing cards, green and gold neon, cyberpunk casino building wall, black chrome, neon lights, rain, magenta cyan gold, flat wall mural, centered emblem, ornate border, no door, no windows, front view",
+   "neg": "door, doorway, corridor, hallway, interior, person, girl, character, text, letters, perspective, city",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.7
+  },
+  {
+   "name": "wall-baccarat",
+   "prompt": "ornate golden crown above purple velvet curtains, chandelier, cyberpunk casino building wall, black chrome, neon lights, rain, magenta cyan gold, flat wall mural, centered emblem, ornate border, no door, no windows, front view",
+   "neg": "door, doorway, corridor, hallway, interior, person, girl, character, text, letters, perspective, city",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.7
+  },
+  {
+   "name": "wall-niuniu",
+   "prompt": "giant red bull head emblem with golden horns, cyberpunk casino building wall, black chrome, neon lights, rain, magenta cyan gold, flat wall mural, centered emblem, ornate border, no door, no windows, front view",
+   "neg": "door, doorway, corridor, hallway, interior, person, girl, character, text, letters, perspective, city",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.7
+  },
+  {
+   "name": "wall-dragon",
+   "prompt": "golden chinese dragon coiling around red neon sign, lanterns, cyberpunk casino building wall, black chrome, neon lights, rain, magenta cyan gold, flat wall mural, centered emblem, ornate border, no door, no windows, front view",
+   "neg": "door, doorway, corridor, hallway, interior, person, girl, character, text, letters, perspective, city",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.7
+  },
+  {
+   "name": "wall-texas",
+   "prompt": "poker chips and cards and a cowboy hat, orange neon, cyberpunk casino building wall, black chrome, neon lights, rain, magenta cyan gold, flat wall mural, centered emblem, ornate border, no door, no windows, front view",
+   "neg": "door, doorway, corridor, hallway, interior, person, girl, character, text, letters, perspective, city",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.7
+  },
+  {
+   "name": "wall-coinflip",
+   "prompt": "giant gold coin with star, flying coins, cyberpunk casino building wall, black chrome, neon lights, rain, magenta cyan gold, flat wall mural, centered emblem, ornate border, no door, no windows, front view",
+   "neg": "door, doorway, corridor, hallway, interior, person, girl, character, text, letters, perspective, city",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.7
+  },
+  {
+   "name": "wall-wheel",
+   "prompt": "colorful roulette wheel with neon ring, cyberpunk casino building wall, black chrome, neon lights, rain, magenta cyan gold, flat wall mural, centered emblem, ornate border, no door, no windows, front view",
+   "neg": "door, doorway, corridor, hallway, interior, person, girl, character, text, letters, perspective, city",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.7
+  }
+ ]
+}

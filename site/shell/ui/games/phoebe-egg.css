@@ -1,0 +1,12 @@
+.gx-phoebe-egg {
+  --gx-accent: #ffb86b;
+  --gx-accent-2: #ff8fd0;
+  --gx-panel: rgba(255,244,226,.92);
+  --gx-base: #6a4a8a;
+  --gx-bg-dim: .35;
+  --gx-text: #7a4a2a;
+  --gx-muted: #a87a52;
+  --gx-ink: #8a4a1a;
+  --gx-radius: 26px;
+  --gx-font-head: var(--font-ui);
+}

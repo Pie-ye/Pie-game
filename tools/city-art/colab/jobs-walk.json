@@ -1,0 +1,61 @@
+{
+ "init": "/content/hero_5.png",
+ "items": [
+  {
+   "name": "wA",
+   "prompt": "1girl, solo, chibi, full body, side view facing left, headphones, orange jacket, short light brown hair, simple background, white background, plain white background, walking, mid stride, left leg far forward, right leg far back, right arm swinging forward, left arm swinging back",
+   "strength": 0.6,
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "lora": 0.9
+  },
+  {
+   "name": "wB",
+   "prompt": "1girl, solo, chibi, full body, side view facing left, headphones, orange jacket, short light brown hair, simple background, white background, plain white background, walking, passing pose, legs together, one knee slightly raised, both arms hanging down at sides, body upright",
+   "strength": 0.6,
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "lora": 0.9
+  },
+  {
+   "name": "wC",
+   "prompt": "1girl, solo, chibi, full body, side view facing left, headphones, orange jacket, short light brown hair, simple background, white background, plain white background, walking, mid stride, right leg far forward, left leg far back, left arm swinging forward, right arm swinging back",
+   "strength": 0.6,
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "lora": 0.9
+  },
+  {
+   "name": "wD",
+   "prompt": "1girl, solo, chibi, full body, side view facing left, headphones, orange jacket, short light brown hair, simple background, white background, plain white background, walking, passing pose, legs together, other knee slightly raised, both arms hanging down at sides, body upright",
+   "strength": 0.6,
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "lora": 0.9
+  }
+ ]
+}

@@ -1,0 +1,180 @@
+{
+ "items": [
+  {
+   "name": "ico-crown",
+   "prompt": "golden royal crown with red jewels, game icon, bold black outlines, glossy cel shading, vivid colors, centered, single object, isolated on plain white background, no text",
+   "neg": "text, letters, multiple objects, background, person",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 768,
+   "h": 768,
+   "lora": 0.8,
+   "cut": true
+  },
+  {
+   "name": "ico-gem",
+   "prompt": "big blue diamond gemstone sparkling, game icon, bold black outlines, glossy cel shading, vivid colors, centered, single object, isolated on plain white background, no text",
+   "neg": "text, letters, multiple objects, background, person",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 768,
+   "h": 768,
+   "lora": 0.8,
+   "cut": true
+  },
+  {
+   "name": "ico-rocket",
+   "prompt": "red rocket ship flying upward with flame, game icon, bold black outlines, glossy cel shading, vivid colors, centered, single object, isolated on plain white background, no text",
+   "neg": "text, letters, multiple objects, background, person",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 768,
+   "h": 768,
+   "lora": 0.8,
+   "cut": true
+  },
+  {
+   "name": "ico-bank",
+   "prompt": "stack of shiny gold bars, game icon, bold black outlines, glossy cel shading, vivid colors, centered, single object, isolated on plain white background, no text",
+   "neg": "text, letters, multiple objects, background, person",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 768,
+   "h": 768,
+   "lora": 0.8,
+   "cut": true
+  },
+  {
+   "name": "ico-flame",
+   "prompt": "burning orange fire flame, game icon, bold black outlines, glossy cel shading, vivid colors, centered, single object, isolated on plain white background, no text",
+   "neg": "text, letters, multiple objects, background, person",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 768,
+   "h": 768,
+   "lora": 0.8,
+   "cut": true
+  },
+  {
+   "name": "ico-trend",
+   "prompt": "green arrow going up on a chart, game icon, bold black outlines, glossy cel shading, vivid colors, centered, single object, isolated on plain white background, no text",
+   "neg": "text, letters, multiple objects, background, person",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 768,
+   "h": 768,
+   "lora": 0.8,
+   "cut": true
+  },
+  {
+   "name": "ico-candles",
+   "prompt": "red and green candlestick chart bars, game icon, bold black outlines, glossy cel shading, vivid colors, centered, single object, isolated on plain white background, no text",
+   "neg": "text, letters, multiple objects, background, person",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 768,
+   "h": 768,
+   "lora": 0.8,
+   "cut": true
+  },
+  {
+   "name": "ico-coins",
+   "prompt": "gold coin with star emblem front view, game icon, bold black outlines, glossy cel shading, vivid colors, centered, single object, isolated on plain white background, no text",
+   "neg": "text, letters, multiple objects, background, person",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 768,
+   "h": 768,
+   "lora": 0.8,
+   "cut": true
+  },
+  {
+   "name": "ico-coinhead",
+   "prompt": "gold coin front view with crown emblem, flat face, game icon, bold black outlines, glossy cel shading, vivid colors, centered, single object, isolated on plain white background, no text",
+   "neg": "text, letters, multiple objects, background, person",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 768,
+   "h": 768,
+   "lora": 0.8,
+   "cut": true
+  },
+  {
+   "name": "ico-cointail",
+   "prompt": "gold coin front view with star emblem, flat face, game icon, bold black outlines, glossy cel shading, vivid colors, centered, single object, isolated on plain white background, no text",
+   "neg": "text, letters, multiple objects, background, person",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 768,
+   "h": 768,
+   "lora": 0.8,
+   "cut": true
+  },
+  {
+   "name": "back-a",
+   "prompt": "ornate playing card back, green and gold pattern, flat rectangular card design, front view, filling the frame",
+   "neg": "text, letters, background, hand",
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 768,
+   "h": 1024,
+   "lora": 0.8
+  },
+  {
+   "name": "back-b",
+   "prompt": "ornate playing card back, purple and gold velvet pattern, flat rectangular card design, front view, filling the frame",
+   "neg": "text, letters, background, hand",
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 768,
+   "h": 1024,
+   "lora": 0.8
+  },
+  {
+   "name": "back-c",
+   "prompt": "ornate playing card back, red and gold dragon pattern, flat rectangular card design, front view, filling the frame",
+   "neg": "text, letters, background, hand",
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 768,
+   "h": 1024,
+   "lora": 0.8
+  }
+ ]
+}

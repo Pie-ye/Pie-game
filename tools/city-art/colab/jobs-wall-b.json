@@ -1,0 +1,95 @@
+{
+ "items": [
+  {
+   "name": "bg-phoebe",
+   "prompt": "dreamy pastel night sky, giant crescent moon and big stars, pink lavender clouds, floating hearts and ribbons, fairytale castle silhouettes, magical girl, no humans, wide panorama",
+   "neg": "people, text, letters, character",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1536,
+   "h": 640,
+   "lora": 0.5
+  },
+  {
+   "name": "bg-arcade",
+   "prompt": "retro arcade hall wall, rows of arcade cabinet silhouettes, CRT glow, checkered pattern, pixel art, red blue yellow, 1980s, no humans, wide panorama",
+   "neg": "people, text, letters, character",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1536,
+   "h": 640,
+   "lora": 0.6
+  },
+  {
+   "name": "wall-phoebe",
+   "prompt": "big shining star stage with spotlights and curtains, magical girl idol theater wall, pastel pink lavender baby blue, stars hearts ribbons sparkles, flat wall mural, centered emblem, ornate border, no door, no windows, front view",
+   "neg": "door, doorway, corridor, hallway, interior, person, girl, character, text, letters, perspective, city",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.7
+  },
+  {
+   "name": "wall-egg",
+   "prompt": "giant pastel egg with ribbon bow and little chicks, magical girl idol theater wall, pastel pink lavender baby blue, stars hearts ribbons sparkles, flat wall mural, centered emblem, ornate border, no door, no windows, front view",
+   "neg": "door, doorway, corridor, hallway, interior, person, girl, character, text, letters, perspective, city",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.7
+  },
+  {
+   "name": "wall-peak",
+   "prompt": "snowy mountain peak with rope and flag, ice blue, magical girl idol theater wall, pastel pink lavender baby blue, stars hearts ribbons sparkles, flat wall mural, centered emblem, ornate border, no door, no windows, front view",
+   "neg": "door, doorway, corridor, hallway, interior, person, girl, character, text, letters, perspective, city",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.7
+  },
+  {
+   "name": "wall-snake",
+   "prompt": "pixel snake game screen on arcade marquee, green, retro 80s arcade game center wall, pixel art style, wood panels, bright red yellow blue, flat wall mural, centered emblem, ornate border, no door, no windows, front view",
+   "neg": "door, doorway, corridor, hallway, interior, person, girl, character, text, letters, perspective, city",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.7
+  },
+  {
+   "name": "wall-tictactoe",
+   "prompt": "big X and O tic tac toe grid, blue and pink, retro 80s arcade game center wall, pixel art style, wood panels, bright red yellow blue, flat wall mural, centered emblem, ornate border, no door, no windows, front view",
+   "neg": "door, doorway, corridor, hallway, interior, person, girl, character, text, letters, perspective, city",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.7
+  }
+ ]
+}

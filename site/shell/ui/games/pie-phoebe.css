@@ -1,0 +1,12 @@
+.gx-pie-phoebe {
+  --gx-accent: #ff8fd0;
+  --gx-accent-2: #9fd0ff;
+  --gx-panel: rgba(255,236,250,.92);
+  --gx-base: #3a2a7a;
+  --gx-bg-dim: .35;
+  --gx-text: #5a2a7a;
+  --gx-muted: #9a6ab0;
+  --gx-ink: #6a2a8a;
+  --gx-radius: 24px;
+  --gx-font-head: var(--font-ui);
+}

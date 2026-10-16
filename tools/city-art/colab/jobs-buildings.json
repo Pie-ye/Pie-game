@@ -1,0 +1,160 @@
+{
+ "items": [
+  {
+   "name": "bld-slots",
+   "prompt": "casino building covered in giant slot machine, glowing red and gold lights, cherries and sevens symbols, marquee bulbs, single building, shopfront facade, neon signs without text, cyberpunk city, vibrant colors, bold outlines, cel shading, simple background, white background, plain white background, isolated, centered, full building visible, front view, no humans, no text",
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 896,
+   "h": 1152,
+   "lora": 0.8,
+   "cut": true
+  },
+  {
+   "name": "bld-blackjack",
+   "prompt": "card-themed tower, giant playing cards embedded in facade, green felt colored walls, spades and hearts neon, poker chips on roof, single building, shopfront facade, neon signs without text, cyberpunk city, vibrant colors, bold outlines, cel shading, simple background, white background, plain white background, isolated, centered, full building visible, front view, no humans, no text",
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 896,
+   "h": 1152,
+   "lora": 0.8,
+   "cut": true
+  },
+  {
+   "name": "bld-dragon",
+   "prompt": "oriental dragon gate pagoda, golden dragon coiling around red pillars, lanterns, jade roof tiles, neon, single building, shopfront facade, neon signs without text, cyberpunk city, vibrant colors, bold outlines, cel shading, simple background, white background, plain white background, isolated, centered, full building visible, front view, no humans, no text",
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 896,
+   "h": 1152,
+   "lora": 0.8,
+   "cut": true
+  },
+  {
+   "name": "bld-niuniu",
+   "prompt": "bull themed building, giant bull head with horns on top, red and orange walls, steak house vibe, neon, single building, shopfront facade, neon signs without text, cyberpunk city, vibrant colors, bold outlines, cel shading, simple background, white background, plain white background, isolated, centered, full building visible, front view, no humans, no text",
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 896,
+   "h": 1152,
+   "lora": 0.8,
+   "cut": true
+  },
+  {
+   "name": "bld-baccarat",
+   "prompt": "luxury opera house casino, purple and gold, crystal chandelier windows, elegant columns, neon, single building, shopfront facade, neon signs without text, cyberpunk city, vibrant colors, bold outlines, cel shading, simple background, white background, plain white background, isolated, centered, full building visible, front view, no humans, no text",
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 896,
+   "h": 1152,
+   "lora": 0.8,
+   "cut": true
+  },
+  {
+   "name": "bld-coinflip",
+   "prompt": "coin shop, giant gold coin on rooftop, yellow and orange neon, small shop with awning, single building, shopfront facade, neon signs without text, cyberpunk city, vibrant colors, bold outlines, cel shading, simple background, white background, plain white background, isolated, centered, full building visible, front view, no humans, no text",
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 896,
+   "h": 1152,
+   "lora": 0.8,
+   "cut": true
+  },
+  {
+   "name": "bld-wheel",
+   "prompt": "carnival tower with giant colorful prize wheel on front, ferris wheel vibes, pink and cyan neon, single building, shopfront facade, neon signs without text, cyberpunk city, vibrant colors, bold outlines, cel shading, simple background, white background, plain white background, isolated, centered, full building visible, front view, no humans, no text",
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 896,
+   "h": 1152,
+   "lora": 0.8,
+   "cut": true
+  },
+  {
+   "name": "bld-snake",
+   "prompt": "green neon snake coiled around a retro arcade building, lime green and black, pixel snake, single building, shopfront facade, neon signs without text, cyberpunk city, vibrant colors, bold outlines, cel shading, simple background, white background, plain white background, isolated, centered, full building visible, front view, no humans, no text",
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 896,
+   "h": 1152,
+   "lora": 0.8,
+   "cut": true
+  },
+  {
+   "name": "bld-tictactoe",
+   "prompt": "arcade building with giant X and O symbols on facade grid windows, blue and pink neon, board game cafe, single building, shopfront facade, neon signs without text, cyberpunk city, vibrant colors, bold outlines, cel shading, simple background, white background, plain white background, isolated, centered, full building visible, front view, no humans, no text",
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 896,
+   "h": 1152,
+   "lora": 0.8,
+   "cut": true
+  },
+  {
+   "name": "bld-phoebe",
+   "prompt": "starry idol stage building, pink and cyan stars, cute chibi style, star shaped windows, sparkle lights, single building, shopfront facade, neon signs without text, cyberpunk city, vibrant colors, bold outlines, cel shading, simple background, white background, plain white background, isolated, centered, full building visible, front view, no humans, no text",
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 896,
+   "h": 1152,
+   "lora": 0.8,
+   "cut": true
+  },
+  {
+   "name": "bld-egg",
+   "prompt": "egg warehouse, giant egg on roof, cozy farm cafe, orange and cream colors, crates of eggs, single building, shopfront facade, neon signs without text, cyberpunk city, vibrant colors, bold outlines, cel shading, simple background, white background, plain white background, isolated, centered, full building visible, front view, no humans, no text",
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 896,
+   "h": 1152,
+   "lora": 0.8,
+   "cut": true
+  },
+  {
+   "name": "bld-peak",
+   "prompt": "mountain climbing lodge, ropes and pickaxes, snowy roof, ice blue neon, cabin with ladder, single building, shopfront facade, neon signs without text, cyberpunk city, vibrant colors, bold outlines, cel shading, simple background, white background, plain white background, isolated, centered, full building visible, front view, no humans, no text",
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 896,
+   "h": 1152,
+   "lora": 0.8,
+   "cut": true
+  },
+  {
+   "name": "bld-texas",
+   "prompt": "western saloon style casino, wooden swing doors, cowboy hat sign, orange neon, poker table lights, single building, shopfront facade, neon signs without text, cyberpunk city, vibrant colors, bold outlines, cel shading, simple background, white background, plain white background, isolated, centered, full building visible, front view, no humans, no text",
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 896,
+   "h": 1152,
+   "lora": 0.8,
+   "cut": true
+  }
+ ]
+}

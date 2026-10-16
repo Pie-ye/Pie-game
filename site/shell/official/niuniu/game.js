@@ -69,7 +69,7 @@ function niuniuMarkup(nn) {
     ${niuniuHand('莊家', result.banker, result.bankerHand)}
     ${niuniuHand('你', result.player, result.playerHand)}
   </div>` : `<div class="nn-waiting">
-    <span class="eyebrow">單人對莊家</span>
+    <span class="eyebrow">BULL vs YOU</span>
     <p>選好押注後開牌，系統會自動找出三張成牛的組合。</p>
   </div>`;
 
@@ -92,8 +92,11 @@ function niuniuMarkup(nn) {
   }).join('');
 
   return `<div class="nn-layout">
-    ${handsHtml}
-    ${resultHtml}
+    <div class="nn-arena">
+      <div class="nn-horns" aria-hidden="true"><i></i><b>牛</b><i></i></div>
+      ${handsHtml}
+      ${resultHtml}
+    </div>
     <div class="pg-dock casino-sticky-actions">
       <div class="pg-dock-bet" role="group" aria-label="押注"><span class="pg-dock-label">押注</span>${betsHtml}</div>
       <p class="pg-dock-note">先凍結 ${lockMult} 倍（${lock.toLocaleString('zh-TW')}），結算後退回</p>

@@ -1,0 +1,52 @@
+{
+ "items": [
+  {
+   "name": "t-v3-0",
+   "prompt": "giant glowing slot machine with three reels of sevens, cyberpunk casino building wall, black chrome, neon lights, rain, magenta cyan, flat wall mural, centered emblem, ornate border, no door, no windows, front view",
+   "neg": "person, girl, character, text, letters, perspective, city street, door, doorway, interior, gold, golden, yellow",
+   "seeds": [
+    11,
+    12
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.7
+  },
+  {
+   "name": "t-v3-1",
+   "prompt": "neon dragon coiling around a sign, lanterns, cyberpunk casino building wall, black chrome, neon lights, rain, magenta cyan, flat wall mural, centered emblem, ornate border, no door, no windows, front view",
+   "neg": "person, girl, character, text, letters, perspective, city street, door, doorway, interior, gold, golden, yellow",
+   "seeds": [
+    11,
+    12
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.7
+  },
+  {
+   "name": "t-v4-0",
+   "prompt": "giant glowing slot machine with three reels of sevens, cyberpunk casino building wall, black chrome, neon lights, rain, magenta cyan, flat wall mural, centered emblem, ornate border, no door, no windows, front view",
+   "neg": "person, girl, character, text, letters, perspective, city street, door, doorway, interior, gold, golden, yellow",
+   "seeds": [
+    11,
+    12
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.85
+  },
+  {
+   "name": "t-v4-1",
+   "prompt": "neon dragon coiling around a sign, lanterns, cyberpunk casino building wall, black chrome, neon lights, rain, magenta cyan, flat wall mural, centered emblem, ornate border, no door, no windows, front view",
+   "neg": "person, girl, character, text, letters, perspective, city street, door, doorway, interior, gold, golden, yellow",
+   "seeds": [
+    11,
+    12
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.85
+  }
+ ]
+}

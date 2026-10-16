@@ -1,0 +1,12 @@
+.gx-phoebe-peak {
+  --gx-accent: #5ee1ff;
+  --gx-accent-2: #ff8fd0;
+  --gx-panel: rgba(230,248,255,.92);
+  --gx-base: #2a4a7a;
+  --gx-bg-dim: .35;
+  --gx-text: #1a4a6a;
+  --gx-muted: #5a8aa8;
+  --gx-ink: #1a5a8a;
+  --gx-radius: 22px;
+  --gx-font-head: var(--font-ui);
+}

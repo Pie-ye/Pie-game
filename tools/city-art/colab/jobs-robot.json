@@ -1,0 +1,1 @@
+{"items": [{"name": "robot", "prompt": "cute small floating robot companion, round body, big eyes, orange and teal, bold outlines, cel shading, isolated on plain white background, full body", "neg": "human, girl, boy, background", "seeds": [1, 2, 3], "w": 768, "h": 768, "lora": 0.8, "cut": true}]}

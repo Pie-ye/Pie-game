@@ -1,28 +1,20 @@
 <!DOCTYPE html>
-<html lang="zh-Hant" data-theme="cyber">
+<html lang="zh-Hant">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Pie Game</title>
-  <link rel="stylesheet" href="./tokens.css">
-  <link rel="stylesheet" href="./shell.css">
-  <link rel="stylesheet" href="./casino-skin.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Pie City</title>
+  <link rel="stylesheet" href="./ui/base.css">
+  <link rel="stylesheet" href="./ui/frame.css">
+  <link rel="stylesheet" href="./ui/kit.css">
+  <link rel="stylesheet" href="./city/city.css">
+  <link rel="stylesheet" href="./city/arcade.css">
   <script type="module" src="./shell.js"></script>
 </head>
 <body>
-  <header class="topbar">
-    <a class="brand" href="#/" aria-label="Pie Game 大廳">Pie Game</a>
-    <div class="topbar-actions">
-      <span id="balancePill" class="balance-pill" hidden>0 金幣</span>
-      <label class="theme-field">
-        <span class="visually-hidden">主題</span>
-        <select id="themeSelect" aria-label="主題">
-          <option value="cyber">賽博電玩</option>
-          <option value="playful">盤房日場</option>
-        </select>
-      </label>
-      <div id="authSlot"></div>
-    </div>
+  <header class="topbar hud">
+    <span id="balancePill" class="balance-pill" hidden></span>
+    <div id="authSlot"></div>
   </header>
   <main id="view" class="page-content"></main>
   <ol id="toast" class="toast-region" role="status" aria-live="polite"></ol>

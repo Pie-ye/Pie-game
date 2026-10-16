@@ -1,0 +1,12 @@
+.gx-lucky-wheel {
+  --gx-accent: #ff4fd8;
+  --gx-accent-2: #ffe36a;
+  --gx-panel: rgba(36,6,40,.9);
+  --gx-base: #12031a;
+  --gx-bg-dim: .72;
+  --gx-text: #f4eaff;
+  --gx-muted: #a99bc9;
+  --gx-ink: #0b0714;
+  --gx-radius: 18px;
+  --gx-font-head: var(--font-display);
+}

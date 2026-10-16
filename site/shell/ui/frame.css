@@ -1,0 +1,194 @@
+/* 遊戲框架：每款遊戲都是一整個視窗大的主題場景。頂部左邊「回城市」、中間招牌、右邊工具；
+   舞台放遊戲；右側抽屜放紀錄。每款遊戲用 --gx-* 變數與 ui/games/<id>.css 做出自己的樣子。 */
+
+.gx {
+  --gx-accent: #ff2bd6;
+  --gx-accent-2: #35f0ff;
+  --gx-ink: #0b0714;
+  --gx-panel: rgba(12, 5, 30, 0.88);
+  --gx-text: #f4eaff;
+  --gx-muted: #a99bc9;
+  --gx-bg: none;
+  --gx-bg-dim: 0.72;
+  --gx-radius: 14px;
+  --gx-font-head: var(--font-display);
+  position: relative;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  color: var(--gx-text);
+  isolation: isolate;
+  overflow-x: clip;
+}
+
+.gx-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background: var(--gx-bg) center / cover no-repeat, var(--gx-base, #07031a);
+  filter: saturate(1.1);
+}
+
+.gx-fx {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(rgba(5, 2, 12, calc(var(--gx-bg-dim) - 0.1)), rgba(5, 2, 12, var(--gx-bg-dim))),
+    var(--gx-fx, none);
+}
+
+.gx-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 330px 8px 14px;
+  min-height: 62px;
+}
+
+.gx-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px 0 10px;
+  border: 3px solid var(--gx-ink);
+  border-radius: 10px;
+  background: var(--gx-panel);
+  color: var(--gx-text);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  box-shadow: 0 0 0 2px var(--gx-accent) inset, 3px 3px 0 var(--gx-ink);
+  white-space: nowrap;
+}
+
+.gx-back:hover { text-decoration: none; background: var(--gx-accent); color: var(--gx-ink); }
+.gx-back span[aria-hidden] { font-size: 18px; }
+
+.gx-title {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.1;
+}
+
+.gx-title small {
+  font: 700 11px/1.3 var(--font-mono);
+  letter-spacing: 0.3em;
+  color: var(--gx-accent-2);
+  text-transform: uppercase;
+}
+
+.gx-title b {
+  font: 900 clamp(20px, 3vw, 30px)/1.15 var(--gx-font-head);
+  letter-spacing: 0.06em;
+  color: #fff;
+  -webkit-text-stroke: 2px var(--gx-ink);
+  paint-order: stroke fill;
+  text-shadow: 3px 3px 0 var(--gx-accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gx-tools { margin-left: auto; display: flex; gap: 8px; }
+
+.gx-tool {
+  height: 40px;
+  min-width: 40px;
+  padding: 0 12px;
+  border: 3px solid var(--gx-ink);
+  border-radius: 10px;
+  background: var(--gx-panel);
+  color: var(--gx-text);
+  font-weight: 800;
+  box-shadow: 0 0 0 2px var(--gx-accent-2) inset, 3px 3px 0 var(--gx-ink);
+}
+
+.gx-tool:hover { background: var(--gx-accent-2); color: var(--gx-ink); }
+
+.gx-stage {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 6px clamp(8px, 2vw, 24px) 24px;
+}
+
+.gx-stage.is-community { max-width: none; padding: 0 clamp(6px, 1.4vw, 18px) 14px; display: flex; flex-direction: column; }
+.gx-stage.is-community iframe { flex: 1; width: 100%; min-height: 70svh; border: 0; border-radius: var(--gx-radius); background: #000; display: block; }
+
+/* ---------- 紀錄抽屜 ---------- */
+.gx-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 80;
+  width: min(460px, 94vw);
+  padding: 64px 16px 16px;
+  overflow: auto;
+  background: var(--gx-panel);
+  border-left: 4px solid var(--gx-ink);
+  box-shadow: -8px 0 0 var(--gx-accent), -20px 0 40px rgba(0, 0, 0, 0.5);
+  transform: translateX(105%);
+  transition: transform 0.28s cubic-bezier(.2, .9, .3, 1);
+}
+
+.gx-drawer.is-open { transform: none; }
+.gx-drawer-close { position: absolute; top: 12px; right: 14px; }
+
+.gx-drawer h2 {
+  margin: 0 0 6px;
+  font: 900 22px/1.2 var(--gx-font-head);
+  letter-spacing: 0.06em;
+  color: #fff;
+  text-shadow: 2px 2px 0 var(--gx-accent);
+}
+
+.history-summary { color: var(--gx-muted); font-size: 14px; margin: 0 0 12px; }
+
+.casino-history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.casino-history-table th {
+  text-align: left;
+  padding: 6px 6px;
+  color: var(--gx-accent-2);
+  font: 700 11px/1.2 var(--font-mono);
+  letter-spacing: 0.12em;
+  border-bottom: 2px solid var(--gx-accent);
+}
+
+.casino-history-table td { padding: 7px 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+.casino-history-table th.num, .casino-history-table td.num { text-align: right; }
+.hist-net.is-gain { color: #2cff9a; font-weight: 800; }
+.hist-net.is-loss { color: #ff6b8a; font-weight: 800; }
+.hist-card.is-red { color: #ff6b8a; }
+
+.gx-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 75;
+  background: rgba(2, 1, 8, 0.55);
+}
+
+.gx-scrim[hidden] { display: none; }
+
+.gx:fullscreen { overflow: auto; }
+.gx-stage:fullscreen { background: var(--gx-base, #07031a); overflow: auto; padding: 18px; }
+
+@media (max-width: 900px) {
+  .gx-bar { padding-right: 14px; padding-top: 58px; }
+}
+
+@media (max-width: 560px) {
+  .gx-back span:not([aria-hidden]) { display: none; }
+  .gx-back { padding: 0 10px; }
+}

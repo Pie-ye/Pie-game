@@ -1,0 +1,12 @@
+.gx-dragon {
+  --gx-accent: #ffd23a;
+  --gx-accent-2: #ff3b3b;
+  --gx-panel: rgba(44,8,10,.9);
+  --gx-base: #1c0507;
+  --gx-bg-dim: .7;
+  --gx-text: #f4eaff;
+  --gx-muted: #a99bc9;
+  --gx-ink: #0b0714;
+  --gx-radius: 8px;
+  --gx-font-head: "Noto Serif TC","Songti TC",serif;
+}

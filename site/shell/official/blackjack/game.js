@@ -252,9 +252,13 @@ async function renderCasinoBlackjack() {
 
   const fullHtml = `
     <div class="bj-layout">
-      ${dealerHtml}
-      <div class="bj-hands">${handsHtml}</div>
-      ${resultHtml}
+      <div class="bj-table">
+        <p class="bj-rail" aria-hidden="true">BLACKJACK PAYS 3 TO 2 · DEALER STANDS ON 17</p>
+        ${dealerHtml}
+        <div class="bj-mid" aria-hidden="true"><span>♠</span><span>♥</span><span>♣</span><span>♦</span></div>
+        <div class="bj-hands">${handsHtml}</div>
+        ${resultHtml}
+      </div>
       ${actionsHtml}
     </div>
   `;

@@ -1,0 +1,179 @@
+/* 遊戲共用零件（籌碼、控制列、按鈕、撲克牌）。每款遊戲用 --gx-* / --kit-* 變數調成自己的樣子，
+   並在 official/<id>/game.css 與 ui/games/<id>.css 覆寫形狀。 */
+
+:root {
+  --dur-1: 150ms;
+  --dur-2: 220ms;
+  --dur-3: 320ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --stagger: 40ms;
+  --control-h: 44px;
+}
+
+.gx {
+  --kit-chip-ink: #0b0714;
+  --kit-btn-bg: var(--gx-accent);
+  --kit-btn-fg: #fff;
+  --kit-btn-radius: 12px;
+  --kit-felt: #0e5a3a;
+}
+
+/* ---------- 按鈕 ---------- */
+.gx .primary-button,
+.gx .secondary-button {
+  min-height: 46px;
+  padding: 0 22px;
+  border-radius: var(--kit-btn-radius);
+  border: 3px solid var(--gx-ink);
+  font: 900 17px/1 var(--gx-font-head);
+  letter-spacing: 0.08em;
+  text-transform: none;
+}
+
+.gx .primary-button {
+  background: var(--kit-btn-bg);
+  color: var(--kit-btn-fg);
+  box-shadow: 0 5px 0 var(--gx-ink), 0 0 18px color-mix(in srgb, var(--kit-btn-bg) 55%, transparent);
+}
+
+.gx .secondary-button {
+  background: color-mix(in srgb, var(--gx-panel) 80%, #fff 8%);
+  color: var(--gx-text);
+  box-shadow: 0 0 0 2px var(--gx-accent-2) inset, 0 5px 0 var(--gx-ink);
+}
+
+.gx .primary-button:hover:not(:disabled),
+.gx .secondary-button:hover:not(:disabled) { filter: brightness(1.12); transform: translateY(-2px); }
+
+.gx .primary-button:active:not(:disabled),
+.gx .secondary-button:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 1px 0 var(--gx-ink); }
+
+.gx button:disabled { opacity: 0.45; filter: grayscale(0.5); cursor: not-allowed; }
+
+/* ---------- 控制列 ---------- */
+.gx .pg-dock {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 18px;
+  padding: 12px 16px;
+  border-radius: var(--gx-radius);
+  border: 4px solid var(--gx-ink);
+  background: var(--gx-panel);
+  box-shadow: 0 0 0 2px var(--gx-accent) inset, 6px 6px 0 var(--gx-ink);
+}
+
+.gx .pg-dock-bet, .gx .pg-dock-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.gx .pg-dock-act { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-left: auto; }
+.gx .pg-dock-label { font: 800 12px/1 var(--font-mono); letter-spacing: 0.25em; color: var(--gx-accent-2); text-transform: uppercase; }
+.gx .pg-dock-note, .gx .rtp-note { margin: 0; flex: 1 1 200px; color: var(--gx-muted); font-size: 13px; }
+.gx .pg-dock-primary { min-width: 150px; font-size: 20px; }
+
+/* ---------- 籌碼（純 CSS：外環缺口＋中心數字） ---------- */
+.gx .pg-chip {
+  --chip: #ff2b5c;
+  position: relative;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border-radius: 50%;
+  border: 3px solid var(--kit-chip-ink);
+  background:
+    radial-gradient(circle at 50% 50%, #fff 0 38%, transparent 39%),
+    repeating-conic-gradient(from 0deg, #fff 0 12deg, var(--chip) 12deg 45deg);
+  color: var(--kit-chip-ink);
+  font: 900 15px/1 var(--gx-font-head);
+  box-shadow: 0 4px 0 var(--kit-chip-ink), inset 0 0 0 3px var(--chip);
+  transition: transform var(--dur-1) var(--ease-spring), box-shadow var(--dur-1);
+}
+
+.gx .pg-chip:nth-of-type(5n + 1) { --chip: #ff2b5c; }
+.gx .pg-chip:nth-of-type(5n + 2) { --chip: #2a63ff; }
+.gx .pg-chip:nth-of-type(5n + 3) { --chip: #1fb26b; }
+.gx .pg-chip:nth-of-type(5n + 4) { --chip: #7a35ff; }
+.gx .pg-chip:nth-of-type(5n + 5) { --chip: #ff9a1f; }
+.gx .pg-chip:hover:not(:disabled) { transform: translateY(-4px) rotate(-6deg); }
+.gx .pg-chip.is-active { transform: translateY(-8px) scale(1.12); box-shadow: 0 6px 0 var(--kit-chip-ink), 0 0 0 3px #fff, 0 0 22px var(--chip), inset 0 0 0 3px var(--chip); }
+.gx .pg-chip[data-kbd]::after, .gx [data-kbd]::after { display: none; }
+
+.gx .pg-bet-input {
+  width: 92px;
+  height: 46px;
+  padding: 0 10px;
+  border: 3px solid var(--gx-ink);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--gx-ink);
+  font: 900 18px/1 var(--gx-font-head);
+  text-align: center;
+}
+
+/* ---------- 分段選擇（百家樂押閒／莊／和、猜硬幣選邊） ---------- */
+.gx .pg-seg {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 88px;
+  min-height: 54px;
+  padding: 6px 14px;
+  border-radius: var(--kit-btn-radius);
+  border: 3px solid var(--gx-ink);
+  background: color-mix(in srgb, var(--gx-panel) 85%, #fff 6%);
+  color: var(--gx-text);
+  font-weight: 900;
+  box-shadow: 0 4px 0 var(--gx-ink);
+}
+
+.gx .pg-seg small, .gx .pg-seg-sub { font-size: 11px; font-weight: 700; opacity: 0.8; }
+.gx .pg-seg.is-active { background: var(--gx-accent); color: #fff; box-shadow: 0 4px 0 var(--gx-ink), 0 0 20px var(--gx-accent); transform: translateY(-3px); }
+
+.gx .eyebrow {
+  display: inline-block;
+  font: 800 12px/1.2 var(--font-mono);
+  letter-spacing: 0.25em;
+  color: var(--gx-accent-2);
+  text-transform: uppercase;
+}
+
+.gx table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+.gx th { text-align: left; font: 700 11px/1.2 var(--font-mono); letter-spacing: 0.12em; color: var(--gx-accent-2); padding: 6px; border-bottom: 2px solid var(--gx-accent); }
+.gx td { padding: 7px 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
+
+/* ---------- 撲克牌（白底、粗黑框、鮮豔花色；背面由各遊戲指定圖案） ---------- */
+.gx .pcard {
+  --card-w: 64px;
+  position: relative;
+  display: inline-block;
+  width: var(--card-w);
+  aspect-ratio: 5 / 7;
+  border-radius: 9px;
+  border: 3px solid var(--gx-ink);
+  background: linear-gradient(160deg, #ffffff, #e9e4f5);
+  color: #1a1030;
+  font-family: var(--font-display);
+  font-weight: 900;
+  box-shadow: 3px 4px 0 var(--gx-ink);
+  user-select: none;
+}
+
+.gx .pcard.is-red { color: #e0173f; }
+.gx .pcard-corner { position: absolute; left: 6px; top: 4px; display: flex; flex-direction: column; align-items: center; line-height: 1; font-size: calc(var(--card-w) * 0.28); }
+.gx .pcard-suit { font-size: 0.85em; }
+.gx .pcard-center { position: absolute; inset: 0; display: grid; place-items: center; font-size: calc(var(--card-w) * 0.62); opacity: 0.92; }
+
+.gx .pcard.is-back {
+  border-color: var(--gx-ink);
+  background: var(--card-back, repeating-linear-gradient(45deg, var(--gx-accent) 0 6px, #1a1030 6px 12px));
+  background-size: cover;
+  box-shadow: 0 0 0 3px #fff inset, 3px 4px 0 var(--gx-ink);
+}
+
+.gx .pcard.is-dealt { animation: pcardDeal 0.34s var(--ease-out) both; }
+@keyframes pcardDeal { from { transform: translate(-40px, -70px) rotate(-18deg) scale(0.6); opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .gx .pcard.is-dealt, .gx .pg-chip { animation: none; transition: none; }
+}

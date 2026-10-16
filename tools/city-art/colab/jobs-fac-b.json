@@ -1,0 +1,95 @@
+{
+ "items": [
+  {
+   "name": "fac-phoebe",
+   "prompt": "big shining star stage, curtain, magical girl idol theater facade, pastel pink lavender baby blue, stars ribbons hearts sparkles, dreamy kawaii, flat front elevation, symmetrical, full frame, entrance door at bottom center",
+   "neg": "people, character, text, letters, perspective, side view, cityscape, many buildings, sky, street",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.75
+  },
+  {
+   "name": "fac-egg",
+   "prompt": "giant pastel egg and bunting, magical girl idol theater facade, pastel pink lavender baby blue, stars ribbons hearts sparkles, dreamy kawaii, flat front elevation, symmetrical, full frame, entrance door at bottom center",
+   "neg": "people, character, text, letters, perspective, side view, cityscape, many buildings, sky, street",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.75
+  },
+  {
+   "name": "fac-peak",
+   "prompt": "snowy mountain and ropes, ice blue, magical girl idol theater facade, pastel pink lavender baby blue, stars ribbons hearts sparkles, dreamy kawaii, flat front elevation, symmetrical, full frame, entrance door at bottom center",
+   "neg": "people, character, text, letters, perspective, side view, cityscape, many buildings, sky, street",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.75
+  },
+  {
+   "name": "fac-snake",
+   "prompt": "green pixel snake on arcade cabinet front, retro 1980s arcade game center storefront, wood panels, CRT screens, joystick buttons, red yellow blue primary colors, flat front elevation, symmetrical, full frame, entrance door at bottom center",
+   "neg": "people, character, text, letters, perspective, side view, cityscape, many buildings, sky, street",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.75
+  },
+  {
+   "name": "fac-tictactoe",
+   "prompt": "X and O grid arcade cabinet front, blue pink, retro 1980s arcade game center storefront, wood panels, CRT screens, joystick buttons, red yellow blue primary colors, flat front elevation, symmetrical, full frame, entrance door at bottom center",
+   "neg": "people, character, text, letters, perspective, side view, cityscape, many buildings, sky, street",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.75
+  },
+  {
+   "name": "bg-phoebe",
+   "prompt": "dreamy pastel night sky, giant crescent moon and big stars, pink lavender clouds, floating hearts and ribbons, fairytale castle silhouettes, magical girl, no humans, wide panorama",
+   "neg": "people, text, letters, character",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1536,
+   "h": 640,
+   "lora": 0.5
+  },
+  {
+   "name": "bg-arcade",
+   "prompt": "retro arcade hall wall, rows of arcade cabinet silhouettes, CRT glow, checkered pattern, pixel art, red blue yellow, 1980s, no humans, wide panorama",
+   "neg": "people, text, letters, character",
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1536,
+   "h": 640,
+   "lora": 0.6
+  }
+ ]
+}

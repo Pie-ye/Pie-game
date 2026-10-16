@@ -1,0 +1,95 @@
+{
+ "items": [
+  {
+   "name": "sky",
+   "prompt": "far distant skyline silhouettes, giant moon, purple magenta teal gradient night sky, stars, no humans, wide cityscape, cyberpunk night city, neon, bold outlines, cel shading, vibrant, no foreground",
+   "w": 1536,
+   "h": 640,
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "lora": 0.6
+  },
+  {
+   "name": "mid",
+   "prompt": "mid distance cyberpunk skyscrapers with glowing windows and neon billboards without text, no humans, wide cityscape, cyberpunk night city, neon, bold outlines, cel shading, vibrant, flat background color dark purple",
+   "w": 1536,
+   "h": 640,
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "lora": 0.7
+  },
+  {
+   "name": "street",
+   "prompt": "city street level shopfronts seen from side, neon lights, vending machines, pipes, wires, no humans, wide cityscape, cyberpunk night city, neon, bold outlines, cel shading, vibrant",
+   "w": 1536,
+   "h": 640,
+   "seeds": [
+    1,
+    2
+   ],
+   "lora": 0.7
+  },
+  {
+   "name": "hero",
+   "prompt": "1girl, solo, chibi, full body, side view facing right, walking, headphones, orange jacket, short hair, energetic pose, bold outlines, cel shading, simple background, white background, plain white background",
+   "w": 832,
+   "h": 1216,
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "lora": 0.9,
+   "cut": true
+  },
+  {
+   "name": "hero2",
+   "prompt": "1boy, solo, full body, side view facing right, running, guitar on back, teal jacket, spiky hair, energetic pose, bold outlines, cel shading, simple background, white background, plain white background",
+   "w": 832,
+   "h": 1216,
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "lora": 0.9,
+   "cut": true
+  },
+  {
+   "name": "arcade",
+   "prompt": "retro arcade cabinet, front view, large empty black CRT screen centered, joystick and buttons, neon side art without text, no humans, bold outlines, cel shading, simple background, white background, plain white background, symmetric",
+   "w": 832,
+   "h": 1216,
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "lora": 0.8,
+   "cut": true
+  },
+  {
+   "name": "robot",
+   "prompt": "cute small robot companion floating, bold outlines, cel shading, simple background, white background, plain white background, full body",
+   "w": 1024,
+   "h": 1024,
+   "seeds": [
+    1,
+    2
+   ],
+   "lora": 0.9,
+   "cut": true
+  }
+ ]
+}

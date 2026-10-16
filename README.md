@@ -19,7 +19,7 @@
 ```
 Pie-game/
 ├── server/                 外框＋內容兩個埠、/mp WebSocket
-├── site/shell/             外框前端
+├── site/shell/             外框前端（city/ 是首頁的賽博遊戲城與街機開機轉場）
 ├── site/sdk/               投稿用 PieGame SDK
 ├── site/games/community/   投稿遊戲（含範本與範例）
 ├── tools/validate_games.py CI 與上線前驗證

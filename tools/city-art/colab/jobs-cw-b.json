@@ -1,0 +1,64 @@
+{
+ "items": [
+  {
+   "name": "cw-dragon",
+   "prompt": "neon dragon hologram, red gold, cyberpunk casino building facade, chrome and black glass, holographic jackpot billboard, vertical LED signs, neon magenta cyan, wet street, flat front view",
+   "neg": "fantasy, temple, palace, traditional, pastel, arcade cabinet, art deco, gold ornate, interior, door, person, character, text, letters",
+   "seeds": [
+    11,
+    12
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.6
+  },
+  {
+   "name": "cw-texas",
+   "prompt": "poker chips and cards hologram, orange neon, cyberpunk casino building facade, chrome and black glass, holographic jackpot billboard, vertical LED signs, neon magenta cyan, wet street, flat front view",
+   "neg": "fantasy, temple, palace, traditional, pastel, arcade cabinet, art deco, gold ornate, interior, door, person, character, text, letters",
+   "seeds": [
+    11,
+    12
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.6
+  },
+  {
+   "name": "cw-coinflip",
+   "prompt": "giant spinning hologram coin, cyberpunk casino building facade, chrome and black glass, holographic jackpot billboard, vertical LED signs, neon magenta cyan, wet street, flat front view",
+   "neg": "fantasy, temple, palace, traditional, pastel, arcade cabinet, art deco, gold ornate, interior, door, person, character, text, letters",
+   "seeds": [
+    11,
+    12
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.6
+  },
+  {
+   "name": "cw-wheel",
+   "prompt": "holographic roulette wheel, neon ring, cyberpunk casino building facade, chrome and black glass, holographic jackpot billboard, vertical LED signs, neon magenta cyan, wet street, flat front view",
+   "neg": "fantasy, temple, palace, traditional, pastel, arcade cabinet, art deco, gold ornate, interior, door, person, character, text, letters",
+   "seeds": [
+    11,
+    12
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.6
+  },
+  {
+   "name": "bg2-arcade",
+   "prompt": "1980s traditional arcade alley, rows of CRT arcade cabinets receding, tiled floor, fluorescent tubes, coin slots, red cream teal, no humans, wide panorama",
+   "neg": "people, text, letters, character, city",
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1536,
+   "h": 640,
+   "lora": 0.55
+  }
+ ]
+}

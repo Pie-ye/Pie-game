@@ -1,0 +1,64 @@
+{
+ "items": [
+  {
+   "name": "cw-slots",
+   "prompt": "giant slot machine screen hologram with triple seven, cyberpunk casino building facade, chrome and black glass, holographic jackpot billboard, vertical LED signs, neon magenta cyan, wet street, flat front view",
+   "neg": "fantasy, temple, palace, traditional, pastel, arcade cabinet, art deco, gold ornate, interior, door, person, character, text, letters",
+   "seeds": [
+    11,
+    12
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.6
+  },
+  {
+   "name": "cw-blackjack",
+   "prompt": "hologram playing cards ace of spades, green neon, cyberpunk casino building facade, chrome and black glass, holographic jackpot billboard, vertical LED signs, neon magenta cyan, wet street, flat front view",
+   "neg": "fantasy, temple, palace, traditional, pastel, arcade cabinet, art deco, gold ornate, interior, door, person, character, text, letters",
+   "seeds": [
+    11,
+    12
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.6
+  },
+  {
+   "name": "cw-baccarat",
+   "prompt": "purple neon crown hologram and champagne, cyberpunk casino building facade, chrome and black glass, holographic jackpot billboard, vertical LED signs, neon magenta cyan, wet street, flat front view",
+   "neg": "fantasy, temple, palace, traditional, pastel, arcade cabinet, art deco, gold ornate, interior, door, person, character, text, letters",
+   "seeds": [
+    11,
+    12
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.6
+  },
+  {
+   "name": "cw-niuniu",
+   "prompt": "red neon bull head hologram, cyberpunk casino building facade, chrome and black glass, holographic jackpot billboard, vertical LED signs, neon magenta cyan, wet street, flat front view",
+   "neg": "fantasy, temple, palace, traditional, pastel, arcade cabinet, art deco, gold ornate, interior, door, person, character, text, letters",
+   "seeds": [
+    11,
+    12
+   ],
+   "w": 1024,
+   "h": 1024,
+   "lora": 0.6
+  },
+  {
+   "name": "bg2-phoebe",
+   "prompt": "idol concert stage at night, spotlights beams, glowing stage lights, giant crescent moon and stars, pastel pink lavender, magical girl, no humans, wide panorama",
+   "neg": "people, text, letters, character",
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1536,
+   "h": 640,
+   "lora": 0.5
+  }
+ ]
+}

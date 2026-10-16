@@ -152,6 +152,8 @@ async function renderCasinoDragon() {
 
   const tableHtml = `
     <div class="dg-table-felt">
+      <div class="dg-roof" aria-hidden="true"><i></i><b>龍門</b><i></i></div>
+      <span class="dg-lantern is-l" aria-hidden="true"></span><span class="dg-lantern is-r" aria-hidden="true"></span>
       <div class="dg-cards-row">
         <div class="dg-card-slot">
           <span class="dg-slot-title">左柱</span>
