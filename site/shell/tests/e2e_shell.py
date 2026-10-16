@@ -329,7 +329,7 @@ def main() -> int:
         for heading in ("官方遊戲", "金幣遊戲", "一般遊戲", "多人遊戲"):
             loc = page.get_by_role("heading", name=heading)
             check(f"lobby-heading-{heading}", loc.count() == 1, f"count={loc.count()}")
-        check("lobby-official-six", page.locator("#lobbyOfficial .game-card").count() == 6,
+        check("lobby-official-five", page.locator("#lobbyOfficial .game-card").count() == 5,
               str(page.locator("#lobbyOfficial .game-card").count()))
         check("lobby-coin-flip", page.locator("#lobbyCoin").get_by_text("猜硬幣").count() >= 1,
               page.locator("#lobbyCoin").inner_text())
