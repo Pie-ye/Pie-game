@@ -4,3 +4,4 @@ export function daySeed(now=Date.now()){return Math.floor(now/86400000);}
 export const pick=(rand,list)=>list[Math.floor(rand()*list.length)];
 export const range=(rand,a,b)=>a+(b-a)*rand();
 export function weighted(rand,table){let total=0;for(const [,w] of table)total+=w;let r=rand()*total;for(const [v,w] of table){r-=w;if(r<=0)return v;}return table[0][0];}
+export function shuffle(rand,list){const a=[...list];for(let i=a.length-1;i>0;i--){const j=Math.floor(rand()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}

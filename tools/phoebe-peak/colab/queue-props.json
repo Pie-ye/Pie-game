@@ -1,0 +1,28 @@
+{
+ "refs": {
+  "altar": "/content/env_out/altar_1.png",
+  "berry_bush": "/content/env_out/berry_bush_1.png",
+  "boulder": "/content/env_out/boulder_1.png",
+  "crate": "/content/env_out/crate_1.png",
+  "crystal_cluster": "/content/env_out/crystal_cluster_1.png",
+  "ice_spike": "/content/env_out/ice_spike_1.png",
+  "lava_rock": "/content/env_out/lava_rock_1.png",
+  "mushroom_cluster": "/content/env_out/mushroom_cluster_2.png",
+  "summit_flag": "/content/env_out/summit_flag_1.png",
+  "torch_stand": "/content/env_out/torch_stand_1.png",
+  "lamp_post": "/content/env_out/lamp_post_1.png",
+  "palm_tree": "/content/env_out/t_palm_2.png",
+  "cabin": "/content/env_out/cabin_1.png",
+  "tent": "/content/env_out/tent_3.png",
+  "signpost": "/content/env_out/signpost_3.png",
+  "barrels": "/content/env_out/barrels_1.png",
+  "ruin_pillar": "/content/env_out/ruin_pillar_3.png",
+  "thorn_bush": "/content/env_out/thorn_bush_1.png",
+  "geyser": "/content/env_out/geyser_3.png",
+  "furnace": "/content/env_out/furnace_1.png",
+  "anvil_gear": "/content/env_out/anvil_gear_2.png",
+  "campfire": "/content/env_out/campfire_3.png",
+  "beehive": "/content/env_out/beehive_2.png",
+  "snow_pine": "/content/env_out/snow_pine_2.png"
+ }
+}

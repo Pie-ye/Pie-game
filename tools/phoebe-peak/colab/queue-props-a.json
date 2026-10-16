@@ -1,0 +1,16 @@
+{
+ "refs": {
+  "altar": "/content/env_out/altar_1.png",
+  "berry_bush": "/content/env_out/berry_bush_1.png",
+  "boulder": "/content/env_out/boulder_1.png",
+  "crate": "/content/env_out/crate_1.png",
+  "crystal_cluster": "/content/env_out/crystal_cluster_1.png",
+  "ice_spike": "/content/env_out/ice_spike_1.png",
+  "lava_rock": "/content/env_out/lava_rock_1.png",
+  "mushroom_cluster": "/content/env_out/mushroom_cluster_2.png",
+  "summit_flag": "/content/env_out/summit_flag_1.png",
+  "torch_stand": "/content/env_out/torch_stand_1.png",
+  "lamp_post": "/content/env_out/lamp_post_1.png",
+  "palm_tree": "/content/env_out/t_palm_2.png"
+ }
+}

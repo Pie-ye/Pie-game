@@ -3,7 +3,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {writeGLB} from './glb-writer.mjs';
 const here=path.dirname(fileURLToPath(import.meta.url)),tex=n=>path.join(here,'textures',n),out=n=>path.join(here,'../../site/games/community/phoebe-peak/assets/models',n);
-const R=88,SEG=96,REP=16;
+const R=145,SEG=160,REP=26;
 function disc(){
   const positions=[],uv=[],normals=[],indices=[],rows=[];
   const add=(x,y,z,u,v)=>{positions.push(x,y,z);normals.push(0,1,0);uv.push(u,v);return positions.length/3-1;};

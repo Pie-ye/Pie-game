@@ -1,0 +1,6 @@
+{"items":[
+ {"name":"t_wall","seeds":[1,2],"lora":0.7,"prompt":"villagehmmb, a tall vertical climbing rock cliff pillar, many handholds and cracks, sandstone beige layered rock, shells embedded, fantasy mountain village style, painterly game asset, soft lighting, three-quarter view"},
+ {"name":"t_palm","seeds":[1,2],"lora":0.7,"prompt":"villagehmmb, a curved coconut palm tree with coconuts, fantasy game asset, painterly, soft lighting, three-quarter view"},
+ {"name":"t_cabin","seeds":[1,2],"lora":0.8,"prompt":"villagehmmb, a small cozy wooden mountain cabin with a lantern and a signboard, fantasy village house, game asset, painterly, three-quarter view"},
+ {"name":"t_sky","seeds":[1],"lora":0.8,"bg":"scene","w":1536,"h":768,"prompt":"villagehmmb, scenery, mountains, no humans, wide panorama of a clear blue sky with fluffy clouds, pink orange horizon, seaside afternoon, distant sea and tiny islands, no buildings, no ground"}
+]}

@@ -1,0 +1,29 @@
+{
+ "items": [
+  {
+   "name": "vine",
+   "prompt": "villagehmmb, a very long hanging jungle vine with big leaves and a few small flowers, thick rope-like stem, vertical, full length visible, fantasy village style, game asset, painterly",
+   "lora": 0.7,
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "w": 640,
+   "h": 1344
+  },
+  {
+   "name": "snow_fir",
+   "prompt": "villagehmmb, a single snow-covered fir tree standing alone, no house, no buildings, no ground details, fantasy village style, game asset, painterly, three-quarter view",
+   "lora": 0.7,
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024
+  }
+ ]
+}

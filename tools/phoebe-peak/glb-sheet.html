@@ -1,0 +1,27 @@
+<!doctype html><meta charset="utf-8"><style>html,body{margin:0;background:#e9e4da}canvas{display:block}</style><canvas id="c"></canvas>
+<script type="module">
+import * as T from '/games/community/pie-phoebe/vendor/three.module.js';
+import {loadAnime} from '/games/community/phoebe-peak/src/loader.js';
+// ?files=a.glb,b.glb&views=front,three,back&size=360  -> a contact sheet: one row per model, one column per view
+const q=new URLSearchParams(location.search),files=(q.get('files')||'').split(',').filter(Boolean),views=(q.get('views')||'front,three,back').split(','),S=Number(q.get('size')||360),dir=q.get('dir')||'/glb/';
+const canvas=document.getElementById('c');const grid=Number(q.get('grid')||0),cols=grid||views.length,rowsN=grid?Math.ceil(files.length/grid):files.length;canvas.width=S*cols;canvas.height=S*rowsN;
+const clear=q.get('bg')==='clear',renderer=new T.WebGLRenderer({canvas,antialias:true,preserveDrawingBuffer:true,alpha:clear,premultipliedAlpha:false});renderer.setSize(canvas.width,canvas.height,false);renderer.setScissorTest(true);if(clear)renderer.setClearColor(0,0);
+const scene=new T.Scene();if(!clear)scene.background=new T.Color(0xe9e4da);scene.add(new T.HemisphereLight(0xffffff,0xb9b3a8,1.9));const sun=new T.DirectionalLight(0xffffff,1.8);sun.position.set(-3,5,6);scene.add(sun);
+const ANG={front:0,three:.7,side:Math.PI/2,back:Math.PI,top:0,icon:.55};
+const info=[];
+for(let r=0;r<files.length;r++){
+  let root;try{root=await loadAnime(dir+files[r],{style:'painted'});}catch(e){info.push({file:files[r],error:String(e)});continue;}
+  root.updateMatrixWorld(true);const box=new T.Box3().setFromObject(root),size=box.getSize(new T.Vector3()),c=box.getCenter(new T.Vector3());
+  let faces=0;root.traverse(o=>{if(o.isMesh)faces+=(o.geometry.index?o.geometry.index.count:o.geometry.attributes.position.count)/3;});
+  info.push({file:files[r],size:size.toArray().map(v=>+v.toFixed(2)),faces});
+  const pivot=new T.Group();root.position.sub(c);pivot.add(root);scene.add(pivot);
+  const R=Math.max(size.x,size.y,size.z)*.62+.05;
+  for(let v=0;v<views.length;v++){
+    const cam=new T.PerspectiveCamera(30,1,.01,100),a=ANG[views[v]]??0,d=R/Math.tan(15*Math.PI/180)*1.05,top=views[v]==='top',icon=views[v]==='icon';
+    cam.position.set(Math.sin(a)*d*(top?.01:1),top?d:size.y*(icon?.35:.05),Math.cos(a)*d*(top?.01:1));cam.lookAt(0,0,0);
+    const cx=grid?(r%grid)*S:v*S,cy=grid?(rowsN-1-Math.floor(r/grid))*S:(files.length-1-r)*S;renderer.setViewport(cx,cy,S,S);renderer.setScissor(cx,cy,S,S);renderer.render(scene,cam);
+  }
+  scene.remove(pivot);
+}
+window.__info=info;window.__done=true;
+</script>

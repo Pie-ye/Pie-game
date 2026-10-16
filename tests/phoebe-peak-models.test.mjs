@@ -2,11 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile,stat} from 'node:fs/promises';
 import {ZONES,ITEMS} from '../site/games/community/phoebe-peak/src/data.js';
+import {readdir} from 'node:fs/promises';
 
 const base=new URL('../site/games/community/phoebe-peak/',import.meta.url);
-const PROPS=['palm_tree','thorn_bush','berry_bush','mushroom_cluster','snow_pine','ice_spike','geyser','lava_rock','furnace','anvil_gear','ruin_pillar','torch_stand','summit_flag','altar','campfire','boulder','hanging_vine','crystal_cluster'];
-const MODELS=[...ZONES.flatMap(z=>[z.wall,z.ledge]),...PROPS,...Object.keys(ITEMS),'phoebe','reggie','reggie_roar','reggie_slam','reggie_charge','reggie_sweep','crate','island','sea'];
-const BUDGET=name=>name.endsWith('_wall')?2500:name.startsWith('phoebe')?60000:name.startsWith('reggie')?60000:name in ITEMS?4000:name==='island'||name==='sea'?4000:12000;
+const PROPS=['palm_tree','thorn_bush','berry_bush','mushroom_cluster','snow_pine','ice_spike','geyser','lava_rock','furnace','anvil_gear','ruin_pillar','torch_stand','summit_flag','altar','campfire','boulder','hanging_vine','crystal_cluster','beehive','cabin','tent','signpost','lamp_post','barrels'];
+const MODELS=[...PROPS,...Object.keys(ITEMS),'phoebe','reggie','reggie_roar','reggie_slam','reggie_charge','reggie_sweep','crate','island','sea'];
+const BUDGET=name=>name.startsWith('phoebe')?60000:name.startsWith('reggie')?60000:name in ITEMS?9000:name==='island'||name==='sea'?9000:14000;
 
 async function parse(path){
   const file=await readFile(new URL(path,base));
@@ -26,7 +27,7 @@ for(const name of MODELS)test(`peak model ${name}.glb: finite indexed geometry w
 });
 test('Phoebe rig: 21 bones, valid hierarchy, weights sum to 255 per vertex, matches the model',async()=>{
   const rig=JSON.parse(await readFile(new URL('assets/phoebe.rig.json',base))),{read,doc}=await parse('assets/models/phoebe.glb');
-  assert.equal(rig.vertices,doc.accessors[doc.meshes[0].primitives[0].attributes.POSITION].count);
+  assert.equal(rig.vertices,doc.accessors[doc.meshes[0].primitives[0].attributes.POSITION].count);assert.ok(rig.vertices>10000,'the LoRA model is detailed');
   const names=new Set(rig.bones.map(b=>b.name));assert.equal(rig.bones.length,21);
   for(const need of ['root','hips','spine','chest','neck','head','upperArmL','foreArmL','handL','upperArmR','foreArmR','handR','thighL','shinL','footL','thighR','shinR','footR'])assert.ok(names.has(need),need);
   rig.bones.forEach((b,i)=>{if(b.parent)assert.ok(rig.bones.findIndex(x=>x.name===b.parent)<i,`parent of ${b.name} comes first`);});
@@ -35,6 +36,7 @@ test('Phoebe rig: 21 bones, valid hierarchy, weights sum to 255 per vertex, matc
 });
 test('HUD icons, sky panoramas and manifest exist',async()=>{
   for(const k of Object.keys(ITEMS))assert.ok((await stat(new URL(`assets/icons/${k}.png`,base))).size>500,k);
-  for(const z of ZONES)assert.ok((await stat(new URL(`assets/sky/${z.sky}.jpg`,base))).size>20000,z.sky);
+  for(const z of ZONES){assert.ok((await stat(new URL(`assets/sky/${z.sky}.jpg`,base))).size>100000,z.sky);for(const kind of ['wall','ledge'])assert.ok((await stat(new URL(`assets/tex/${kind}_${z.id}.jpg`,base))).size>5000,`${kind}_${z.id}`);}
+  const models=await readdir(new URL('assets/models/',base));assert.ok(!models.some(m=>/_(wall|ledge)\.glb$/.test(m)),'cliff tiles are gone: walls are procedural now');
   const game=JSON.parse(await readFile(new URL('game.json',base)));assert.equal(game.id,'phoebe-peak');assert.equal(game.entry,'index.html');
 });

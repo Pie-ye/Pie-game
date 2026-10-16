@@ -1,0 +1,166 @@
+{
+ "items": [
+  {
+   "name": "w2_beach",
+   "bg": "scene",
+   "lora": 0.4,
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "w": 1024,
+   "h": 1024,
+   "prompt": "villagehmmb, layered beige sandstone cliff rock surface with horizontal strata, cracks and small shells, seamless tileable pattern, material texture swatch, flat orthographic front view, uniform even detail across the whole image, no perspective, no center focus, no objects, hand painted game texture"
+  },
+  {
+   "name": "w2_jungle",
+   "bg": "scene",
+   "lora": 0.4,
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "w": 1024,
+   "h": 1024,
+   "prompt": "villagehmmb, mossy red brown rock wall surface covered with green moss and small ferns, seamless tileable pattern, material texture swatch, flat orthographic front view, uniform even detail across the whole image, no perspective, no center focus, no objects, hand painted game texture"
+  },
+  {
+   "name": "w2_alpine",
+   "bg": "scene",
+   "lora": 0.4,
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "w": 1024,
+   "h": 1024,
+   "prompt": "villagehmmb, grey blue rock surface with frost and thin snow in the cracks, seamless tileable pattern, material texture swatch, flat orthographic front view, uniform even detail across the whole image, no perspective, no center focus, no objects, hand painted game texture"
+  },
+  {
+   "name": "w2_caldera",
+   "bg": "scene",
+   "lora": 0.4,
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "w": 1024,
+   "h": 1024,
+   "prompt": "villagehmmb, black basalt rock surface with fine glowing orange lava cracks, seamless tileable pattern, material texture swatch, flat orthographic front view, uniform even detail across the whole image, no perspective, no center focus, no objects, hand painted game texture"
+  },
+  {
+   "name": "w2_forge",
+   "bg": "scene",
+   "lora": 0.4,
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "w": 1024,
+   "h": 1024,
+   "prompt": "villagehmmb, dark iron plated rock wall with rivets, bolts and gears, faint red glow in the seams, seamless tileable pattern, material texture swatch, flat orthographic front view, uniform even detail across the whole image, no perspective, no center focus, no objects, hand painted game texture"
+  },
+  {
+   "name": "w2_citadel",
+   "bg": "scene",
+   "lora": 0.4,
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "w": 1024,
+   "h": 1024,
+   "prompt": "villagehmmb, ancient grey stone brick wall with moss in the joints, seamless tileable pattern, material texture swatch, flat orthographic front view, uniform even detail across the whole image, no perspective, no center focus, no objects, hand painted game texture"
+  },
+  {
+   "name": "l2_beach",
+   "bg": "scene",
+   "lora": 0.4,
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024,
+   "prompt": "villagehmmb, white sand ground texture with tiny shells and seaweed bits, seamless tileable pattern, material texture swatch, flat orthographic front view, uniform even detail across the whole image, no perspective, no center focus, no objects, hand painted game texture"
+  },
+  {
+   "name": "l2_jungle",
+   "bg": "scene",
+   "lora": 0.4,
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024,
+   "prompt": "villagehmmb, green grass ground texture with small white flowers and moss, seamless tileable pattern, material texture swatch, flat orthographic front view, uniform even detail across the whole image, no perspective, no center focus, no objects, hand painted game texture"
+  },
+  {
+   "name": "l2_alpine",
+   "bg": "scene",
+   "lora": 0.4,
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024,
+   "prompt": "villagehmmb, white snow ground texture with light blue shadows, seamless tileable pattern, material texture swatch, flat orthographic front view, uniform even detail across the whole image, no perspective, no center focus, no objects, hand painted game texture"
+  },
+  {
+   "name": "l2_caldera",
+   "bg": "scene",
+   "lora": 0.4,
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024,
+   "prompt": "villagehmmb, black volcanic rock ground with thin glowing orange cracks, seamless tileable pattern, material texture swatch, flat orthographic front view, uniform even detail across the whole image, no perspective, no center focus, no objects, hand painted game texture"
+  },
+  {
+   "name": "l2_forge",
+   "bg": "scene",
+   "lora": 0.4,
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024,
+   "prompt": "villagehmmb, riveted iron floor plates with pipes, seamless tileable pattern, material texture swatch, flat orthographic front view, uniform even detail across the whole image, no perspective, no center focus, no objects, hand painted game texture"
+  },
+  {
+   "name": "l2_citadel",
+   "bg": "scene",
+   "lora": 0.4,
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024,
+   "prompt": "villagehmmb, old stone floor slabs with engraved patterns, seamless tileable pattern, material texture swatch, flat orthographic front view, uniform even detail across the whole image, no perspective, no center focus, no objects, hand painted game texture"
+  }
+ ]
+}

@@ -1,0 +1,18 @@
+{
+ "items": [
+  {
+   "name": "pine",
+   "prompt": "villagehmmb, a single tall snow covered pine tree with drooping snowy branches, fantasy game asset, painterly, three-quarter view",
+   "neg": "house, cabin, building, hut, ground details, island",
+   "lora": 0.35,
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "w": 768,
+   "h": 1024
+  }
+ ]
+}

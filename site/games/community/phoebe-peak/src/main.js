@@ -21,15 +21,25 @@ const edge={jump:false,interact:false,use:false,drop:false,release:false,slot:nu
 
 function buildMenu(){
   const box=$('ascents');box.innerHTML='';
-  ASCENTS.forEach((a,i)=>{const b=document.createElement('button');b.className='asc'+(i===ascent?' on':'');b.textContent=a.name;b.disabled=i>save.unlocked;b.onclick=()=>{ascent=i;buildMenu();};box.append(b);});
+  ASCENTS.forEach((a,i)=>{const b=document.createElement('button');b.className='asc'+(i===ascent?' on':'');b.innerHTML=`${i} · ${a.name}<small>${a.note}</small>`;b.disabled=i>save.unlocked;b.onclick=()=>{ascent=i;buildMenu();};box.append(b);});
   const gl=game.world.gloom?` · 今日變體：幽暗的${ZONES.find(z=>z.id===game.world.gloom).name}區`:'';$('daily').textContent=`今日山脈 #${seed}${gl}（每 24 小時更換）${save.best[ascent]?` · 本階最佳 ${Math.floor(save.best[ascent]/60)}分${Math.round(save.best[ascent]%60)}秒`:''}`;
 }
 function clearInput(){keys.clear();stick={x:0,z:0,id:null};touch={run:false,grab:false};drag=null;const j=$('joystick').firstElementChild;if(j)j.style.transform='';}
 const lock=()=>{if(matchMedia('(pointer:fine)').matches&&document.pointerLockElement!==canvas){try{const r=canvas.requestPointerLock();r?.catch?.(()=>{});}catch{}}};
-function start(){
-  audio.unlock();lock();clearInput();game.reset({seed,ascent});game.mode='play';view.yaw=0;view.pitch=.34;view.dist=6.4;
-  hud=hud||makeHud(game);$('menu').hidden=true;$('modal').hidden=true;$('hud').hidden=false;app.focus();
-  game.toast('走向前方岩壁開始攀爬。靠近物品按 E 撿起',4200);
+let building=false,built={seed:null,ascent:null,fresh:true};
+async function start(){
+  if(building)return;
+  audio.unlock();lock();clearInput();
+  const reuse=built.fresh&&built.seed===seed&&built.ascent===ascent;
+  game.reset({seed,ascent,keepWorld:reuse});game.mode='play';view.yaw=game.world.spawn.yaw+Math.PI;view.pitch=.34;view.dist=6.4;
+  if(!reuse){building=true;$('loading').hidden=false;$('load-text').textContent='重新整理山脈…';try{await rebuild();}finally{building=false;$('loading').hidden=true;}}
+  built.fresh=false;
+  hud=makeHud(game);$('menu').hidden=true;$('modal').hidden=true;$('hud').hidden=false;app.focus();
+  game.toast('走向前方岩壁開始攀爬。靠近物品按 E 撿起；按 M 看路線圖',4800);
+}
+async function rebuild(){
+  const old=sc;sc=await buildScene(renderer,game,p=>{$('load-bar').value=p;});sc.renderer=renderer;sc.resize(app.clientWidth,app.clientHeight);built={seed:game.world.seed,ascent:game.world.ascent,fresh:false};
+  old?.scene.traverse(o=>{if(o.isInstancedMesh)o.dispose?.();});
 }
 function pause(){if(game.mode==='play'){game.mode='pause';clearInput();$('modal-title').textContent='暫停';$('modal-copy').textContent='放鬆一下，山不會跑掉。';$('modal-stats').textContent='';$('resume').hidden=false;$('modal').hidden=false;}
   else if(game.mode==='pause'){game.mode='play';$('modal').hidden=true;app.focus();lock();}}
@@ -42,7 +52,7 @@ const pressed=e=>{
   const k=e.key.toLowerCase();if(['arrowup','arrowdown','arrowleft','arrowright',' ','tab'].includes(k))e.preventDefault();
   if(e.repeat)return;keys.add(k);
   if(k===' ')edge.jump=true;if(k==='e')edge.interact=true;if(k==='f')edge.use=true;if(k==='g')edge.drop=true;if(k==='c')edge.release=true;
-  if(k==='q'||k==='tab')edge.step=1;if(k==='z')edge.step=-1;if('1234'.includes(k)&&k.length===1)edge.slot=Number(k)-1;
+  if(k==='q'||k==='tab')edge.step=1;if(k==='z')edge.step=-1;if('123456'.includes(k)&&k.length===1)edge.slot=Number(k)-1;if(k==='m')$('map').classList.toggle('big');
   if(k==='escape'||k==='p')pause();
 };
 window.addEventListener('keydown',pressed);window.addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));
@@ -82,7 +92,7 @@ function route(events){
     else if(e.type==='faint')audio.play('faint');else if(e.type==='wake')audio.play('wake');
     else if(e.type==='zone')audio.play('zone');else if(e.type==='wind'||e.type==='windWarn')audio.play('wind');
     else if(e.type==='rockWarn'||e.type==='rockHit')audio.play('rock');else if(e.type==='poison')audio.play('poison');
-    else if(e.type==='won')finish();
+    else if(e.type==='sign'||e.type==='flag'||e.type==='shelf')audio.play('zone');else if(e.type==='bounce'||e.type==='balloon')audio.play('jump');else if(e.type==='cook')audio.play('eat');else if(e.type==='won')finish();else if(e.type==='lost')lose();else if(e.type==='mist')audio.play('wind');
     forward.push(e);
   }
   sc?.handleEvents(forward);
@@ -97,24 +107,30 @@ function finish(){
   $('modal-stats').textContent=`用時 ${m} 分 ${s} 秒 · 昏迷 ${game.faints} 次 · 摔落 ${game.falls} 次 · 使用道具 ${game.itemsUsed} 件 · 啟動祭壇 ${game.stats.altars} 座`;
   $('resume').hidden=true;$('modal').hidden=false;
 }
+function lose(){
+  audio.play('faint');$('modal-title').textContent='被濃霧吞沒了';
+  $('modal-copy').textContent='濃霧升上了所有營地。下次試著更快離開山腳、少繞路，或選擇直壁路線搶時間。';
+  const m=Math.floor(game.time/60),s=Math.round(game.time%60);$('modal-stats').textContent=`撐了 ${m} 分 ${s} 秒 · 最高 ${game.maxHeight.toFixed(0)} 公尺 · 啟動祭壇 ${game.stats.altars} 座`;
+  $('resume').hidden=true;$('modal').hidden=false;
+}
 let hudClock=0;
 function frame(now){
   const dt=Math.min(.08,(now-last)/1000);last=now;
   if(game.mode==='play'){acc+=dt;let n=0;while(acc>=1/60&&n++<5){game.update(1/60,readInput());acc-=1/60;route(game.events);game.events.length=0;}}
   else{route(game.events);game.events.length=0;acc=0;}
   view.autoAlign=performance.now()-lastDrag>2500;
-  sc.update(dt,view);if(hud&&!$('hud').hidden)hud.update(dt,view);
-  sc.renderer.render(sc.scene,sc.camera);
+  if(!building){sc.update(dt,view);if(hud&&!$('hud').hidden)hud.update(dt,view);
+  sc.renderer.render(sc.scene,sc.camera);}
   requestAnimationFrame(frame);
 }
 async function boot(){
   try{
     renderer=new T.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
-    renderer.setPixelRatio(Math.min(devicePixelRatio,1.6));renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;
+    renderer.setPixelRatio(Math.min(devicePixelRatio,1.6));renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;
     sc=await buildScene(renderer,game,p=>{$('load-bar').value=p;$('load-text').textContent=`載入模型 ${Math.round(p*100)}%`;});sc.renderer=renderer;
     const resize=()=>sc.resize(app.clientWidth,app.clientHeight);new ResizeObserver(resize).observe(app);resize();
     $('loading').hidden=true;buildMenu();$('menu').hidden=false;
-    window.__peak={game,sc,start,view,route,readInput,get hud(){return hud;}};
+    window.__peak={game,get sc(){return sc;},start,view,route,readInput,get hud(){return hud;}};built={seed:game.world.seed,ascent:game.world.ascent,fresh:true};
     canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();game.mode='pause';$('loading').hidden=false;$('load-text').textContent='繪圖連線已中斷，請重新整理頁面。';});
     if(params.get('autostart')==='1')start();
     requestAnimationFrame(frame);

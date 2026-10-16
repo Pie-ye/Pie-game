@@ -1,0 +1,148 @@
+{
+ "items": [
+  {
+   "name": "wall_beach",
+   "bg": "scene",
+   "lora": 0.65,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024,
+   "prompt": "villagehmmb, seamless texture, flat front view, filling the whole frame, no sky, no horizon, sandstone cliff rock face with horizontal layers, shells and coral fossils, sand in the cracks, beige, hand painted fantasy game texture, evenly lit"
+  },
+  {
+   "name": "wall_jungle",
+   "bg": "scene",
+   "lora": 0.65,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024,
+   "prompt": "villagehmmb, seamless texture, flat front view, filling the whole frame, no sky, no horizon, red ochre rock wall covered with deep green moss, vines and ferns, small flowers in the cracks, hand painted fantasy game texture, evenly lit"
+  },
+  {
+   "name": "wall_alpine",
+   "bg": "scene",
+   "lora": 0.65,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024,
+   "prompt": "villagehmmb, seamless texture, flat front view, filling the whole frame, no sky, no horizon, grey blue rock wall with snow in the cracks, icicles and frost, hand painted fantasy game texture, evenly lit"
+  },
+  {
+   "name": "wall_caldera",
+   "bg": "scene",
+   "lora": 0.65,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024,
+   "prompt": "villagehmmb, seamless texture, flat front view, filling the whole frame, no sky, no horizon, black basalt columnar rock wall with orange glowing lava cracks and smoke, hand painted fantasy game texture, evenly lit"
+  },
+  {
+   "name": "wall_forge",
+   "bg": "scene",
+   "lora": 0.65,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024,
+   "prompt": "villagehmmb, seamless texture, flat front view, filling the whole frame, no sky, no horizon, dark iron grey rock wall inlaid with iron plates, rivets, gears and chains, red glow in the cracks, hand painted fantasy game texture, evenly lit"
+  },
+  {
+   "name": "wall_citadel",
+   "bg": "scene",
+   "lora": 0.65,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024,
+   "prompt": "villagehmmb, seamless texture, flat front view, filling the whole frame, no sky, no horizon, ancient grey white stone brick castle wall with carved reliefs, moss, some crumbled bricks, hand painted fantasy game texture, evenly lit"
+  },
+  {
+   "name": "ledge_beach",
+   "bg": "scene",
+   "lora": 0.65,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024,
+   "prompt": "villagehmmb, seamless texture, flat front view, filling the whole frame, no sky, no horizon, white sand ground with seaweed and small shells, hand painted fantasy game texture, evenly lit"
+  },
+  {
+   "name": "ledge_jungle",
+   "bg": "scene",
+   "lora": 0.65,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024,
+   "prompt": "villagehmmb, seamless texture, flat front view, filling the whole frame, no sky, no horizon, green grass and mossy stone ground with small flowers, hand painted fantasy game texture, evenly lit"
+  },
+  {
+   "name": "ledge_alpine",
+   "bg": "scene",
+   "lora": 0.65,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024,
+   "prompt": "villagehmmb, seamless texture, flat front view, filling the whole frame, no sky, no horizon, flat pure white snow ground with frost, hand painted fantasy game texture, evenly lit"
+  },
+  {
+   "name": "ledge_caldera",
+   "bg": "scene",
+   "lora": 0.65,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024,
+   "prompt": "villagehmmb, seamless texture, flat front view, filling the whole frame, no sky, no horizon, black volcanic rock ground with fine glowing orange cracks, hand painted fantasy game texture, evenly lit"
+  },
+  {
+   "name": "ledge_forge",
+   "bg": "scene",
+   "lora": 0.65,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024,
+   "prompt": "villagehmmb, seamless texture, flat front view, filling the whole frame, no sky, no horizon, iron grate floor plates with pipes and rivets, hand painted fantasy game texture, evenly lit"
+  },
+  {
+   "name": "ledge_citadel",
+   "bg": "scene",
+   "lora": 0.65,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024,
+   "prompt": "villagehmmb, seamless texture, flat front view, filling the whole frame, no sky, no horizon, ancient stone slab floor with engraved patterns, hand painted fantasy game texture, evenly lit"
+  }
+ ]
+}

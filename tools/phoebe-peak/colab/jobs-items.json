@@ -1,0 +1,323 @@
+{
+ "items": [
+  {
+   "name": "snack",
+   "prompt": "villagehmmb, a small bag of airline snacks, a packet with a paper plane logo, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.5,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "coconut",
+   "prompt": "villagehmmb, a whole brown coconut with a straw, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.5,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "berry_red",
+   "prompt": "villagehmmb, a sprig of shiny red berries with leaves, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.5,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "berry_blue",
+   "prompt": "villagehmmb, a sprig of shiny blue berries with leaves, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.5,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "mushroom_item",
+   "prompt": "villagehmmb, a single plump red mushroom with white spots, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.5,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "energy_drink",
+   "prompt": "villagehmmb, a can of energy drink with a lightning bolt label, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.5,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "medkit",
+   "prompt": "villagehmmb, a white first aid kit box with a red cross and a handle, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.5,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "bandage",
+   "prompt": "villagehmmb, a roll of white bandage with a safety pin, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.5,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "antidote",
+   "prompt": "villagehmmb, a small green potion bottle with a cork and a leaf label, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.5,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "hot_tea",
+   "prompt": "villagehmmb, a steaming cup of hot tea with a lid and a tea bag, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.5,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "ice_pack",
+   "prompt": "villagehmmb, a blue ice pack bag covered in frost, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.5,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "rope_spool",
+   "prompt": "villagehmmb, a coil of thick rope on a wooden spool, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.5,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "piton",
+   "prompt": "villagehmmb, a metal climbing piton peg with a ring and a small hammer, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.5,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "chain_launcher",
+   "prompt": "villagehmmb, a steampunk chain launcher gun with a grappling hook and chain, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.5,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "blowdart",
+   "prompt": "villagehmmb, a wooden blowgun tube with a few colorful darts, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.5,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "lantern_item",
+   "prompt": "villagehmmb, a portable brass oil lantern with a glowing flame, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.5,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "granola_bar",
+   "prompt": "villagehmmb, a granola bar in a half opened wrapper with oats and nuts, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.5,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "honeycomb",
+   "prompt": "villagehmmb, a golden honeycomb piece dripping honey, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.5,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "winterberry",
+   "prompt": "villagehmmb, a sprig of yellow winter berries with a little snow, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.5,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "aloe_vera",
+   "prompt": "villagehmmb, an aloe vera leaf cut open with gel, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.5,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "cure_all",
+   "prompt": "villagehmmb, a golden glowing elixir bottle with a star shape label, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.5,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "magic_bean",
+   "prompt": "villagehmmb, a single large magical glowing green bean seed with a tiny sprout, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.5,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "shelf_fungus",
+   "prompt": "villagehmmb, an orange shelf bracket fungus mushroom, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.5,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "bounce_fungus",
+   "prompt": "villagehmmb, a springy bouncy purple mushroom with a round cap, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.5,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "parasol",
+   "prompt": "villagehmmb, a closed red parasol umbrella with a wooden handle, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.5,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "balloon",
+   "prompt": "villagehmmb, a bunch of three colorful balloons tied with a string, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.5,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "compass",
+   "prompt": "villagehmmb, a brass compass with a glass top and a red needle, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.5,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "checkpoint_flag",
+   "prompt": "villagehmmb, a small red triangular flag on a wooden pole, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.5,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "backpack",
+   "prompt": "villagehmmb, a green hiking backpack with straps and a bedroll, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.5,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  }
+ ]
+}

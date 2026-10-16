@@ -1,11 +1,10 @@
-import {CELL,PLAYER,ZONES,ITEMS,COST,ASCENTS} from './data.js';
+import {CELL,PLAYER,ZONES,ITEMS,COST,ASCENTS,BASE_SLOTS,MAX_SLOTS,PASSIVE,MIST_START,ROUTES} from './data.js';
 import {generateWorld} from './world.js';
 import {mulberry32,daySeed} from './rng.js';
 import {moveBody,supportAt,pointSolid,rayCast,GRAVITY,overlaps} from './physics.js';
 import {makeReggie,updateReggie} from './reggie.js';
 import {ATTACK_INFO,clamp,approach} from './rules.js';
 
-const SLOTS=4;
 const V3=(x,y,z)=>({x,y,z});
 export class Game{
   constructor(opts={}){this.opts={seed:opts.seed??daySeed(),ascent:opts.ascent??0};this.mode='title';this.events=[];this.reset(opts);this.mode='title';}
@@ -15,16 +14,17 @@ export class Game{
     if(opts.seed!==undefined)this.opts.seed=opts.seed;if(opts.ascent!==undefined)this.opts.ascent=opts.ascent;
     const seed=this.opts.seed,ascent=this.opts.ascent;
     this.rand=mulberry32((seed*7919+ascent*104729)>>>0);
-    this.world=generateWorld(seed,ascent);const w=this.world,s=w.spawn;
+    if(!(opts.keepWorld&&this.world&&this.world.seed===seed&&this.world.ascent===ascent))this.world=generateWorld(seed,ascent);const w=this.world,s=w.spawn;
     this.player={x:s.x,y:0,z:s.z,vx:0,vy:0,vz:0,yaw:s.yaw,state:'move',grounded:true,wall:null,rope:null,anchor:null,mantle:null,chain:null,peakY:0,attachT:0,offCool:0,lunge:0,hurtCd:0,eat:0,use:0,faintT:0,support:null,climbPhase:0,speed:0,sprinting:false};
     this.aff={hunger:.04,injury:0,poison:0,cold:0,hot:0,sleepBuild:0};
-    this.stamina=100;this.exhausted=false;this.status={energy:0,sleep:0,crash:0};
-    this.inv=Array(SLOTS).fill(null);this.sel=0;this.inv[0]={kind:'snack'};
+    this.stamina=100;this.bonus=0;this.exhausted=false;this.status={energy:0,sleep:0,crash:0};
+    this.slots=BASE_SLOTS;this.inv=Array(MAX_SLOTS).fill(null);this.sel=0;this.inv[0]={kind:'snack'};
     this.time=0;this.mode='play';this.won=false;this.faints=0;this.falls=0;this.itemsUsed=0;this.maxHeight=0;this.respawn={x:s.x,y:0,z:s.z,altar:'start'};
-    this.reggies=w.reggies.map(d=>makeReggie(d,w));this.scouts=[];this.boulders=[];this.anchors=[];this.rope=null;this.placedRopes=[];this.ropes=w.ropes.map(r=>({...r}));
+    this.reggies=w.reggies.map(d=>makeReggie(d,w));this.scouts=[];this.boulders=[];this.rope=null;this.placedRopes=[];this.ropes=w.ropes.map(r=>({...r}));this.anchors=w.anchors.map(a=>({...a}));this.hives=w.hives.map(h=>({...h,angry:0,cd:0}));this.bounce=[];this.shelves=[];this.flagRespawn=null;this.flags=[];
+    this.effects={balloon:0};this.mist={y:-40,started:false,inside:0,lastWarn:0};this.lost=false;
     this.zoneEnter=new Map([[0,0]]);this.rushWarned=false;this.boulderTimer=14;this.wind={t:rand(this.rand,12,20),active:0,dir:{x:1,z:0},warn:0};
     this.crumbles=new Map();this.pickupHint='';this.hint='';this.stats={altars:0};this.dartAmmo=0;
-    this.tipsSeen=new Set();
+    this.tipsSeen=new Set();this.signsSeen=new Set();
     this.events=[];
     this.emit('reset');
   }
@@ -38,17 +38,21 @@ export class Game{
     if(a.cold>.04)this.tip('cold','太冷了！靠近營火或祭壇，或喝熱茶');
     if(a.hot>.04)this.tip('hot','太熱了！離開熔岩壁面，或使用冰敷袋');
     for(const r of this.reggies)if(r.state==='windup'&&Math.hypot(r.x-p.x,r.z-p.z)<14)this.tip('reggie','紅色範圍是瑞吉的攻擊：跳起來可以閃掉拍地、甩身和衝撞；他吼叫時別抓在牆上離他太近');
+    if(this.bonus>5)this.tip('bonus','金色的是額外體力：會先被消耗，而且不會自己恢復');
+    if(this.mist.started&&p.y<this.mist.y+40)this.tip('mistnear','濃霧在腳下追上來：少繞路、少停留，必要時走直壁');
     if(this.nearAltar(p,3.5))this.tip('altar','按 E 啟動祭壇：存檔、恢復體力、解毒。昏迷後會在這裡醒來');
     if(this.status.energy>20&&false)this.tip('energy','');
   }
   // ---- derived values ------------------------------------------------------------------------------------------------
-  weightFrac(){return this.inv.reduce((n,i)=>n+(i?ITEMS[i.kind].weight:0),0)*1.5/100;}
+  weightFrac(){return this.inv.reduce((n,i)=>n+(i?ITEMS[i.kind].weight:0),0)*1.5/100*(this.world.asc.weight??1);}
   caps(){const a=this.aff;return {hunger:a.hunger*.45,injury:a.injury,poison:a.poison,cold:a.cold,hot:a.hot,weight:this.weightFrac()};}
   maxStamina(){const c=this.caps();return 100*(1-clamp(c.hunger+c.injury+c.poison+c.cold+c.hot+c.weight,0,.97));}
-  zone(){return this.world.zoneAt(this.player.y+.1);}
+  zone(){return this.world.zoneAt(this.player.y-.05);}
   nearAltar(p,r){for(const a of this.world.altars)if(Math.hypot(a.x-p.x,a.z-p.z)<r&&Math.abs(a.y-p.y)<2.5)return a;return null;}
   nearFire(p,r=7){for(const c of this.world.campfires)if(Math.hypot(c.x-p.x,c.z-p.z)<r&&Math.abs(c.y-p.y)<3)return true;return !!this.nearAltar(p,r);}
-  spend(v){this.stamina=Math.max(0,this.stamina-v);}
+  spend(v){if(this.bonus>0){const t=Math.min(this.bonus,v);this.bonus-=t;v-=t;}this.stamina=Math.max(0,this.stamina-v);}
+  climbMul(){return this.world.asc.climb??1;}
+  slotCount(){return this.slots;}
   hasItem(kind){return this.inv.findIndex(i=>i&&i.kind===kind);}
   // ---- damage and fainting ---------------------------------------------------------------------------------------------
   hurtPlayer(injury,stamina,source,opts={}){
@@ -64,14 +68,20 @@ export class Game{
   faint(reason){
     const p=this.player;if(p.state==='faint')return;
     p.state='faint';p.faintT=3.6;p.wall=null;p.rope=null;p.anchor=null;p.vx=p.vz=0;this.faints++;this.emit('faint',{reason});
-    this.toast({fall:'摔得太重，昏迷了…',drown:'掉進海裡了…',stamina:'體力耗盡，昏迷了…',cap:'身體撐不住，昏迷了…'}[reason]||'昏迷了…',3200);
+    this.toast({fall:'摔得太重，昏迷了…',drown:'掉進海裡了…',stamina:'體力耗盡，昏迷了…',cap:'身體撐不住，昏迷了…',mist:'被濃霧追上了，昏迷了…'}[reason]||'昏迷了…',3200);
   }
   wake(){
-    const p=this.player,r=this.respawn,a=this.aff;
+    const p=this.player,a=this.aff;let r=this.respawn;
+    if(this.flagRespawn){r=this.flagRespawn;this.flagRespawn=null;this.emit('flagUsed');}
+    else if(this.mist.started&&r.y<this.mist.y+3){ // the mist swallowed the old camp: wake at the highest altar above it
+      const up=this.world.altars.filter(x=>x.active&&x.y>this.mist.y+6).sort((x,y)=>y.y-x.y)[0];
+      if(!up){this.lost=true;this.mode='lost';this.emit('lost');this.toast('濃霧吞沒了所有營地…',4000);return;}
+      r={x:up.x+1.4,y:up.y,z:up.z+1.4,altar:up.id};this.respawn=r;}
     Object.assign(p,{x:r.x,y:r.y,z:r.z,vx:0,vy:0,vz:0,state:'move',grounded:true,wall:null,rope:null,anchor:null,peakY:r.y,hurtCd:1.5});
     a.injury*=.5;a.poison=0;a.cold=0;a.hot=0;a.hunger=Math.max(a.hunger,.35);a.sleepBuild=0;this.status.sleep=0;this.status.crash=0;this.status.energy=0;
     this.stamina=this.maxStamina()*.6;
-    if(this.world.ascent>=2){for(let i=0;i<SLOTS;i++)if(this.inv[i]&&!['snack','bandage'].includes(this.inv[i].kind)&&this.rand()<.6)this.inv[i]=null;}
+    this.bonus=0;this.effects.balloon=0;
+    if(this.world.ascent>=2){for(let i=0;i<this.slots;i++)if(this.inv[i]&&!['snack','bandage'].includes(this.inv[i].kind)&&this.rand()<.6)this.inv[i]=null;}
     this.emit('wake');this.toast('在祭壇醒來。小心點！',3000);
   }
   letGo(forced=false){
@@ -86,7 +96,7 @@ export class Game{
     p.hurtCd=Math.max(0,p.hurtCd-dt);p.offCool=Math.max(0,p.offCool-dt);p.use=Math.max(0,p.use-dt);
     this.handleSelect(inp);
     if(p.state==='faint'){p.faintT-=dt;if(p.faintT<=0)this.wake();this.updateWorldHazards(dt);this.updateReggies(dt);return;}
-    this.updateStatus(dt);
+    this.updateStatus(dt);this.updateMist(dt);this.updateDynamic(dt);
     if(this.status.sleep>0){this.sleeping(dt);}
     else{
       if(p.eat>0){p.eat-=dt;if(p.eat<=0)this.finishUse();}
@@ -96,13 +106,13 @@ export class Game{
     }
     this.ejectIfStuck();this.afflictions(dt);this.staminaCheck(dt);this.tipsUpdate();
     this.updateWorldHazards(dt);this.updateReggies(dt);this.progress(dt);
-    if(p.y<-3||Math.abs(p.x)>85||Math.abs(p.z)>85)this.faint('drown');
+    if(p.y<-3||Math.abs(p.x)>this.world.limit||Math.abs(p.z)>this.world.limit)this.faint('drown');
     this.maxHeight=Math.max(this.maxHeight,p.y);
   }
   // Safety net: if any path ever leaves the player inside rock, push out through the nearest face.
   ejectIfStuck(){
     const p=this.player;if(p.state==='faint'||p.state==='mantle'||p.state==='chain')return;
-    for(const b of this.world.solids){
+    for(const b of this.world.solids){if(b.dead)continue;
       if(b.oneway||!overlaps(p,b,.25,1.4))continue;
       const pens=[[p.x+.3-b.x1,-1,0,'x',b.x1-.31],[b.x2-(p.x-.3),1,0,'x',b.x2+.31],[p.z+.3-b.z1,0,-1,'z',b.z1-.31],[b.z2-(p.z-.3),0,1,'z',b.z2+.31]];
       pens.sort((a,c)=>a[0]-c[0]);const up=b.y2-p.y;
@@ -112,7 +122,7 @@ export class Game{
     }
   }
   // ---- selection / actions ---------------------------------------------------------------------------------------------
-  handleSelect(inp){if(inp.slot!=null&&inp.slot>=0&&inp.slot<SLOTS){this.sel=inp.slot;}if(inp.slotStep)this.sel=(this.sel+inp.slotStep+SLOTS)%SLOTS;}
+  handleSelect(inp){const n=this.slots;if(inp.slot!=null&&inp.slot>=0&&inp.slot<n){this.sel=inp.slot;}if(inp.slotStep)this.sel=(this.sel+inp.slotStep+n)%n;}
   actions(inp){
     const p=this.player;
     if(inp.interact)this.interact();
@@ -121,7 +131,8 @@ export class Game{
   }
   addItem(kind){
     const spec=ITEMS[kind];const data={kind};if(spec.charges)data.charges=spec.charges;if(spec.ammo)data.ammo=spec.ammo;
-    const slot=this.inv.findIndex(i=>!i);if(slot<0)return false;this.inv[slot]=data;if(this.inv[this.sel]===null||slot===this.sel)this.sel=slot;return true;
+    if(spec.kind==='pack'){if(this.slots>=MAX_SLOTS)return false;this.slots=Math.min(MAX_SLOTS,this.slots+2);this.emit('slots');this.toast('背包變大了：現在有 '+this.slots+' 格',2400);return 'pack';}
+    const slot=this.inv.slice(0,this.slots).findIndex(i=>!i);if(slot<0)return false;this.inv[slot]=data;if(this.inv[this.sel]===null||slot===this.sel)this.sel=slot;return true;
   }
   dropItem(){
     const it=this.inv[this.sel];if(!it)return;const p=this.player;this.inv[this.sel]=null;
@@ -133,15 +144,22 @@ export class Game{
     for(const c of this.world.crates)if(!c.opened&&Math.hypot(c.x-p.x,c.z-p.z)<2&&Math.abs(c.y-p.y)<1.6)out.push({type:'crate',ref:c,d:Math.hypot(c.x-p.x,c.z-p.z),label:'E 打開補給箱'});
     for(const a of this.world.altars)if(Math.hypot(a.x-p.x,a.z-p.z)<2.6&&Math.abs(a.y-p.y)<1.8)out.push({type:'altar',ref:a,d:Math.hypot(a.x-p.x,a.z-p.z),label:a.active?'E 在祭壇休息':'E 啟動祭壇（存檔點）'});
     for(const c of this.world.crystals)if(!c.used&&Math.hypot(c.x-p.x,c.z-p.z)<2&&Math.abs(c.y-p.y)<1.6)out.push({type:'crystal',ref:c,d:Math.hypot(c.x-p.x,c.z-p.z),label:'E 吸收水晶能量'});
+    {const it=this.inv[this.sel];
+      if(it&&['berry_red','berry_blue','mushroom_item','coconut','granola_bar'].includes(it.kind)&&!it.cooked)
+        for(const c of this.world.campfires)if(Math.hypot(c.x-p.x,c.z-p.z)<3&&Math.abs(c.y-p.y)<2){out.push({type:'cook',ref:c,d:Math.hypot(c.x-p.x,c.z-p.z)-.5,label:`E 在營火上烤 ${ITEMS[it.kind].name}（變安全、更補）`});break;}}
+    for(const h of this.hives)if(!h.taken&&Math.hypot(h.x-p.x,h.z-p.z)<2.2&&Math.abs(h.y-p.y)<1.8)out.push({type:'hive',ref:h,d:Math.hypot(h.x-p.x,h.z-p.z),label:'E 取蜂巢蜜（會被蜜蜂叮）'});
     out.sort((a,b)=>a.d-b.d);return out;
   }
   interact(){
     const p=this.player,list=this.interactables();if(!list.length)return;const t=list[0],w=this.world;
     if(t.type==='item'){
-      if(!this.addItem(t.ref.kind)){this.toast('背包滿了！按 G 丟掉一件');return;}
+      const added=this.addItem(t.ref.kind);
+      if(!added){this.toast(ITEMS[t.ref.kind].kind==='pack'?'你已經背著最大的背包了':'背包滿了！按 G 丟掉一件');return;}
+      if(added==='pack'){t.ref.taken=true;this.emit('sound',{name:'pickup'});this.emit('taken',{item:t.ref});return;}
       const slot=this.inv.findIndex((i,idx)=>i&&i.kind===t.ref.kind&&idx===this.sel)>=0?this.sel:this.inv.findLastIndex(i=>i&&i.kind===t.ref.kind);
       if(t.ref.charges!=null&&this.inv[slot])this.inv[slot].charges=t.ref.charges;if(t.ref.ammo!=null&&this.inv[slot])this.inv[slot].ammo=t.ref.ammo;
       t.ref.taken=true;if(['berry_red','berry_blue','mushroom_item'].includes(t.ref.kind))this.tip('gamble','野莓與蘑菇可能有毒：餓壞了才賭一把，解毒劑可以救你');this.emit('sound',{name:'pickup'});this.emit('taken',{item:t.ref});this.toast(`撿到 ${ITEMS[t.ref.kind].name}`,1400);
+      if(['magic_bean','shelf_fungus','bounce_fungus','parasol','balloon','compass','checkpoint_flag','cure_all','honeycomb','chain_launcher','piton','rope_spool'].includes(t.ref.kind))this.tip('item:'+t.ref.kind,`${ITEMS[t.ref.kind].name}：${ITEMS[t.ref.kind].desc}`,5200);
     }else if(t.type==='crate'){
       t.ref.opened=true;this.emit('sound',{name:'crate'});this.emit('crate',{crate:t.ref});
       t.ref.loot.forEach((k,i)=>w.items.push({kind:k,x:t.ref.x+(i?.9:-.9),y:t.ref.y,z:t.ref.z+.4,taken:false}));this.toast('補給箱裡有東西！',1800);
@@ -149,31 +167,46 @@ export class Game{
       const a=t.ref;if(!a.active){a.active=true;this.stats.altars++;this.emit('altar',{altar:a});this.toast('祭壇啟動！之後昏迷會在這裡醒來',3600);}
       this.respawn={x:a.x+1.4,y:a.y,z:a.z+1.4,altar:a.id};
       this.aff.injury=Math.max(0,this.aff.injury-.2);this.aff.hunger=Math.max(.05,this.aff.hunger-.25);this.aff.poison=0;this.stamina=this.maxStamina();this.emit('sound',{name:'altar'});
+    }else if(t.type==='cook'){
+      const it=this.inv[this.sel];if(it){it.cooked=true;this.emit('sound',{name:'eat'});this.emit('cook',{campfire:t.ref});this.toast(`${ITEMS[it.kind].name}烤得香噴噴：不會中毒，也更補`,2400);}
+    }else if(t.type==='hive'){
+      t.ref.taken=true;t.ref.angry=9;this.emit('hive',{hive:t.ref});this.emit('sound',{name:'crate'});
+      for(let k=0;k<2;k++)w.items.push({kind:'honeycomb',x:t.ref.x+(k?.8:-.8),y:t.ref.y,z:t.ref.z+.6,taken:false});this.toast('蜂巢掉出蜂巢蜜！蜜蜂生氣了，快離開',2600);
     }else if(t.type==='crystal'){
-      t.ref.used=true;this.aff.injury=Math.max(0,this.aff.injury-.3);this.aff.cold=Math.max(0,this.aff.cold-.2);this.aff.hot=Math.max(0,this.aff.hot-.2);this.stamina=this.maxStamina();this.emit('sound',{name:'crystal'});this.emit('crystal',{crystal:t.ref});this.toast('水晶讓你精神一振',1800);
+      t.ref.used=true;this.aff.injury=Math.max(0,this.aff.injury-.3);this.aff.cold=Math.max(0,this.aff.cold-.2);this.aff.hot=Math.max(0,this.aff.hot-.2);this.stamina=this.maxStamina();this.bonus=Math.min(60,this.bonus+15);this.emit('sound',{name:'crystal'});this.emit('crystal',{crystal:t.ref});this.toast('水晶讓你精神一振',1800);
     }
   }
   // ---- item use ------------------------------------------------------------------------------------------------------
   startUse(inp){
     const it=this.inv[this.sel];if(!it)return;const spec=ITEMS[it.kind],p=this.player;
-    if(['food','drink','heal','cure','warm','cool'].includes(spec.kind)){p.eat=.8;p.use=.8;p.using=this.sel;this.emit('use',{kind:it.kind,start:true});return;}
+    if(['food','drink','heal','cure','cureall','warm','cool'].includes(spec.kind)){p.eat=.8;p.use=.8;p.using=this.sel;this.emit('use',{kind:it.kind,start:true});return;}
     p.use=.5;
     if(spec.kind==='rope')this.useRope(it);
     else if(spec.kind==='piton')this.usePiton(it);
     else if(spec.kind==='chain')this.useChain(it,inp);
     else if(spec.kind==='dart')this.useDart(it,inp);
     else if(spec.kind==='light')this.toast('提燈已在背包中，視野會變遠');
+    else if(spec.kind==='compass')this.toast('指南針會在畫面上指出下一個營地');
+    else if(spec.kind==='parasol')this.toast('把陽傘拿在手上（選中它），空中就會慢慢飄落');
+    else if(spec.kind==='bean')this.useBean(it);
+    else if(spec.kind==='shelf')this.useShelf(it);
+    else if(spec.kind==='bounce')this.useBounce(it);
+    else if(spec.kind==='balloon'){this.effects.balloon=20;this.consume(this.sel);this.toast('氣球讓你變輕了 20 秒：跳得更高',2400);this.emit('balloon');}
+    else if(spec.kind==='flag')this.useFlag(it);
   }
   consume(slot){this.inv[slot]=null;this.itemsUsed++;}
   finishUse(){
     const p=this.player,slot=p.using??this.sel,it=this.inv[slot];if(!it)return;const spec=ITEMS[it.kind],a=this.aff,asc=this.world.asc;
     this.emit('use',{kind:it.kind,done:true});this.emit('sound',{name:spec.kind==='food'?'eat':'drink'});
-    if(spec.hunger)a.hunger=clamp(a.hunger+spec.hunger/100*(1/.45)*.45,0,1);
+    if(spec.hunger)a.hunger=clamp(a.hunger+spec.hunger/100*(1/.45)*.45*(it.cooked?1.4:1),0,1);
+    if(it.cooked)this.bonus=Math.min(60,this.bonus+8);
+    if(spec.bonus){this.bonus=Math.min(60,this.bonus+spec.bonus);}
+    if(spec.kind==='cureall'){a.injury=0;a.poison=0;a.cold=0;a.hot=0;this.stamina=this.maxStamina();this.bonus=Math.min(60,this.bonus+20);this.toast('萬靈丹：全身舒暢',2200);}
     if(spec.stamina)this.stamina=Math.min(this.maxStamina(),this.stamina+spec.stamina);
     if(spec.injury)a.injury=Math.max(0,a.injury+spec.injury/100);
     if(spec.cold)a.cold=Math.max(0,a.cold+spec.cold/100*.45);if(spec.heat)a.hot=Math.max(0,a.hot+spec.heat/100*.45);
     if(spec.kind==='cure'){a.poison=0;this.toast('毒解了');}
-    if(spec.poisonChance&&this.rand()<spec.poisonChance*asc.poison){a.poison=Math.min(.6,a.poison+.28);this.toast('糟了！有毒！',2600);this.emit('poison');}
+    if(spec.poisonChance&&!it.cooked&&this.rand()<spec.poisonChance*asc.poison){a.poison=Math.min(.6,a.poison+.28);this.toast('糟了！有毒！',2600);this.emit('poison');}
     else if(spec.kind==='food')this.toast(`${spec.name}：飢餓緩解`,1600);
     if(spec.kind==='drink'){this.status.energy=25;this.toast('能量全開！25 秒內攀爬更快，之後會昏睡',3200);}
     this.consume(slot);
@@ -221,6 +254,62 @@ export class Game{
     if(best){best.r.sleep=12;best.r.state='sleep';this.toast('命中！瑞吉睡著了 12 秒',2200);}else this.toast('沒有射中');
     if(it.ammo<=0){this.inv[this.sel]=null;}
   }
+  // Magic bean: plant it beside a wall that rises above you; a vine grows up the wall.
+  useBean(it){
+    const p=this.player,b=p.support;
+    if(!p.grounded||p.state!=='move'||!b||b.kind!=='column'){this.toast('站在高牆前才能種魔豆');return;}
+    let best=null;
+    for(const r of b.risers||[]){const edge=r.dx?(r.dx>0?b.x2:b.x1):(r.dz>0?b.z2:b.z1),d=r.dx?Math.abs(p.x-edge):Math.abs(p.z-edge);if(d<2.6&&(!best||d<best.d))best={...r,d,edge};}
+    if(!best){this.toast('旁邊要有比你高的岩壁');return;}
+    const nb=this.world.boxAtCell(b.i+best.dx,b.j+best.dz),top=Math.min(nb.y2,b.y2+12);
+    const rope={id:'bean'+this.placedRopes.length,vine:true,bean:true,x:best.dx?best.edge-best.dx*.45:p.x,z:best.dz?best.edge-best.dz*.45:p.z,yTop:top,yBottom:b.y2,box:b.id,wall:{dx:-best.dx,dz:-best.dz},placed:true};
+    this.ropes.push(rope);this.placedRopes.push(rope);this.consume(this.sel);this.emit('rope',{rope});this.emit('sound',{name:'crate'});this.toast(top>=nb.y2?'魔豆長成了藤蔓，一路通到上面':'魔豆長出 12 公尺的藤蔓，還差一點才到頂',2600);
+  }
+  // Shelf fungus: grows a platform out of the wall under your hands. It is a rest stop for 40 seconds.
+  useShelf(it){
+    const p=this.player;if(p.state!=='wall'||!p.wall){this.toast('抓在岩壁上才能長出棚架菇');return;}
+    const w=p.wall,d=2,wid=2.6,nx=w.nx,nz=w.nz,px=p.x-nx*PLAYER.wallOffset,pz=p.z-nz*PLAYER.wallOffset;
+    const cx=px+nx*d/2,cz=pz+nz*d/2,hx=nx?d/2:wid/2,hz=nz?d/2:wid/2,y=p.y+.05;
+    const L={id:'shelf'+this.time.toFixed(1),x1:cx-hx,x2:cx+hx,z1:cz-hz,z2:cz+hz,y1:y-.4,y2:y,oneway:true,climb:false,kind:'ledge',zone:this.zone().index,column:-1,shelf:true,ttl:40,nx,nz};
+    this.world.ledges.push(L);this.world.solids.push(L);this.shelves.push(L);
+    it.charges=(it.charges??2)-1;if(it.charges<=0)this.inv[this.sel]=null;this.itemsUsed++;
+    p.state='move';p.grounded=true;p.y=y;p.support=L;p.wall=null;p.vx=p.vy=p.vz=0;p.peakY=y;p.offCool=.3;p.lunge=0;
+    this.emit('shelf',{shelf:L});this.emit('sound',{name:'crate'});this.toast('棚架菇長出來了：在上面好好休息 40 秒',2400);
+  }
+  useBounce(it){
+    const p=this.player;if(!p.grounded||p.state!=='move'){this.toast('要站在地面上才能放彈跳菇');return;}
+    const pad={x:p.x+Math.sin(p.yaw)*1.2,y:p.y,z:p.z+Math.cos(p.yaw)*1.2,r:1.2,cd:0};
+    this.bounce.push(pad);it.charges=(it.charges??2)-1;if(it.charges<=0)this.inv[this.sel]=null;this.itemsUsed++;this.emit('bouncePad',{pad});this.emit('sound',{name:'crate'});this.toast('彈跳菇放好了：踩上去會被彈高',2200);
+  }
+  useFlag(it){
+    const p=this.player;if(!p.grounded||p.state!=='move'){this.toast('要站穩了才能插路標旗');return;}
+    this.flagRespawn={x:p.x,y:p.y,z:p.z,altar:'flag'};this.flags.push({x:p.x,y:p.y,z:p.z});this.consume(this.sel);this.emit('flag',{x:p.x,y:p.y,z:p.z});this.toast('路標旗插下了：下次昏迷會在這裡醒來',2600);
+  }
+  // The next camp above you, for the compass.
+  guide(){const p=this.player;return this.world.camps.find(c=>c.y>p.y+1.5)||null;}
+  updateMist(dt){
+    const m=this.mist,asc=this.world.asc,p=this.player;if(!asc.mist)return;
+    if(!m.started){if(this.time>=MIST_START){m.started=true;m.y=-20;this.toast('濃霧從山腳升起了！不要停下來，往高處走',4200);this.emit('mist',{start:true});}return;}
+    m.y+=asc.mist*dt;
+    const d=m.y-p.y;m.in=d>0&&p.state!=='faint';
+    if(d>0&&p.state!=='faint'){m.inside+=dt;this.spend((9+d*.2)*dt);this.aff.cold=Math.min(.45,this.aff.cold+.02*dt);
+      if(this.time-m.lastWarn>6){m.lastWarn=this.time;this.toast('你在濃霧裡！體力正在流失',1800);}
+      if(this.stamina<=0&&p.state!=='faint'){this.faint('mist');}}
+    else m.inside=Math.max(0,m.inside-dt);
+  }
+  // timed things: shelf platforms, balloon, beehives, bounce pads
+  updateDynamic(dt){
+    const p=this.player,w=this.world;
+    if(this.effects.balloon>0)this.effects.balloon=Math.max(0,this.effects.balloon-dt);
+    for(const s of [...this.shelves]){s.ttl-=dt;if(s.ttl<=0){s.dead=true;s.oneway=true;this.shelves.splice(this.shelves.indexOf(s),1);for(const arr of [w.ledges,w.solids]){const i=arr.indexOf(s);if(i>=0)arr.splice(i,1);}
+      if(p.support===s){p.grounded=false;p.peakY=p.y;p.support=null;}this.emit('shelfGone',{shelf:s});}}
+    for(const pad of this.bounce){pad.cd=Math.max(0,pad.cd-dt);}
+    for(const h of this.hives){
+      h.angry=Math.max(0,h.angry-dt);h.cd=Math.max(0,h.cd-dt);
+      const near=Math.hypot(h.x-p.x,h.z-p.z)<3.4&&Math.abs(h.y-p.y)<4;
+      if(near&&(!h.taken||h.angry>0)&&p.state!=='faint'&&h.cd<=0){h.cd=1.4;this.aff.poison=Math.min(.6,this.aff.poison+.03);this.spend(6);this.emit('sound',{name:'thorn'});this.emit('hurt',{injury:0});this.toast('被蜜蜂叮了！',900);}
+    }
+  }
   // ---- status, afflictions, stamina --------------------------------------------------------------------------------------
   updateStatus(dt){
     const s=this.status,p=this.player;
@@ -242,7 +331,8 @@ export class Game{
     if(a.poison>0)a.poison=Math.max(0,a.poison-.0045*dt);
     a.injury=Math.max(0,a.injury-.00035*dt);
     const fire=this.nearFire(p),gust=this.wind.active>0?2.2:1;
-    if(z.temp<0&&p.y>z.y0+2){a.cold=Math.min(.45,a.cold+(fire?-.03:.0013*-z.temp*asc.hazards*gust)*dt);}else a.cold=Math.max(0,a.cold-(fire?.03:.004)*dt);
+    if(asc.cold&&p.y>z.y0+2&&z.temp<=0){a.cold=Math.min(.45,a.cold+(fire?-.03:.0016*asc.hazards)*dt);}
+    else if(z.temp<0&&p.y>z.y0+2){a.cold=Math.min(.45,a.cold+(fire?-.03:.0013*-z.temp*asc.hazards*gust)*dt);}else a.cold=Math.max(0,a.cold-(fire?.03:.004)*dt);
     if(z.temp>0){const near=this.hazardNear('hot',p)?2.2:1;a.hot=Math.min(.45,a.hot+(fire?-.02:.001*z.temp*near*asc.hazards)*dt);}else a.hot=Math.max(0,a.hot-(fire?.03:.003)*dt);
     a.cold=Math.max(0,a.cold);a.hot=Math.max(0,a.hot);
     if(p.state==='move'&&p.grounded&&this.nearAltar(p,3.2))a.poison=Math.max(0,a.poison-.02*dt);
@@ -250,7 +340,7 @@ export class Game{
   staminaCheck(dt){
     const p=this.player,max=this.maxStamina();
     const resting=(p.state==='move'&&p.grounded&&!p.sprinting)||p.state==='faint'||p.state==='mantle';
-    if(resting)this.stamina+=(p.state==='move'&&this.nearFire(p,5)?24:18)*dt*(this.exhausted?.7:1);
+    if(resting&&!this.mist.in)this.stamina+=(p.state==='move'&&this.nearFire(p,5)?24:18)*dt*(this.exhausted?.7:1);
     else if(p.state==='anchored')this.stamina+=7*dt;
     this.stamina=clamp(this.stamina,0,max);
     if(this.stamina<=0&&['move'].includes(p.state)&&p.grounded)this.exhausted=true;if(this.exhausted&&this.stamina>=Math.min(20,max*.4))this.exhausted=false;
@@ -259,7 +349,9 @@ export class Game{
   // ---- movement: ground and air ----------------------------------------------------------------------------------------
   integrate(dt,inp){
     const p=this.player,w=this.world;
-    p.vy=Math.max(-48,p.vy+GRAVITY*dt);
+    p.vy=Math.max(-48,p.vy+GRAVITY*dt*(this.effects.balloon>0?.35:1));
+    const sel=this.inv[this.sel];
+    if(sel&&sel.kind==='parasol'&&!p.grounded&&p.vy<-2.8){p.vy=-2.8;p.peakY=Math.min(p.peakY,p.y+3);if(!p.glide){p.glide=true;this.emit('glide',{on:true});}}else if(p.glide&&(p.grounded||!sel||sel.kind!=='parasol')){p.glide=false;this.emit('glide',{on:false});}
     const hit=moveBody(w,p,p.vx*dt,p.vy*dt,p.vz*dt);
     if(hit.landed&&p.vy<=0){this.land(hit.landed);}else if(!hit.landed&&p.vy<-.5){p.grounded=false;}
     if(hit.ceiling&&p.vy>0)p.vy=0;
@@ -272,8 +364,8 @@ export class Game{
     const p=this.player,drop=p.peakY-p.y;p.vy=0;
     if(!p.grounded){
       p.grounded=true;p.support=box;
-      if(drop>5){const inj=Math.min(.5,(drop-5)*.02);this.aff.injury=Math.min(.9,this.aff.injury+inj);this.spend(drop*.6);this.falls++;this.emit('sound',{name:'thud'});this.emit('landed',{drop});
-        this.toast(drop>24?'':`摔傷了（落差 ${drop.toFixed(0)} 公尺）`,1800);if(drop>24)this.faint('fall');}
+      if(drop>5){const fm=this.world.asc.fall??1,inj=Math.min(.5,(drop-5)*.02*fm);this.aff.injury=Math.min(.9,this.aff.injury+inj);this.spend(drop*.6);this.falls++;this.emit('sound',{name:'thud'});this.emit('landed',{drop});
+        this.toast(drop>24/Math.sqrt(fm)?'':`摔傷了（落差 ${drop.toFixed(0)} 公尺）`,1800);if(drop>24/Math.sqrt(fm))this.faint('fall');}
       else if(drop>1.2)this.emit('sound',{name:'land'});
     }
     p.peakY=p.y;
@@ -291,8 +383,9 @@ export class Game{
     if(gust){p.vx+=gust.x*4*dt;p.vz+=gust.z*4*dt;}
     p.sprinting=wantSprint;if(wantSprint)this.spend(COST.sprint*dt*(this.zone().id==='beach'?1:1.08));
     p.speed=Math.hypot(p.vx,p.vz);if(p.speed>.4)p.yaw=Math.atan2(p.vx,p.vz);
-    if(inp.jump&&p.grounded&&this.stamina>=COST.jump&&!this.exhausted){p.vy=7.6;p.grounded=false;p.peakY=p.y;this.spend(COST.jump);this.emit('sound',{name:'jump'});this.emit('jumped');}
+    if(inp.jump&&p.grounded&&this.stamina>=COST.jump&&!this.exhausted){p.vy=this.effects.balloon>0?9.6:7.6;p.grounded=false;p.peakY=p.y;this.spend(COST.jump);this.emit('sound',{name:'jump'});this.emit('jumped');}
     const hit=this.integrate(dt,inp);
+    if(p.grounded)for(const pad of this.bounce){if(pad.cd<=0&&Math.hypot(pad.x-p.x,pad.z-p.z)<pad.r&&Math.abs(pad.y-p.y)<.4){pad.cd=.6;p.vy=15;p.grounded=false;p.peakY=p.y;this.emit('sound',{name:'jump'});this.emit('bounce',{pad});}}
     // attach to wall / edge / rope
     p.attachT=Math.max(0,p.attachT-dt);
     if(p.offCool<=0&&this.stamina>6){
@@ -360,7 +453,7 @@ export class Game{
     let drainMul=zoneMul*(slip?(slip.ice?2:1.6):1)*(hotWall?1.5:1)*(gust?2.2:1)*(st.energy>0?.75:1)*(anchor?.25:1)*(1+this.aff.injury*.6);
     let speedUp=1.5*energy,speedSide=1.3*energy;if(slip){speedUp*=slip.ice?.4:.55;}
     let dy=0,dl=0,cost;
-    if(inp.jump&&p.lunge<=0&&this.stamina>=COST.lunge){p.lunge=.34;this.spend(COST.lunge*drainMul);this.emit('sound',{name:'lunge'});this.emit('lunge');}
+    if(inp.jump&&p.lunge<=0&&this.stamina>=COST.lunge){p.lunge=.34;this.spend(COST.lunge*drainMul*this.climbMul());this.emit('sound',{name:'lunge'});this.emit('lunge');}
     if(p.lunge>0){p.lunge-=dt;dy=2.6/.34*dt;cost=0;}
     else{
       dy=up>.1?up*speedUp*dt:up<-.1?up*2.4*dt:0;dl=Math.abs(side)>.1?side*speedSide*dt:0;
@@ -369,7 +462,7 @@ export class Game{
     }
     if(slip&&p.lunge<=0)dy-=(slip.ice?.55:.35)*dt;
     if(gust)dl+=this.wind.dir.x*rx*.9*dt+this.wind.dir.z*rz*.9*dt;
-    this.spend(cost*drainMul*dt);
+    this.spend(cost*drainMul*this.climbMul()*dt);
     p.climbPhase+=(Math.abs(dy)+Math.abs(dl))*1.6;p.speed=(Math.abs(dy)+Math.abs(dl))/dt;
     // lateral
     if(dl){const nx=p.x+rx*dl,nz=p.z+rz*dl;const h=this.wallProbe(nx,p.y,nz,w);if(h){p.x=nx;p.z=nz;w.box=h;}}
@@ -437,7 +530,7 @@ export class Game{
     const up=inp.f,energy=this.status.energy>0?1.4:1;
     const gust=this.wind.active>0;
     const dy=up>.1?up*1.7*energy*dt:up<-.1?up*2.4*dt:0;
-    this.spend((up>.1?COST.rope:up<-.1?COST.rope*.4:COST.ropeIdle)*(gust?1.6:1)*dt);
+    this.spend((up>.1?COST.rope:up<-.1?COST.rope*.4:COST.ropeIdle)*(gust?1.6:1)*this.climbMul()*dt);
     p.y+=dy;p.climbPhase+=Math.abs(dy)*1.6;p.speed=Math.abs(dy)/dt;
     if(p.y>=r.yTop-.05&&up>0){
       const tx=p.x-r.wall.dx*.9,tz=p.z-r.wall.dz*.9,q={x:tx,y:r.yTop,z:tz};
@@ -461,12 +554,13 @@ export class Game{
       if(h.type==='firejet'&&Math.abs(h.y-p.y)<2.5&&Math.hypot(h.x-p.x,h.z-p.z)<h.r){
         const ph=(this.time+h.phase)%h.period;if(ph>3.6&&ph<4.6){h.cd=(h.cd??0)-dt;if(h.cd<=0){h.cd=1.2;a.hot=Math.min(.45,a.hot+.05);a.injury=Math.min(.9,a.injury+.05);this.spend(12);this.emit('sound',{name:'fire'});this.toast('被火焰燒到了！',1200);this.hurtPlayer(0,0,null,{knock:1.5,dx:p.x-h.x,dz:p.z-h.z});}}
       }
-      if(h.type==='spore'&&Math.abs(h.y-p.y)<3&&Math.hypot(h.x-p.x,h.z-p.z)<h.r){a.sleepBuild+=dt;if(a.sleepBuild>1.6&&this.status.sleep<=0){this.status.sleep=5;a.sleepBuild=0;this.toast('孢子讓你昏昏欲睡…',2000);}}
+      if(h.type==='spore'&&Math.abs(h.y-p.y)<3&&Math.hypot(h.x-p.x,h.z-p.z)<h.r){a.sleepBuild+=dt;if(a.sleepBuild>1.6&&this.status.sleep<=0&&(a.sporeCd??0)<=0){this.status.sleep=5;a.sleepBuild=0;a.sporeCd=9;this.toast('孢子讓你昏昏欲睡…',2000);}}
     }
+    a.sporeCd=Math.max(0,(a.sporeCd??0)-dt);
     if(a.sleepBuild>0&&!w.hazards.some(h=>h.type==='spore'&&Math.hypot(h.x-p.x,h.z-p.z)<h.r))a.sleepBuild=Math.max(0,a.sleepBuild-dt);
     // crumbling ledges
     for(const l of w.ledges){
-      if(!l.crumble)continue;let c=this.crumbles.get(l.id);if(!c){c={t:0,broken:false,respawn:0};this.crumbles.set(l.id,c);}
+      if(!l.crumble||l.dead)continue;let c=this.crumbles.get(l.id);if(!c){c={t:0,broken:false,respawn:0};this.crumbles.set(l.id,c);}
       if(c.broken){c.respawn-=dt;if(c.respawn<=0){c.broken=false;c.t=0;l.oneway=true;l.y1=l.y1;this.emit('ledge',{id:l.id,broken:false});}continue;}
       if(p.grounded&&p.support===l){c.t+=dt;if(c.t>.9){c.broken=true;c.respawn=14;this.emit('ledge',{id:l.id,broken:true});this.emit('sound',{name:'crumble'});p.grounded=false;p.peakY=p.y;this.toast('平台碎裂了！',1200);}}
       else c.t=Math.max(0,c.t-dt);
@@ -514,13 +608,20 @@ export class Game{
       }
     }
     if(p.y<expected-20)this.rushWarned=false;
+    for(const sg of w.signs){
+      if(this.signsSeen.has(sg.stage)||Math.hypot(sg.x-p.x,sg.z-p.z)>10||Math.abs(sg.y-p.y)>6)continue;
+      this.signsSeen.add(sg.stage);
+      this.emit('sign',{sign:sg});
+      this.toast('前方三條路（面向前方，由左到右）：'+sg.lanes.map((st,i)=>`${['左','中','右'][i]}＝${ROUTES[st].name}（${ROUTES[st].short}）`).join('　')+'　· 按 M 看路線圖',7000);
+    }
     if(!this.won&&Math.hypot(w.summit.x-p.x,w.summit.z-p.z)<2.6&&Math.abs(w.summit.y-p.y)<1.8){this.won=true;this.mode='won';this.emit('won');}
   }
   // ---- summary for UI ----------------------------------------------------------------------------------------------------
   info(){
     const p=this.player,z=this.zone(),max=this.maxStamina();
     return {altitude:p.y,height:this.world.height,zone:z,stamina:this.stamina,max,caps:this.caps(),state:p.state,exhausted:this.exhausted,energy:this.status.energy,sleep:this.status.sleep,
-      interact:this.interactables()[0]?.label||'',time:this.time};
+      interact:this.interactables()[0]?.label||'',time:this.time,bonus:this.bonus,slots:this.slots,
+      lane:(p.support&&p.support.lane>=0)?ROUTES[p.support.style].name:'',mistY:this.mist.started?this.mist.y:null,balloon:this.effects.balloon,guide:this.hasItem('compass')>=0?this.guide():null};
   }
 }
 function range2(rand,a,b){return a+(b-a)*rand();}

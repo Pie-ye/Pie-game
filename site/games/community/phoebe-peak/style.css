@@ -45,3 +45,12 @@ button.ghost{padding:11px 18px;border:1px solid var(--line);border-radius:12px;b
 @media(pointer:coarse){#help{display:none}#touch{display:block}#joystick{position:absolute;left:22px;bottom:30px;width:128px;height:128px;border-radius:50%;background:rgba(255,255,255,.12);border:1px solid var(--line);touch-action:none}#joystick i{position:absolute;left:44px;top:44px;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.5)}
 .touch-actions{position:absolute;right:16px;bottom:96px;display:grid;grid-template-columns:repeat(2,64px);gap:10px}.touch-actions button{height:58px;border-radius:50%;border:1px solid var(--line);background:var(--panel);color:#fff;font-size:15px;touch-action:none}
 #slots{bottom:4px;left:50%;transform:translateX(-50%) scale(.72)}#stamina{bottom:auto;top:62px;width:min(300px,56vw)}#hint{bottom:78px;font-size:12px;white-space:normal;max-width:70vw;text-align:center}#zone-name{font-size:12px;padding:6px 10px}.tools{top:100px}#altitude{width:54px;height:34vh}.touch-actions{bottom:84px}#joystick{bottom:84px}#warn{top:104px;font-size:13px}#toast{top:44px;font-size:13px}}
+
+#bonus{position:absolute;top:0;bottom:0;background:linear-gradient(180deg,#fff2a0,#f1c13a);box-shadow:0 0 8px #ffd84a;display:none}
+#alt-mist{position:absolute;left:3px;width:28px;height:3px;background:#e8f0f8;box-shadow:0 0 6px #fff;display:none}
+#map{position:absolute;left:14px;top:108px;width:136px;height:136px;padding:0;image-rendering:auto;cursor:pointer;transition:all .2s}
+#map.big{width:min(70vh,70vw);height:min(70vh,70vw);left:50%;top:50%;transform:translate(-50%,-50%);z-index:12}
+#compass{position:absolute;left:158px;top:108px;display:none;padding:6px 10px;text-align:center;font-size:12px}#compass i{display:block;width:0;height:0;margin:0 auto 4px;border-left:9px solid transparent;border-right:9px solid transparent;border-bottom:24px solid var(--gold);transition:transform .1s}
+.asc small{display:block;font-size:11px;opacity:.75;font-weight:400}
+#ascents{max-height:30vh;overflow:auto}
+@media(pointer:coarse){#map{width:96px;height:96px;top:104px}#compass{left:118px;top:104px}}

@@ -33,7 +33,7 @@ export function makeAnimator(R){
       B.shinL.rotation.x=Math.max(0,Math.sin(ph+1.2))*A*1.4;B.shinR.rotation.x=Math.max(0,-Math.sin(ph+1.2))*A*1.4;
       B.upperArmL.rotation.x=Math.sin(ph)*A*.9;B.upperArmR.rotation.x=-Math.sin(ph)*A*.9;
       B.foreArmL.rotation.x=-.2-A*.3;B.foreArmR.rotation.x=-.2-A*.3;
-      abduct(1,-.25);abduct(-1,-.25);
+      abduct(1,-.8);abduct(-1,-.8);
       B.hips.position.y+=Math.abs(Math.sin(ph))*.035*Math.min(1,sp)*H+Math.sin(t*1.8)*.004*(sp<.3?1:0);
       B.spine.rotation.x+=(s.sprint?.16:Math.min(.07,sp*.02))+Math.sin(t*1.6)*.012;
       B.head.rotation.x-=(s.sprint?.1:.02);B.head.rotation.y=Math.sin(t*.7)*.05*(sp<.3?1:0);
@@ -41,7 +41,7 @@ export function makeAnimator(R){
     }else if(mode==='air'){
       const rising=s.vy>0;
       B.thighL.rotation.x=-(rising?.5:.9);B.thighR.rotation.x=-(rising?.9:.4);B.shinL.rotation.x=rising?.9:.5;B.shinR.rotation.x=rising?.5:1.1;
-      abduct(1,rising?1.3:1.6);abduct(-1,rising?1.3:1.6);B.upperArmL.rotation.x=-.5;B.upperArmR.rotation.x=-.5;B.foreArmL.rotation.x=-.3;B.foreArmR.rotation.x=-.3;
+      abduct(1,rising?.7:1.0);abduct(-1,rising?.7:1.0);B.upperArmL.rotation.x=-.4;B.upperArmR.rotation.x=-.4;B.foreArmL.rotation.x=-.3;B.foreArmR.rotation.x=-.3;
       B.spine.rotation.x+=rising?-.06:.08;hair(dt,{speed:rising?-8:9},t,1.5);
     }else if(mode==='wall'||mode==='chain'){
       const n=V().set(s.nx,0,s.nz),right=V().set(s.nz,0,-s.nx),ph=s.phase,hang=s.lunge>0?1:0;
@@ -49,9 +49,9 @@ export function makeAnimator(R){
       // body leans into the rock
       B.spine.rotation.x+=.14;B.chest.rotation.x+=.06;B.head.rotation.x-=.38;
       const base=root.getWorldPosition(V());
-      const handY=(k,o)=>.9+(hang?.12:.09)*Math.sin(ph+o);
+      const handY=(k,o)=>.88+(hang?.1:.07)*Math.sin(ph+o);
       for(const [side,o] of [[1,0],[-1,Math.PI]]){
-        const y=handY(side,o),tgt=base.clone().addScaledVector(n,-.36).addScaledVector(right,side*.17).addScaledVector(up,y*H);
+        const y=handY(side,o),tgt=base.clone().addScaledVector(n,-.27).addScaledVector(right,side*.13).addScaledVector(up,y*H);
         const pole=base.clone().addScaledVector(right,side*1).addScaledVector(up,.3).addScaledVector(n,.2);
         arm(side,tgt,pole);
       }
@@ -67,20 +67,20 @@ export function makeAnimator(R){
       const ph=s.phase,n=V().set(s.nx,0,s.nz),right=V().set(s.nz,0,-s.nx),base=root.getWorldPosition(V()),up=V().set(0,1,0);
       B.spine.rotation.x+=.08;B.head.rotation.x-=.3;
       for(const [side,o] of [[1,0],[-1,Math.PI]]){
-        const y=.9+.08*Math.sin(ph+o),tgt=base.clone().addScaledVector(n,-.2).addScaledVector(right,side*.06).addScaledVector(up,y*H);
+        const y=.9+.07*Math.sin(ph+o),tgt=base.clone().addScaledVector(n,-.14).addScaledVector(right,side*.06).addScaledVector(up,y*H);
         arm(side,tgt,base.clone().addScaledVector(right,side*1).addScaledVector(n,.3));
       }
       B.thighL.rotation.x=-(.9+.1*Math.sin(ph));B.thighR.rotation.x=-(.9-.1*Math.sin(ph));B.shinL.rotation.x=1.4;B.shinR.rotation.x=1.4;
       hair(dt,{speed:1},t,.8);
     }else if(mode==='anchored'){
       const base=root.getWorldPosition(V()),up=V().set(0,1,0),right=V().set(s.nz,0,-s.nx),n=V().set(s.nx,0,s.nz);
-      for(const side of [1,-1])arm(side,base.clone().addScaledVector(n,-.3).addScaledVector(right,side*.1).addScaledVector(up,.98*H),base.clone().addScaledVector(right,side*1));
+      for(const side of [1,-1])arm(side,base.clone().addScaledVector(n,-.22).addScaledVector(right,side*.1).addScaledVector(up,.92*H),base.clone().addScaledVector(right,side*1));
       B.thighL.rotation.x=-.2+Math.sin(t*1.5)*.08;B.thighR.rotation.x=-.15+Math.sin(t*1.5+1)*.08;B.shinL.rotation.x=.35;B.shinR.rotation.x=.3;B.spine.rotation.x+=.1;B.head.rotation.x+=.2;
       hair(dt,{speed:0},t,1.2);
     }else if(mode==='mantle'){
       const m=s.mantle,e=Math.sin(m*Math.PI);
       B.spine.rotation.x+=.5*e;B.head.rotation.x-=.3;B.upperArmL.rotation.x=-1.3+.9*m;B.upperArmR.rotation.x=-1.3+.9*m;B.foreArmL.rotation.x=-.6;B.foreArmR.rotation.x=-.6;
-      abduct(1,.2);abduct(-1,.2);B.thighL.rotation.x=-.9*e;B.thighR.rotation.x=-.5*e;B.shinL.rotation.x=1.1*e;B.shinR.rotation.x=.8*e;
+      abduct(1,-.3);abduct(-1,-.3);B.thighL.rotation.x=-.9*e;B.thighR.rotation.x=-.5*e;B.shinL.rotation.x=1.1*e;B.shinR.rotation.x=.8*e;
       hair(dt,{speed:2},t,1);
     }else if(mode==='faint'||mode==='sleep'){
       root.rotation.x=mode==='faint'?-Math.PI/2:-Math.PI/2*.95;root.position.y+=.28*H;
@@ -90,10 +90,10 @@ export function makeAnimator(R){
     // overlays
     if(s.eat>0&&mode!=='faint'){
       const e=sm(0,.25,s.eat)*(1-sm(.8,1,s.eat)),bite=Math.sin(s.eat*Math.PI*6)*.02;
-      const mouth=lw(.0,.74,.34+bite),pole=lw(.45,.5,.2);arm(-1,tmp.a.copy(root.localToWorld(V().set(.0,.5*H,.3*H))).lerp(mouth,e),pole);
+      const mouth=lw(.0,.99,.2+bite),pole=lw(.4,.8,.2);arm(-1,tmp.a.copy(root.localToWorld(V().set(.0,.7*H,.22*H))).lerp(mouth,e),pole);
       B.head.rotation.x+=.08*e;
     }
-    if(s.tool&&mode!=='faint'&&mode!=='wall'&&mode!=='rope')arm(-1,lw(.12,.78,.62),lw(.5,.5,.2));
+    if(s.tool&&mode!=='faint'&&mode!=='wall'&&mode!=='rope')arm(-1,lw(.1,.82,.34),lw(.4,.7,.2));
     if(s.hurt>0){B.spine.rotation.x-=.35*s.hurt;B.head.rotation.x-=.25*s.hurt;B.spine.rotation.z+=Math.sin(s.t*40)*.06*s.hurt;}
     if(s.energy){B.head.rotation.z+=Math.sin(t*20)*.05;B.hips.position.y+=Math.sin(t*18)*.012;}
     // held item follows the right hand

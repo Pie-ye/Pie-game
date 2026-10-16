@@ -1,0 +1,269 @@
+{
+ "items": [
+  {
+   "name": "palm_tree",
+   "prompt": "villagehmmb, a tropical coconut palm tree with a curved trunk, green fronds and coconuts, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.6,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "berry_bush",
+   "prompt": "villagehmmb, a lush green bush full of red and blue berries, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.6,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "mushroom_cluster",
+   "prompt": "villagehmmb, a cluster of big red mushrooms with white spots and brown mushrooms, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.6,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "thorn_bush",
+   "prompt": "villagehmmb, a dangerous thorny bramble bush with long sharp spikes, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.6,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "snow_pine",
+   "prompt": "villagehmmb, a snow covered pine tree with drooping snowy branches, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.6,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "ice_spike",
+   "prompt": "villagehmmb, a cluster of sharp translucent blue ice crystal spikes on a snowy base, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.6,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "lava_rock",
+   "prompt": "villagehmmb, a black volcanic rock with glowing orange lava cracks and embers, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.6,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "geyser",
+   "prompt": "villagehmmb, a rocky geyser vent with a column of white steam rising, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.6,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "furnace",
+   "prompt": "villagehmmb, a squat stone furnace with fire in its mouth, a chimney with smoke and iron bands, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.6,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "anvil_gear",
+   "prompt": "villagehmmb, a blacksmith anvil with a large iron gear and chains, sparks, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.6,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "ruin_pillar",
+   "prompt": "villagehmmb, a broken ancient stone pillar with carvings, moss and vines, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.6,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "torch_stand",
+   "prompt": "villagehmmb, a stone torch stand with a burning orange flame, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.6,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "boulder",
+   "prompt": "villagehmmb, a round grey brown boulder with cracks and moss, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.6,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "altar",
+   "prompt": "villagehmmb, a small stone altar with a floating glowing cyan crystal, a little brazier and glowing runes, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.6,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "campfire",
+   "prompt": "villagehmmb, a campfire ring of logs with warm flames, small stones and a little cooking pot, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.6,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "crate",
+   "prompt": "villagehmmb, a wooden supply crate with rope straps and a red cross emblem, lid closed, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.6,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "crystal_cluster",
+   "prompt": "villagehmmb, a cluster of glowing cyan blue crystals growing from a rock, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.6,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "summit_flag",
+   "prompt": "villagehmmb, a stone cairn on a mountain top with a big red flag with a golden star flying in the wind, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.6,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "beehive",
+   "prompt": "villagehmmb, a wild beehive hanging from a short tree branch, a few bees around it, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.6,
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "cabin",
+   "prompt": "villagehmmb, a small cozy wooden mountain cabin with a glowing lantern and a signboard, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.6,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "tent",
+   "prompt": "villagehmmb, a cozy canvas camping tent with a lantern and a sleeping bag at the entrance, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.6,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "signpost",
+   "prompt": "villagehmmb, a wooden trail signpost with three arrow boards pointing left, forward and right, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.6,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "lamp_post",
+   "prompt": "villagehmmb, a tall wooden lamp post with a hanging glowing lantern, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.6,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "barrels",
+   "prompt": "villagehmmb, a stack of wooden barrels and sacks with a rope, game asset, isolated on a plain white background, single object, centered, full object visible, three-quarter view, soft lighting, painterly fantasy style",
+   "lora": 0.6,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1024,
+   "h": 1024
+  }
+ ]
+}

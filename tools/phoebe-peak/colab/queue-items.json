@@ -1,0 +1,33 @@
+{
+ "refs": {
+  "aloe_vera": "/content/env_out/aloe_vera_1.png",
+  "antidote": "/content/env_out/antidote_1.png",
+  "backpack": "/content/env_out/backpack_2.png",
+  "balloon": "/content/env_out/balloon_1.png",
+  "bandage": "/content/env_out/bandage_1.png",
+  "berry_blue": "/content/env_out/berry_blue_1.png",
+  "berry_red": "/content/env_out/berry_red_1.png",
+  "blowdart": "/content/env_out/blowdart_1.png",
+  "bounce_fungus": "/content/env_out/bounce_fungus_1.png",
+  "chain_launcher": "/content/env_out/chain_launcher_1.png",
+  "checkpoint_flag": "/content/env_out/checkpoint_flag_1.png",
+  "coconut": "/content/env_out/coconut_1.png",
+  "compass": "/content/env_out/compass_1.png",
+  "cure_all": "/content/env_out/cure_all_1.png",
+  "energy_drink": "/content/env_out/energy_drink_2.png",
+  "granola_bar": "/content/env_out/granola_bar_1.png",
+  "honeycomb": "/content/env_out/honeycomb_1.png",
+  "hot_tea": "/content/env_out/hot_tea_1.png",
+  "ice_pack": "/content/env_out/ice_pack_1.png",
+  "lantern_item": "/content/env_out/lantern_item_1.png",
+  "magic_bean": "/content/env_out/magic_bean_2.png",
+  "medkit": "/content/env_out/medkit_1.png",
+  "mushroom_item": "/content/env_out/mushroom_item_2.png",
+  "parasol": "/content/env_out/parasol_2.png",
+  "piton": "/content/env_out/piton_1.png",
+  "rope_spool": "/content/env_out/rope_spool_1.png",
+  "shelf_fungus": "/content/env_out/shelf_fungus_1.png",
+  "snack": "/content/env_out/snack_1.png",
+  "winterberry": "/content/env_out/winterberry_1.png"
+ }
+}

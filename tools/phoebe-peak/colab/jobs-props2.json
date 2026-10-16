@@ -1,0 +1,179 @@
+{
+ "items": [
+  {
+   "name": "palm_tree",
+   "prompt": "villagehmmb, a coconut palm tree with a curved trunk and big green fronds, full tree, fantasy village style, game asset, painterly, three-quarter view",
+   "lora": 0.8,
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "tent",
+   "prompt": "villagehmmb, a cozy canvas camping tent with a lantern, fantasy village style, game asset, painterly, three-quarter view",
+   "lora": 0.8,
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "signpost",
+   "prompt": "villagehmmb, a single wooden trail signpost with two arrow shaped boards on one post, fantasy village style, game asset, painterly, three-quarter view",
+   "lora": 0.8,
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "ruin_pillar",
+   "prompt": "villagehmmb, a single broken ancient stone pillar with moss and carvings, fantasy village style, game asset, painterly, three-quarter view",
+   "lora": 0.8,
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "thorn_bush",
+   "prompt": "villagehmmb, a thorny bramble bush with green branches and sharp thorns, fantasy village style, game asset, painterly, three-quarter view",
+   "lora": 0.8,
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "geyser",
+   "prompt": "villagehmmb, a small rocky mound geyser vent with a hole and a puff of white steam, fantasy village style, game asset, painterly, three-quarter view",
+   "lora": 0.8,
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "furnace",
+   "prompt": "villagehmmb, a stone blacksmith forge furnace with a glowing fire opening and a chimney, fantasy village style, game asset, painterly, three-quarter view",
+   "lora": 0.8,
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "anvil_gear",
+   "prompt": "villagehmmb, an iron anvil on a tree stump with a big cog gear next to it, fantasy village style, game asset, painterly, three-quarter view",
+   "lora": 0.8,
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "campfire",
+   "prompt": "villagehmmb, a campfire with stacked logs, flames and a ring of stones, fantasy village style, game asset, painterly, three-quarter view",
+   "lora": 0.8,
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "beehive",
+   "prompt": "villagehmmb, a hanging conical wild beehive nest tied to a branch with a few bees, fantasy village style, game asset, painterly, three-quarter view",
+   "lora": 0.8,
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "barrels",
+   "prompt": "villagehmmb, a pile of wooden barrels and sacks, fantasy village style, game asset, painterly, three-quarter view",
+   "lora": 0.8,
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "snow_pine",
+   "prompt": "villagehmmb, a snow covered pine tree, fantasy village style, game asset, painterly, three-quarter view",
+   "lora": 0.8,
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "furnace2",
+   "prompt": "villagehmmb, a small stone kiln oven with fire, fantasy village style, game asset, painterly, three-quarter view",
+   "lora": 0.8,
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024
+  },
+  {
+   "name": "cabin",
+   "prompt": "villagehmmb, a small cozy wooden mountain cabin with a lantern and a signboard, fantasy village house, fantasy village style, game asset, painterly, three-quarter view",
+   "lora": 0.8,
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "w": 1024,
+   "h": 1024
+  }
+ ]
+}

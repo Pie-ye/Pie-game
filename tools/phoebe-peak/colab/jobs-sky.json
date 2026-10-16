@@ -1,0 +1,76 @@
+{
+ "items": [
+  {
+   "name": "sky_beach",
+   "bg": "scene",
+   "lora": 0.8,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1536,
+   "h": 768,
+   "prompt": "villagehmmb, scenery, no humans, wide panorama, a clear blue sky with fluffy white clouds, pink orange horizon, calm sea with tiny islands, seaside afternoon, no buildings, no ground, clouds"
+  },
+  {
+   "name": "sky_jungle",
+   "bg": "scene",
+   "lora": 0.8,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1536,
+   "h": 768,
+   "prompt": "villagehmmb, scenery, no humans, wide panorama, a humid yellow green sky with thin mist and warm golden clouds, distant green mountains, no buildings, no ground, clouds"
+  },
+  {
+   "name": "sky_alpine",
+   "bg": "scene",
+   "lora": 0.8,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1536,
+   "h": 768,
+   "prompt": "villagehmmb, scenery, no humans, wide panorama, a cold pale blue to white sky with high thin clouds, distant snowy peaks and snow mist, no buildings, no ground, clouds"
+  },
+  {
+   "name": "sky_caldera",
+   "bg": "scene",
+   "lora": 0.8,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1536,
+   "h": 768,
+   "prompt": "villagehmmb, scenery, no humans, wide panorama, a dim orange red sky with thick grey smoke clouds, distant volcano glow, no buildings, no ground, clouds"
+  },
+  {
+   "name": "sky_forge",
+   "bg": "scene",
+   "lora": 0.8,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1536,
+   "h": 768,
+   "prompt": "villagehmmb, scenery, no humans, wide panorama, a deep red and dark grey sky with drifting soot, sparks and industrial smoke, distant fiery mountains, no buildings, no ground, clouds"
+  },
+  {
+   "name": "sky_citadel",
+   "bg": "scene",
+   "lora": 0.8,
+   "seeds": [
+    1,
+    2
+   ],
+   "w": 1536,
+   "h": 768,
+   "prompt": "villagehmmb, scenery, no humans, wide panorama, a dusk purple pink sky with a golden sea of clouds below, dreamy mountain summit above the clouds, no buildings, no ground, clouds"
+  }
+ ]
+}
