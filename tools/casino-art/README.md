@@ -1,3 +1,5 @@
+> 已退役：這套賭場貼圖與 `casino-skin.css` 在 Pie City UI v2（2026-10-17）全部移除，每款遊戲改成 `site/shell/ui/games/<id>.css` 與各自的 game.css。保留這份只當 gwentCB01 LoRA 的產圖紀錄。
+
 # 賭場貼圖（gwentCB01 LoRA）
 
 官方賭場遊戲（拉霸、21 點、德撲、射龍門、妞妞、百家樂）與金幣投稿遊戲（猜硬幣、幸運轉盤）的底圖、按鈕、籌碼、牌背、符號、硬幣、轉盤，

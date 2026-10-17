@@ -1,0 +1,15 @@
+{
+  "jobs": [
+    {
+      "id": "fullbody-run-v1",
+      "title": "Original full-body running cycle",
+      "reference_images": [
+        "/home/pieye/Container/Pie-game/tools/city-art/output/hero-run-fullbody/reference.png"
+      ],
+      "prompt_file": "/home/pieye/Container/Pie-game/tools/city-art/output/hero-run-fullbody/prompt.txt",
+      "duration_seconds": 5,
+      "seed": 2026101701,
+      "output_path": "/home/pieye/Container/Pie-game/tools/city-art/output/hero-run-fullbody/fullbody-run.mp4"
+    }
+  ]
+}

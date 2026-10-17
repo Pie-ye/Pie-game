@@ -1,0 +1,14 @@
+{
+  "frameWidth": 384,
+  "frameHeight": 384,
+  "frames": 12,
+  "columns": 4,
+  "anchorX": 190,
+  "anchorY": 360,
+  "characterHeight": 320,
+  "cycleDistance": 240,
+  "previewFps": 24.0,
+  "sourceStart": 89,
+  "sourceEnd": 101,
+  "method": "Colab MiniMax H3 full-body reference-to-video; chroma key and whole-frame alignment only"
+}
