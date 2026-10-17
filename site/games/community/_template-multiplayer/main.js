@@ -4,16 +4,10 @@
  */
 import PieGame from '../../../sdk/pie-game-sdk.js';
 
-function applyTheme(theme) {
-  document.documentElement.dataset.theme = (theme === 'cyber' || theme === 'studio') ? 'cyber' : 'playful';
-}
-
 const statusEl = document.getElementById('status');
 const roomsEl = document.getElementById('rooms');
 
 const init = await PieGame.ready();
-applyTheme(init.theme);
-PieGame.onTheme(applyTheme);
 PieGame.setHeight();
 
 if (!init.user) {

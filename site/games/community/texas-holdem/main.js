@@ -28,10 +28,6 @@ let turnTimer = null;
 let nextTimer = null;
 let tick = null;
 
-function applyTheme(theme) {
-  document.documentElement.dataset.theme = (theme === 'cyber' || theme === 'studio') ? 'cyber' : 'playful';
-}
-
 const meId = () => (client && client.me ? client.me.id : null);
 const nameOf = (p) => p.displayName || p.username || '玩家';
 const fmt = (n) => Number(n || 0).toLocaleString('zh-TW');
@@ -321,8 +317,6 @@ function onJoined(msg) {
 
 async function main() {
   const init = await PieGame.ready();
-  applyTheme(init.theme);
-  PieGame.onTheme(applyTheme);
   bindActions();
   if (!init.user) {
     el.hello.textContent = '請先在外框登入，才能加入牌桌。';

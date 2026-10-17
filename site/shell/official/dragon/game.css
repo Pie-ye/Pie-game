@@ -14,7 +14,7 @@
   color: var(--gx-ink);
   font-weight: 900;
   text-align: center;
-  box-shadow: 0 0 0 2px #b3122f inset, 5px 5px 0 var(--gx-ink);
+  box-shadow: 0 0 0 2px #ff2b5c inset, 5px 5px 0 var(--gx-ink);
 }
 
 .pg-official-dragon .dg-status-banner.is-win { background: #ffd23a; box-shadow: 0 0 0 2px #b3122f inset, 5px 5px 0 var(--gx-ink), 0 0 30px #ffd23a; }
@@ -30,8 +30,8 @@
   border-radius: 6px;
   background:
     radial-gradient(60% 60% at 50% 55%, rgba(255, 210, 58, 0.25), transparent 70%),
-    linear-gradient(180deg, #4a0a10, #2a0508);
-  box-shadow: 0 0 0 4px #ffd23a, 0 0 0 8px var(--gx-ink), 0 0 0 11px #b3122f, 0 0 60px rgba(255, 59, 59, 0.45), inset 0 0 70px rgba(0, 0, 0, 0.6);
+    linear-gradient(180deg, #1c0610, #08020a);
+  box-shadow: 0 0 0 4px #ff2b5c, 0 0 0 8px var(--gx-ink), 0 0 0 11px #35f0ff, 0 0 60px rgba(255, 43, 92, 0.6), inset 0 0 70px rgba(0, 0, 0, 0.7);
 }
 
 /* 金色屋簷（兩端上翹） */
@@ -47,25 +47,25 @@
   gap: 18px;
   border: 7px solid var(--gx-ink);
   border-radius: 8px 8px 60px 60px / 8px 8px 30px 30px;
-  background: linear-gradient(180deg, #ffe58a, #e0a010 55%, #a86a08);
-  box-shadow: 0 6px 0 var(--gx-ink), 0 0 30px rgba(255, 210, 58, 0.6);
+  background: linear-gradient(180deg, #2a0a1c, #12040c);
+  box-shadow: 0 6px 0 var(--gx-ink), 0 0 0 3px #ff2b5c, 0 0 36px rgba(255, 43, 92, 0.7);
 }
 
 .pg-official-dragon .dg-roof b {
   font: 900 34px/1 "Noto Serif TC", serif;
   letter-spacing: 0.4em;
   padding-left: 0.4em;
-  color: #b3122f;
+  color: #fff;
   -webkit-text-stroke: 2px var(--gx-ink);
   paint-order: stroke fill;
-  text-shadow: 2px 2px 0 #fff3b0;
+  text-shadow: 0 0 16px #ff2b5c, 3px 3px 0 #ff2b5c;
 }
 
 .pg-official-dragon .dg-roof i {
   flex: 1;
   height: 6px;
   border-radius: 3px;
-  background: repeating-linear-gradient(90deg, #b3122f 0 14px, transparent 14px 22px);
+  background: repeating-linear-gradient(90deg, #35f0ff 0 14px, transparent 14px 22px);
 }
 
 /* 燈籠 */
@@ -105,8 +105,8 @@
   padding: 2px 14px;
   border-radius: 4px;
   border: 3px solid var(--gx-ink);
-  background: #b3122f;
-  color: #ffeaa0;
+  background: #ff2b5c;
+  color: #fff;
   font-weight: 900;
   letter-spacing: 0.2em;
 }
@@ -120,7 +120,7 @@
   font-weight: 900;
 }
 
-.pg-official-dragon .pg-dock { border-radius: 6px; box-shadow: 0 0 0 2px #ffd23a inset, 6px 6px 0 var(--gx-ink); }
+.pg-official-dragon .pg-dock { border-radius: 6px; border-style: double; border-width: 6px; box-shadow: 0 0 0 2px #35f0ff inset, 6px 6px 0 var(--gx-ink); }
 .pg-official-dragon .pg-dock-primary { background: linear-gradient(180deg, #ff5a4a, #b3122f); }
 
 /* 賠率表：朱紅木牌 */
@@ -130,12 +130,12 @@
   padding: 16px 20px;
   border-radius: 6px;
   border: 4px solid var(--gx-ink);
-  background: rgba(40, 6, 8, 0.92);
-  box-shadow: 0 0 0 2px #ffd23a inset;
+  background: rgba(10, 3, 12, 0.94);
+  box-shadow: 0 0 0 2px #ff2b5c inset;
 }
 
 .pg-official-dragon .dg-payout-header { display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline; justify-content: space-between; }
-.pg-official-dragon .dg-payout-title { margin: 0 0 10px; font: 900 20px/1.2 "Noto Serif TC", serif; color: #ffeaa0; }
+.pg-official-dragon .dg-payout-title { margin: 0 0 10px; font: 900 20px/1.2 "Noto Serif TC", serif; color: #ffd0e0; }
 .pg-official-dragon .dg-warning-tag { font-size: 12px; color: #ff9a7a; }
 .pg-official-dragon .dg-payout-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
 
@@ -143,12 +143,12 @@
   padding: 6px 8px;
   border-radius: 4px;
   border: 3px solid var(--gx-ink);
-  background: linear-gradient(180deg, #8a1a14, #5a0a18);
+  background: linear-gradient(180deg, #2a0a1c, #12040c);
   text-align: center;
   box-shadow: 0 0 0 2px #ffd23a inset;
 }
 
-.pg-official-dragon .dg-payout-ranks { font-size: 12px; color: #ffeaa0; }
+.pg-official-dragon .dg-payout-ranks { font-size: 12px; color: #ffd0e0; }
 .pg-official-dragon .dg-payout-rate { font: 900 20px/1.2 var(--font-display); color: #fff; }
 .pg-official-dragon .dg-rules-notes { margin-top: 12px; font-size: 13px; line-height: 1.8; color: var(--gx-muted); }
 
@@ -161,3 +161,73 @@
 }
 
 @media (prefers-reduced-motion: reduce) { .pg-official-dragon .dg-lantern { animation: none; } }
+
+/* 押注：紅包（直式圓角長方形），不用共用的圓形籌碼 */
+.pg-official-dragon .pg-chip {
+  width: 46px;
+  height: 64px;
+  border-radius: 8px;
+  border: 3px solid var(--gx-ink);
+  background: linear-gradient(180deg, #ff2b5c 0 38%, #b3122f 38%);
+  color: #fff;
+  -webkit-text-stroke: 3px var(--gx-ink);
+  paint-order: stroke fill;
+  box-shadow: 0 4px 0 var(--gx-ink), inset 0 0 0 2px #35f0ff;
+  position: relative;
+}
+.pg-official-dragon .pg-chip::before { content: "福"; position: absolute; top: 4px; left: 0; right: 0; font: 900 14px/1 "Noto Serif TC", serif; color: #fff; -webkit-text-stroke: 2px var(--gx-ink); paint-order: stroke fill; }
+.pg-official-dragon .pg-chip { padding-top: 28px; }
+.pg-official-dragon .pg-chip:nth-of-type(n) { --chip: #ff2b5c; }
+.pg-official-dragon .pg-chip.is-active { transform: translateY(-8px) rotate(-4deg); box-shadow: 0 6px 0 var(--gx-ink), 0 0 20px #35f0ff, inset 0 0 0 2px #fff; }
+.pg-official-dragon .dg-payout-title, .pg-official-dragon .dg-payout-ranks { color: #ffd0e0; }
+.pg-official-dragon .dg-rules-notes, .pg-official-dragon .dg-warning-tag { color: #b0f4ff; }
+.pg-official-dragon .dg-payout-card { box-shadow: 0 0 0 2px #35f0ff inset; }
+.pg-official-dragon .pg-dock-label { color: #35f0ff; }
+
+/* ===== 版型：下注區變成「掛在門簷下的紅包繩」，動作鍵是兩扇朱紅門板 ===== */
+.pg-official-dragon .pg-dock {
+  position: relative;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 26px 16px 10px;
+  max-width: 920px;
+  margin: -8px auto 12px;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+.pg-official-dragon .pg-dock::before {
+  content: "";
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  top: 8px;
+  height: 6px;
+  border-radius: 3px;
+  background: repeating-linear-gradient(90deg, #ff2b5c 0 16px, #35f0ff 16px 22px);
+  box-shadow: 0 0 14px #ff2b5c;
+}
+.pg-official-dragon .pg-dock-bet { justify-content: center; gap: 14px; }
+.pg-official-dragon .pg-dock-bet .pg-dock-label { display: none; }
+.pg-official-dragon .pg-dock-note { flex-basis: auto; text-align: center; color: #b0f4ff; }
+.pg-official-dragon .pg-dock-act { margin: 6px 0 0; justify-content: center; width: 100%; gap: 0; }
+.pg-official-dragon .pg-dock-act .primary-button,
+.pg-official-dragon .pg-dock-act .secondary-button {
+  flex: 1 1 0;
+  max-width: 340px;
+  min-height: 74px;
+  border-radius: 0;
+  font: 900 24px/1 "Noto Serif TC", serif;
+  letter-spacing: 0.3em;
+  border: 5px solid var(--gx-ink);
+  background: repeating-linear-gradient(90deg, #8a0f2a 0 20px, #6a0a20 20px 22px), #8a0f2a;
+  color: #fff;
+  box-shadow: 0 0 0 3px #35f0ff inset, 0 0 24px rgba(255, 43, 92, 0.6);
+  -webkit-text-stroke: 3px var(--gx-ink);
+  paint-order: stroke fill;
+}
+.pg-official-dragon .pg-dock-act .secondary-button { background: repeating-linear-gradient(90deg, #12202a 0 20px, #0a1218 20px 22px); box-shadow: 0 0 0 3px #7a8a9a inset; }
+.pg-official-dragon .pg-dock-act > *:first-child { border-radius: 14px 0 0 14px; }
+.pg-official-dragon .pg-dock-act > *:last-child { border-radius: 0 14px 14px 0; }
+.pg-official-dragon .pg-dock-act > *:only-child { border-radius: 14px; max-width: 420px; }

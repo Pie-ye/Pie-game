@@ -17,10 +17,6 @@ const scoreEl = document.getElementById('score');
 const bestEl = document.getElementById('best');
 const bannerEl = document.getElementById('banner');
 
-function applyTheme(theme) {
-  document.documentElement.dataset.theme = (theme === 'cyber' || theme === 'studio') ? 'cyber' : 'playful';
-}
-
 function readBest() {
   const n = Number(localStorage.getItem(KEY) || 0);
   return Number.isFinite(n) && n > 0 ? n : 0;
@@ -60,32 +56,50 @@ function reset(keepBanner) {
   state.running = false;
   scoreEl.textContent = '0';
   placeFood();
-  if (!keepBanner) bannerEl.textContent = '按任意方向開始';
+  if (!keepBanner) bannerEl.textContent = 'PRESS ANY KEY';
   draw();
 }
 
-function cssVar(name) {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-}
-
+// 像素風畫面：深色方格底、綠色蛇身（頭上有眼睛）、紅色蘋果。
 function draw() {
-  ctx.fillStyle = cssVar('--sheet') || '#fbf8f2';
+  ctx.fillStyle = '#04100a';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = cssVar('--cell') || '#e9e2d3';
+  ctx.fillStyle = '#0a2418';
   for (let i = 0; i < SIZE; i += 1) {
     for (let j = 0; j < SIZE; j += 1) {
       if ((i + j) % 2 === 0) ctx.fillRect(i * CELL, j * CELL, CELL, CELL);
     }
   }
-  ctx.fillStyle = cssVar('--accent') || '#835f13';
-  ctx.beginPath();
-  ctx.arc(state.food.x * CELL + CELL / 2, state.food.y * CELL + CELL / 2, CELL * 0.35, 0, Math.PI * 2);
-  ctx.fill();
-  const gain = cssVar('--gain') || '#0e7354';
-  const ink = cssVar('--ink') || '#1a1713';
+  // 蘋果
+  const fx = state.food.x * CELL;
+  const fy = state.food.y * CELL;
+  ctx.fillStyle = '#ff3b3b';
+  ctx.fillRect(fx + 4, fy + 6, CELL - 8, CELL - 8);
+  ctx.fillRect(fx + 6, fy + 4, CELL - 12, CELL - 4);
+  ctx.fillStyle = '#ffb0a0';
+  ctx.fillRect(fx + 6, fy + 7, 3, 3);
+  ctx.fillStyle = '#2cff9a';
+  ctx.fillRect(fx + CELL / 2 - 1, fy + 1, 3, 4);
   state.snake.forEach((seg, idx) => {
-    ctx.fillStyle = idx === 0 ? ink : gain;
-    ctx.fillRect(seg.x * CELL + 1, seg.y * CELL + 1, CELL - 2, CELL - 2);
+    const x = seg.x * CELL;
+    const y = seg.y * CELL;
+    ctx.fillStyle = '#0a6a3a';
+    ctx.fillRect(x + 1, y + 1, CELL - 2, CELL - 2);
+    ctx.fillStyle = idx === 0 ? '#9dff3a' : (idx % 2 ? '#2cff9a' : '#1fd47a');
+    ctx.fillRect(x + 2, y + 2, CELL - 4, CELL - 4);
+    if (idx === 0) {
+      ctx.fillStyle = '#04100a';
+      const d = state.dir;
+      const ex = d.x === 0 ? [5, 12] : (d.x > 0 ? [11, 11] : [5, 5]);
+      const ey = d.y === 0 ? [5, 12] : (d.y > 0 ? [11, 11] : [5, 5]);
+      if (d.x === 0) {
+        ctx.fillRect(x + 5, y + ey[0], 3, 3);
+        ctx.fillRect(x + 12, y + ey[0], 3, 3);
+      } else {
+        ctx.fillRect(x + ex[0], y + 5, 3, 3);
+        ctx.fillRect(x + ex[0], y + 12, 3, 3);
+      }
+    }
   });
 }
 
@@ -127,7 +141,7 @@ function die() {
   state.running = false;
   state.dead = true;
   clearInterval(state.timer);
-  bannerEl.textContent = '撞到了。按方向鍵再來一局';
+  bannerEl.textContent = 'GAME OVER · 按方向鍵再來';
 }
 
 function start() {
@@ -146,15 +160,16 @@ function steer(name) {
   state.queued = dir;
 }
 
+// 用實體按鍵位置（ev.code）：中文輸入法開著時 ev.key 會變成 "Process"。
 const keyMap = {
-  ArrowUp: 'up', w: 'up', W: 'up',
-  ArrowDown: 'down', s: 'down', S: 'down',
-  ArrowLeft: 'left', a: 'left', A: 'left',
-  ArrowRight: 'right', d: 'right', D: 'right',
+  ArrowUp: 'up', KeyW: 'up',
+  ArrowDown: 'down', KeyS: 'down',
+  ArrowLeft: 'left', KeyA: 'left',
+  ArrowRight: 'right', KeyD: 'right',
 };
 
 window.addEventListener('keydown', (ev) => {
-  const name = keyMap[ev.key];
+  const name = keyMap[ev.code];
   if (!name) return;
   ev.preventDefault();
   steer(name);
@@ -181,11 +196,6 @@ canvas.addEventListener('pointerup', (ev) => {
   else steer(dy > 0 ? 'down' : 'up');
 });
 
-const init = await PieGame.ready();
-applyTheme(init.theme);
-PieGame.onTheme((theme) => {
-  applyTheme(theme);
-  draw();
-});
+await PieGame.ready();
 reset();
 PieGame.setHeight();

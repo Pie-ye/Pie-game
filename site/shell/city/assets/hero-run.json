@@ -1,0 +1,12 @@
+{
+  "frameWidth": 384,
+  "frameHeight": 384,
+  "frames": 16,
+  "columns": 4,
+  "anchorX": 190,
+  "anchorY": 360,
+  "characterHeight": 320,
+  "cycleDistance": 240,
+  "previewFps": 20,
+  "method": "Colab CPU deterministic artwork compositing"
+}

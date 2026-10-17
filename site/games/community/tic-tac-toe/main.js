@@ -6,10 +6,6 @@ const LINES = [
   [0, 4, 8], [2, 4, 6],
 ];
 
-function applyTheme(theme) {
-  document.documentElement.dataset.theme = (theme === 'cyber' || theme === 'studio') ? 'cyber' : 'playful';
-}
-
 function emptyGame() {
   return {
     board: Array(9).fill(''),
@@ -96,6 +92,7 @@ function renderBoard() {
     btn.type = 'button';
     btn.className = 'cell';
     btn.textContent = cell || '';
+    btn.dataset.mark = cell || '';
     const canPlay = game.status === 'playing' && !cell && mine === game.turn;
     btn.disabled = !canPlay;
     btn.addEventListener('click', () => playCell(i));
@@ -217,8 +214,6 @@ function onJoined(msg) {
 }
 
 const init = await PieGame.ready();
-applyTheme(init.theme);
-PieGame.onTheme(applyTheme);
 
 if (!init.user) {
   hello.textContent = '請先在外框登入，才能加入房間。';

@@ -5,10 +5,6 @@ const wheel = document.getElementById('wheel');
 const statusEl = document.getElementById('status');
 let rotation = 0;
 
-function applyTheme(theme) {
-  document.documentElement.dataset.theme = (theme === 'cyber' || theme === 'studio') ? 'cyber' : 'playful';
-}
-
 function indexOf(result) {
   const display = result.display;
   if (display && typeof display === 'object' && Number.isFinite(display.index)) return display.index;
@@ -32,8 +28,6 @@ PieGame.coin.onResult((result) => {
   }, 2400);
 });
 
-const init = await PieGame.ready();
-applyTheme(init.theme);
-PieGame.onTheme(applyTheme);
+await PieGame.ready();
 PieGame.coin.select('spin');
 PieGame.setHeight();

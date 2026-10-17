@@ -19,7 +19,7 @@
 ```
 Pie-game/
 ├── server/                 外框＋內容兩個埠、/mp WebSocket
-├── site/shell/             外框前端（city/ 是首頁的賽博遊戲城與街機開機轉場）
+├── site/shell/             外框前端（city/ 賽博遊戲城＋街機轉場；ui/ 全站與每款遊戲的介面；frame.js 遊戲框架；login.js 登入畫面）
 ├── site/sdk/               投稿用 PieGame SDK
 ├── site/games/community/   投稿遊戲（含範本與範例）
 ├── tools/validate_games.py CI 與上線前驗證
@@ -106,9 +106,10 @@ python3 tools/perf_load.py                         # 正式站
 python3 tools/perf_load.py --shell http://localhost:54470 --runs 5
 ```
 
-## 介面（v0.2）
+## 介面（賽博遊戲城）
 
-- 主題兩套：**賽博電玩**（`cyber`，預設）與**盤房日場**（`playful`）。v0.1 的夜場／輕鬆競賽已移除，存過的人自動換成賽博。
+- 首頁為橫向賽博遊戲城，每按一次左右鍵或觸控方向鈕就移動到相鄰遊戲門口，按上鍵進入；長按不連跳。角色使用 Colab 生成的完整全身奔跑圖集。
+- 平台已取消主題切換；每款遊戲有自己的介面與配色，SDK 不再傳遞主題事件。
 - 每款遊戲同一個版面：頁首（左邊回大廳、右邊全螢幕）→ 遊戲畫面 → 控制列 → 規則與紀錄。
   控制列順序固定是「選項 → 押注 → 動作」，主要按鈕永遠在最右邊，黏在視窗底部（手機固定在螢幕底）。
 - 快捷鍵（`site/shell/hotkeys.js`）：空白鍵／Enter＝主要按鈕，1–9＝籌碼，其餘看按鈕右上角的提示

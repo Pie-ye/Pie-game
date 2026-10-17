@@ -132,8 +132,7 @@ try {
   assert(err.code === 'timeout', `expected timeout, got ${err.code}`);
 }
 
-PieGame.onTheme(undefined);
-fromParent({ type: 'pg:init', gameId: 'demo', user: { id: 'u1', displayName: 'U1' }, theme: 'playful', ticket: 't' });
+fromParent({ type: 'pg:init', gameId: 'demo', user: { id: 'u1', displayName: 'U1' }, ticket: 't' });
 const init = await PieGame.ready();
 assert(init.gameId === 'demo', 'ready should resolve from pg:init');
 

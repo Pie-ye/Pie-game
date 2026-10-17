@@ -1,5 +1,5 @@
 /**
- * 賽博城市首頁：橫向卷軸，人物左右走動，走到房子門前按 ↑ 進入遊戲。
+ * 賽博城市首頁：每按一次左右切換相鄰遊戲，人物跑到門前後按 ↑ 進入。
  * 畫面全部畫在一張 canvas 上（CSP 不允許 blob: 圖片，canvas 也比較省 DOM）；
  * 地圖、提示牌、觸控按鈕是 DOM，鍵盤與讀屏使用者另外有一份隱藏的遊戲連結清單。
  */
@@ -11,7 +11,7 @@ import {
 import { bootArcade, preloadArcade } from './arcade-boot.js';
 import {
   DISTRICTS, GROUND_Y, WALK_SPEED, WALK_Y, WORLD_H,
-  cameraFor, doorAt, layoutCity, stepPlayer, themeAt,
+  cameraFor, doorAt, layoutCity, selectAdjacentGame, stepPlayer, themeAt,
 } from './layout.js';
 import {
   FACADE_W, THEMES, drawBackdrop, drawFacade, drawFacadeReflection, drawGate, drawGround, drawLamps, drawWeather,
@@ -53,7 +53,7 @@ export function mountCity(view, { games, open, onNear }) {
 
   view.classList.add('is-city');
   view.innerHTML = `
-    <section class="city" aria-label="賽博城市：按住左右鍵走路，走到房子門前按上鍵進入遊戲">
+    <section class="city" aria-label="賽博城市：每按一次左右鍵切換一款遊戲，到門口後按上鍵進入">
       <canvas class="city-canvas" tabindex="0"></canvas>
       <div class="city-scan" aria-hidden="true"></div>
       <div class="city-hud">
@@ -62,7 +62,7 @@ export function mountCity(view, { games, open, onNear }) {
           <nav class="city-map" aria-label="城市地圖"><div class="city-map-track"></div></nav>
         </div>
         <div class="city-plaque" id="cityPlaque" role="status" aria-live="polite" hidden></div>
-        <p class="city-help" aria-hidden="true"><kbd>←</kbd><kbd>→</kbd> 按住走路　<kbd>↑</kbd> 進入</p>
+        <p class="city-help" aria-hidden="true"><kbd>←</kbd><kbd>→</kbd> 按一下切換遊戲　<kbd>↑</kbd> 進入</p>
         <div class="city-touch" aria-hidden="true">
           <button type="button" data-hold="left" tabindex="-1">◀</button>
           <button type="button" data-hold="right" tabindex="-1">▶</button>
@@ -84,10 +84,10 @@ export function mountCity(view, { games, open, onNear }) {
 
   // ---------- 狀態 ----------
   const saved = readState();
-  const startX = saved && saved.x > 0 && saved.x < world.width ? saved.x : 420;
+  const savedDoor = saved && doorAt(buildings, saved.x, Infinity);
+  const startX = savedDoor ? savedDoor.doorX : (buildings[0]?.doorX ?? 420);
   const player = { x: startX, vx: 0, facing: saved && saved.facing === -1 ? -1 : 1, target: null, autoRun: false, moving: false };
-  const input = { left: false, right: false, up: false };
-  const touchHeld = { left: false, right: false };
+  const input = { up: false };
   let cam = 0;
   let k = 1; // 一個邏輯像素 = k 個裝置像素
   let viewW = 1280;
@@ -98,7 +98,6 @@ export function mountCity(view, { games, open, onNear }) {
   let entering = false;
   let disposed = false;
   let walkPhase = 0;
-  let stepClock = 0;
   let dominant = null;
   let bannerTimer = 0;
   const born = performance.now();
@@ -179,39 +178,37 @@ export function mountCity(view, { games, open, onNear }) {
   if (ro) ro.observe(root);
   else window.addEventListener('resize', resize);
 
-  // ---------- 主角（走路動畫：腿分成前後兩段繞著髖部擺動，上半身跟著步伐彈跳） ----------
-  // 貼圖裡腿的位置（佔整張圖的比例）；換人物貼圖時要重新量。
-  const LEG_TOP = 0.77;
-  const LEG_SPLIT = 0.36;
-  const BACK_HIP = [0.3, 0.77];
-  const FRONT_HIP = [0.46, 0.77];
+  // Colab 全身生成圖集：保留模型畫出的完整人物，共用固定尺寸與腳底錨點。
+  const runArt = { sheet: null, meta: null };
+  Promise.all([
+    loadArt('hero-run-fullbody.webp'),
+    fetch(new URL('./assets/hero-run-fullbody.json', import.meta.url)).then((response) => {
+      if (!response.ok) throw new Error('Run metadata unavailable');
+      return response.json();
+    }),
+  ]).then(([sheet, meta]) => {
+    if (disposed || !sheet) return;
+    const positive = ['frames', 'columns', 'frameWidth', 'frameHeight', 'characterHeight', 'cycleDistance'];
+    if (!positive.every((key) => Number.isFinite(meta[key]) && meta[key] > 0)) return;
+    if (!['frames', 'columns', 'frameWidth', 'frameHeight'].every((key) => Number.isInteger(meta[key]))) return;
+    if (![meta.anchorX, meta.anchorY].every(Number.isFinite)) return;
+    if (sheet.sw !== meta.columns * meta.frameWidth || sheet.sh !== Math.ceil(meta.frames / meta.columns) * meta.frameHeight) return;
+    runArt.sheet = sheet;
+    runArt.meta = meta;
+  }).catch(() => { /* 素材載入失敗時保留原始全身圖。 */ });
 
-  function drawHeroSprite(a, h, swing, liftBack, liftFront) {
-    const w = (a.sw / a.sh) * h;
-    const left = -w / 2;
-    const top = -h;
-    const sx = (fx) => a.sx + a.sw * fx;
-    const sy = (fy) => a.sy + a.sh * fy;
-    const legTopY = top + h * LEG_TOP;
-    const piece = (srcX0, srcX1, hipFrac, angle, raise) => {
-      const px = left + w * hipFrac[0];
-      const py = top + h * hipFrac[1];
-      g.save();
-      g.translate(px, py - raise);
-      g.rotate(angle);
-      const dx0 = left + w * ((srcX0 - a.sx) / a.sw);
-      g.drawImage(a.img, srcX0, sy(LEG_TOP - 0.01), srcX1 - srcX0, a.sh * (1 - LEG_TOP + 0.01),
-        dx0 - px, legTopY - 0.01 * h - py, ((srcX1 - srcX0) / a.sw) * w, h * (1 - LEG_TOP + 0.01));
-      g.restore();
-    };
-    if (swing === 0) {
-      g.drawImage(a.img, a.sx, a.sy, a.sw, a.sh, left, top, w, h);
+  function drawHeroSprite(a, h) {
+    const running = player.moving && !reduce && runArt.sheet && runArt.meta;
+    if (!running) {
+      const w = (a.sw / a.sh) * h;
+      g.drawImage(a.img, a.sx, a.sy, a.sw, a.sh, -w / 2, -h, w, h);
       return;
     }
-    // 後腿、前腿（反向擺動），再蓋上身體（身體畫到髖部上方一點，把接縫遮掉）
-    piece(a.sx, sx(LEG_SPLIT), BACK_HIP, -swing, liftBack);
-    piece(sx(LEG_SPLIT), a.sx + a.sw, FRONT_HIP, swing, liftFront);
-    g.drawImage(a.img, a.sx, a.sy, a.sw, a.sh * (LEG_TOP + 0.015), left, top, w, h * (LEG_TOP + 0.015));
+    const meta = runArt.meta;
+    const frame = Math.floor(((walkPhase % (Math.PI * 2)) / (Math.PI * 2)) * meta.frames) % meta.frames;
+    const scale = h / meta.characterHeight;
+    g.drawImage(runArt.sheet.img, (frame % meta.columns) * meta.frameWidth, Math.floor(frame / meta.columns) * meta.frameHeight,
+      meta.frameWidth, meta.frameHeight, -meta.anchorX * scale, -meta.anchorY * scale, meta.frameWidth * scale, meta.frameHeight * scale);
   }
 
   function drawHero(t, mirror) {
@@ -220,12 +217,7 @@ export function mountCity(view, { games, open, onNear }) {
     const beat = ((t * BPM) / 60) % 1;
     const pulse = Math.exp(-beat * 5);
     const s = Math.sin(walkPhase);
-    const bounce = player.moving ? Math.abs(s) * 9 * Math.max(0.5, speed) : Math.sin(t * 2) * 2 + pulse * 3;
-    const squash = player.moving ? 1 + Math.cos(walkPhase * 2) * 0.025 : 1 + pulse * 0.035;
-    const lean = (player.vx / WALK_SPEED) * 0.07;
-    const swing = player.moving ? s * 0.5 : 0;
-    const liftFront = player.moving ? Math.max(0, Math.cos(walkPhase)) * 9 : 0;
-    const liftBack = player.moving ? Math.max(0, -Math.cos(walkPhase)) * 9 : 0;
+    const bounce = player.moving ? Math.abs(s) * 20 * Math.max(0.7, speed) : Math.sin(t * 2) * 2 + pulse * 3;
     const px = player.x - cam;
     g.save();
     if (mirror) {
@@ -245,16 +237,15 @@ export function mountCity(view, { games, open, onNear }) {
       g.ellipse(px, WALK_Y + 4, 50 - bounce * 0.8, 10, 0, 0, Math.PI * 2);
       g.fill();
     }
-    g.translate(px, WALK_Y - bounce);
-    g.rotate(lean);
-    g.scale(player.facing * (1 / squash), squash);
+    g.translate(px, WALK_Y);
+    g.scale(player.facing, 1);
     if (a) {
       const h = HERO_H * faded.hero;
       if (!mirror) {
         g.shadowColor = 'rgba(255,255,255,0.7)';
         g.shadowBlur = 7;
       }
-      drawHeroSprite(a, h, swing, liftBack, liftFront);
+      drawHeroSprite(a, h);
     } else {
       g.fillStyle = '#ff8a1f';
       g.fillRect(-24, -110, 48, 110);
@@ -329,12 +320,11 @@ export function mountCity(view, { games, open, onNear }) {
   }
 
   async function enterNear() {
-    if (entering || !near) return;
+    if (entering || !near || player.target != null) return;
     const building = near;
     entering = true;
-    input.left = false;
-    input.right = false;
     player.vx = 0;
+    player.moving = false;
     player.target = null;
     writeState({ x: building.doorX, facing: player.facing });
     root.classList.add('is-entering');
@@ -374,17 +364,20 @@ export function mountCity(view, { games, open, onNear }) {
     const dt = Math.min(0.05, (now - (last || now)) / 1000);
     last = now;
     const t = (now - born) / 1000;
-    // 鍵盤重複事件約每 30ms 一次（第一次要等約 0.5 秒）；超過 1.5 秒都沒有任何事件，
-    // 代表 keyup 掉了（切視窗、輸入法吃掉等），自動放開，避免人物自己一路走下去。
-    for (const side of ['left', 'right']) {
-      if (input[side] && now - lastSeen[side] > 1500 && !touchHeld[side]) input[side] = false;
-    }
-    const dir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
-    if (!entering) stepPlayer(player, { dir }, dt, world.width);
-    if (player.moving) {
-      // 一個完整步伐（兩步）約 150 邏輯像素
+    const frozenEarly = canvas.dataset.freeze !== undefined && canvas.dataset.freeze !== '';
+    const previousX = player.x;
+    if (!entering && !frozenEarly) stepPlayer(player, { dir: 0 }, dt, world.width);
+    // 截圖與測試用：data-freeze 指定相位（弧度）時，畫面固定在該步態相位。
+    const frozen = canvas.dataset.freeze !== undefined && canvas.dataset.freeze !== '' ? Number(canvas.dataset.freeze) : null;
+    if (frozen !== null && Number.isFinite(frozen)) {
+      walkPhase = frozen;
+      player.moving = true;
+      player.vx = WALK_SPEED * player.facing;
+    } else if (player.moving) {
+      // 依圖集步幅與實際位移推進影格，加速與減速時步頻一起變化。
       const prev = walkPhase;
-      walkPhase += (Math.abs(player.vx) / 150) * dt * Math.PI * 2;
+      const cycleDistance = runArt.meta ? runArt.meta.cycleDistance * HERO_H / runArt.meta.characterHeight : 142.5;
+      walkPhase += Math.abs(player.x - previousX) / cycleDistance * Math.PI * 2;
       // 每次腳落地（sin 過零）一下腳步聲與一小團灰塵
       if (Math.floor(prev / Math.PI) !== Math.floor(walkPhase / Math.PI)) {
         sfx('step');
@@ -393,10 +386,10 @@ export function mountCity(view, { games, open, onNear }) {
     } else {
       walkPhase = 0;
     }
-    if (!entering) updateNear(doorAt(buildings, player.x));
-    if (input.up && near && !entering) {
+    if (!entering) updateNear(player.target == null ? doorAt(buildings, player.x) : null);
+    if (input.up) {
       input.up = false;
-      enterNear();
+      if (near && !entering) enterNear();
     }
     cam = cameraFor(player.x, player.facing, viewW, world.width);
     if (art.hero && faded.hero < 1) faded.hero = Math.min(1, faded.hero + dt * 2.5);
@@ -413,7 +406,7 @@ export function mountCity(view, { games, open, onNear }) {
     if (main !== dominant) {
       const first = dominant === null;
       dominant = main;
-      root.dataset.theme = main;
+      root.dataset.district = main;
       root.style.setProperty('--scan', String(THEMES[main].scan));
       if (!first) showBanner(main);
     }
@@ -448,17 +441,22 @@ export function mountCity(view, { games, open, onNear }) {
     drawWeather(S, theme.a, 1 - theme.t);
     if (theme.b) drawWeather(S, theme.b, theme.t);
     me.style.left = `${(player.x / world.width) * 100}%`;
+    canvas.dataset.phase = walkPhase.toFixed(2); // 測試與截圖用：目前走路週期的相位
   }
 
   // ---------- 輸入 ----------
-  // 用 ev.code（實體按鍵位置）而不是 ev.key：中文輸入法開著時 key 會變成 "Process"，
-  // keydown 收得到但 keyup 對不上，按鍵就卡在「按住」狀態，人物會一路走下去。
+  // 用 ev.code 辨識實體按鍵，中文輸入法開著時 ev.key 可能是 "Process"。
+  // 忽略 repeat，長按一次只選一棟，不依賴 keyup 才停止。
   const CODES = {
     ArrowLeft: 'left', KeyA: 'left',
     ArrowRight: 'right', KeyD: 'right',
     ArrowUp: 'up', KeyW: 'up',
   };
-  const lastSeen = { left: 0, right: 0 };
+  function navigate(direction) {
+    selectAdjacentGame(player, buildings, direction);
+    input.up = false;
+    updateNear(null);
+  }
   // 只擋打字與對話框；輸入法組字中（isComposing）仍然要能走路。
   function blocked(ev) {
     if (ev.ctrlKey || ev.metaKey || ev.altKey) return true;
@@ -477,21 +475,12 @@ export function mountCity(view, { games, open, onNear }) {
       if (!ev.repeat) input.up = true;
       return;
     }
-    input[action] = true;
-    lastSeen[action] = performance.now();
-  }
-  function onKeyUp(ev) {
-    const action = CODES[ev.code];
-    // 「進入」是一次性的要求：放開按鍵不能取消，不然一個畫格內按下又放開就被吃掉。
-    if (action && action !== 'up') input[action] = false;
+    if (!ev.repeat) navigate(action === 'right' ? 1 : -1);
   }
   function onBlur() {
-    input.left = false;
-    input.right = false;
     input.up = false;
   }
   window.addEventListener('keydown', onKeyDown);
-  window.addEventListener('keyup', onKeyUp);
   window.addEventListener('blur', onBlur);
 
   // 點房子：只有已經站在門前時才進入。不會自動走過去。
@@ -511,21 +500,9 @@ export function mountCity(view, { games, open, onNear }) {
       unlockAudio();
       if (entering) return;
       if (name === 'up') input.up = true;
-      else {
-        input[name] = true;
-        touchHeld[name] = true;
-      }
-    };
-    const release = () => {
-      if (name !== 'up') {
-        input[name] = false;
-        touchHeld[name] = false;
-      }
+      else navigate(name === 'right' ? 1 : -1);
     };
     btn.addEventListener('pointerdown', press);
-    btn.addEventListener('pointerup', release);
-    btn.addEventListener('pointerleave', release);
-    btn.addEventListener('pointercancel', release);
   }
 
   // 分頁看不到的時候停掉迴圈，回來再開。
@@ -564,7 +541,6 @@ export function mountCity(view, { games, open, onNear }) {
       cancelAnimationFrame(raf);
       clearTimeout(bannerTimer);
       window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', onBlur);
       document.removeEventListener('visibilitychange', onVisibility);
       if (ro) ro.disconnect();

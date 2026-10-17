@@ -10,7 +10,7 @@ const {
 
 
 /* 大獎符號在後端叫 brand，畫面上一律用皇冠貼圖並叫「大獎」；後端符號 id 不變（賠付、紀錄、測試都靠它）。
-   符號貼圖是 gwentCB01 LoRA 產的圖（site/shell/casino/sym-*.webp），不再用程式畫的 SVG。 */
+   符號是 ui/art/ico-*.svg（粗黑框線稿向量圖）。 */
 const SLOT_JACKPOT = 'brand';
 const SLOT_SYMBOL_IMAGES = {
   brand: 'crown', gem: 'gem', rocket: 'rocket', bank: 'bank',
@@ -20,7 +20,7 @@ const SLOT_SYMBOL_ICON = new URL('../../ui/art/', import.meta.url).href;
 
 function slotImg(sym, extraClass = '') {
   const file = SLOT_SYMBOL_IMAGES[String(sym || '')] || 'coins';
-  const src = `${SLOT_SYMBOL_ICON}ico-${file}.webp`;
+  const src = `${SLOT_SYMBOL_ICON}ico-${file}.svg`;
   return `<img class="slot-sym ${extraClass}" src="${escapeHtml(src)}" alt="${escapeHtml(SLOT_SYMBOL_LABELS[sym] || sym || '')}" draggable="false" decoding="async">`;
 }
 

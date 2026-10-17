@@ -1,9 +1,5 @@
 import PieGame from '../../../sdk/pie-game-sdk.js';
 
-function applyTheme(theme) {
-  document.documentElement.dataset.theme = (theme === 'cyber' || theme === 'studio') ? 'cyber' : 'playful';
-}
-
 const coin = document.getElementById('coin');
 const statusEl = document.getElementById('status');
 let choice = 'heads';
@@ -44,8 +40,6 @@ PieGame.coin.onResult((result) => {
   }, 900);
 });
 
-const init = await PieGame.ready();
-applyTheme(init.theme);
-PieGame.onTheme(applyTheme);
+await PieGame.ready();
 setChoice('heads');
 PieGame.setHeight();

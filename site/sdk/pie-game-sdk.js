@@ -41,30 +41,16 @@ function inferGameId() {
 }
 
 function standaloneInit() {
-  return { gameId: inferGameId(), user: null, theme: 'playful', ticket: null };
+  return { gameId: inferGameId(), user: null, ticket: null };
 }
 
 function publicInit(state) {
   return {
     gameId: state.gameId,
     user: state.user,
-    theme: state.theme,
   };
 }
 
-// 外框主題：cyber（賽博電玩，深色，預設）與 playful（日場，淺色）。
-// studio 是 v0.1 的深色舊名，一律當 cyber。另外給 data-scheme="dark|light"，只想分深淺的遊戲用這個就好。
-function normalizeTheme(theme) {
-  if (theme === 'studio' || theme === 'classic') return 'cyber';
-  return theme === 'playful' ? 'playful' : 'cyber';
-}
-
-function applyTheme(theme) {
-  if (typeof document === 'undefined' || !theme) return;
-  const next = normalizeTheme(theme);
-  document.documentElement.dataset.theme = next;
-  document.documentElement.dataset.scheme = next === 'playful' ? 'light' : 'dark';
-}
 
 /**
  * 遊戲內容實際多高。不能用 documentElement.scrollHeight：iframe 裡它至少等於 iframe 本身的高度，
@@ -93,7 +79,6 @@ function wsUrl() {
 }
 
 function createSdk() {
-  const themeListeners = [];
   const resultListeners = [];
   const ticketWaiters = [];
   let initState = null;
@@ -143,20 +128,10 @@ function createSdk() {
       initState = {
         gameId: data.gameId || inferGameId(),
         user: data.user == null ? null : data.user,
-        theme: data.theme || 'playful',
         ticket: data.ticket || null,
       };
       unusedTicket = initState.ticket;
-      applyTheme(initState.theme);
-      themeListeners.forEach((cb) => cb(initState.theme));
       finishReady(initState);
-      return;
-    }
-    if (type === 'pg:theme') {
-      const theme = data.theme || 'playful';
-      if (initState) initState.theme = theme;
-      applyTheme(theme);
-      themeListeners.forEach((cb) => cb(theme));
       return;
     }
     if (type === 'pg:result') {
@@ -179,7 +154,6 @@ function createSdk() {
       settleReady = resolve;
       if (!inIframe()) {
         initState = standaloneInit();
-        applyTheme(initState.theme);
         finishReady(initState);
         return;
       }
@@ -191,18 +165,11 @@ function createSdk() {
       readyTimer = setTimeout(() => {
         if (!initState) {
           initState = standaloneInit();
-          applyTheme(initState.theme);
-          finishReady(initState);
+            finishReady(initState);
         }
       }, SDK.initTimeoutMs);
     });
     return initPromise;
-  }
-
-  function onTheme(cb) {
-    if (typeof cb !== 'function') return;
-    themeListeners.push(cb);
-    if (initState && initState.theme) cb(initState.theme);
   }
 
   let autoHeight = false;
@@ -292,7 +259,6 @@ function createSdk() {
 
   return {
     ready,
-    onTheme,
     setHeight,
     coin,
     multiplayer,

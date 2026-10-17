@@ -9,23 +9,24 @@
 </head>
 <body>
   <main class="wrap">
-    <h1>井字棋</h1>
+    <h1 class="logo"><span class="x">X</span><i>VS</i><span class="o">O</span><small>井字棋</small></h1>
     <p id="net" class="net" hidden>連線中斷，正在重連…</p>
     <section id="lobby">
-      <p id="hello">連線中…</p>
-      <div class="row">
-        <button type="button" id="createPublic">開公開房</button>
-        <button type="button" id="createPrivate">開私人房</button>
-        <button type="button" id="refresh">重新整理</button>
+      <div class="demo" aria-hidden="true"><i>X</i><i>O</i><i>O</i><i></i><i>X</i><i></i><i>O</i><i></i><i>X</i><b></b></div>
+      <p id="hello" class="hello">連線中…</p>
+      <div class="menu">
+        <button type="button" id="createPublic">▶ 開公開房</button>
+        <button type="button" id="createPrivate">▶ 開私人房</button>
+        <button type="button" id="refresh">↻ 重新整理</button>
       </div>
-      <label class="join">代碼 <input id="code" maxlength="6" autocomplete="off"> <button type="button" id="joinCode">加入</button></label>
+      <label class="join">CODE <input id="code" maxlength="6" autocomplete="off"> <button type="button" id="joinCode">加入</button></label>
       <ul id="rooms"></ul>
     </section>
     <section id="table" hidden>
-      <p id="meta"></p>
-      <p id="players" aria-live="polite"></p>
+      <p id="meta" class="meta"></p>
+      <p id="players" class="players" aria-live="polite"></p>
       <div id="board" class="board" role="grid" aria-label="棋盤"></div>
-      <p id="turn"></p>
+      <p id="turn" class="turn"></p>
       <div class="row">
         <button type="button" id="leave">離開房間</button>
       </div>

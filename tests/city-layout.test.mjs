@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  layoutCity, doorAt, stepPlayer, cameraFor, districtFor, lookFor, themeAt, SPACING, DOOR_RADIUS, DISTRICT_GAP, WALK_SPEED,
+  layoutCity, doorAt, selectAdjacentGame, stepPlayer, cameraFor, districtFor, lookFor, themeAt, SPACING, DOOR_RADIUS, DISTRICT_GAP, WALK_SPEED,
 } from '../site/shell/city/layout.js';
 
 const games = [
@@ -12,6 +12,37 @@ const games = [
   { id: 'new-thing', name: '新遊戲', kind: 'free' },
   { id: 'new-coin', name: '新金幣', kind: 'coin' },
 ];
+
+test('one navigation reaches exactly the adjacent door and stops', () => {
+  const { buildings, width } = layoutCity(games);
+  const s = { x: buildings[0].doorX, vx: 0, facing: 1, target: null };
+  selectAdjacentGame(s, buildings, 1);
+  for (let i = 0; i < 600; i += 1) stepPlayer(s, { dir: 0 }, 1 / 60, width);
+  assert.equal(s.x, buildings[1].doorX);
+  assert.equal(s.target, null);
+  assert.equal(s.moving, false);
+  assert.equal(s.vx, 0);
+});
+
+test('rapid navigation uses selected destination, reverses and clamps at ends', () => {
+  const { buildings, width } = layoutCity(games);
+  const s = { x: buildings[0].doorX, vx: 0, facing: 1, target: null };
+  selectAdjacentGame(s, buildings, -1);
+  assert.equal(s.target, buildings[0].doorX);
+  selectAdjacentGame(s, buildings, 1);
+  stepPlayer(s, { dir: 0 }, 0.05, width);
+  selectAdjacentGame(s, buildings, 1);
+  assert.equal(s.target, buildings[2].doorX);
+  selectAdjacentGame(s, buildings, -1);
+  selectAdjacentGame(s, buildings, -1);
+  assert.equal(s.target, buildings[0].doorX);
+  assert.equal(s.vx, 0);
+  for (let i = 0; i < 20; i += 1) selectAdjacentGame(s, buildings, 1);
+  assert.equal(s.target, buildings.at(-1).doorX);
+  for (let i = 0; i < 1200; i += 1) stepPlayer(s, { dir: 0 }, 1 / 60, width);
+  assert.equal(s.x, buildings.at(-1).doorX);
+  assert.equal(selectAdjacentGame(s, [], 1), null);
+});
 
 test('layout groups by district and keeps door spacing', () => {
   const { buildings, gates, width } = layoutCity(games);

@@ -9,7 +9,7 @@
   --gx-text: #f4eaff;
   --gx-muted: #a99bc9;
   --gx-bg: none;
-  --gx-bg-dim: 0.72;
+  --gx-bg-dim: 0.8;
   --gx-radius: 14px;
   --gx-font-head: var(--font-display);
   position: relative;
@@ -118,7 +118,19 @@
 }
 
 .gx-stage.is-community { max-width: none; padding: 0 clamp(6px, 1.4vw, 18px) 14px; display: flex; flex-direction: column; }
-.gx-stage.is-community iframe { flex: 1; width: 100%; min-height: 70svh; border: 0; border-radius: var(--gx-radius); background: #000; display: block; }
+.gx-stage.is-community .community-frame-wrap { flex: 1; display: flex; min-height: 62svh; }
+.gx-stage.is-community .community-frame { flex: 1; width: 100%; min-height: min(var(--frame-h, 62svh), 1400px); border: 0; border-radius: var(--gx-radius); background: #000; display: block; }
+.gx-stage.is-community .mp-banner {
+  margin: 0 0 10px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 3px solid var(--gx-ink);
+  background: var(--gx-panel);
+  color: var(--gx-accent-2);
+  font-weight: 800;
+  text-align: center;
+}
+.gx-stage.is-community #coinBetBar { margin-top: 12px; }
 
 /* ---------- 紀錄抽屜 ---------- */
 .gx-drawer {
@@ -192,3 +204,65 @@
   .gx-back span:not([aria-hidden]) { display: none; }
   .gx-back { padding: 0 10px; }
 }
+
+/* 金幣遊戲的下注列：黏在視窗底部，手機上也永遠完整看得到 */
+.gx-stage.is-community #coinBetBar {
+  position: sticky;
+  bottom: 8px;
+  z-index: 20;
+}
+
+@media (max-width: 560px) {
+  .gx .pg-dock { padding: 8px 10px; gap: 8px 10px; }
+  .gx .pg-chip { width: 44px; height: 44px; font-size: 13px; }
+  .gx .pg-seg { min-width: 70px; min-height: 44px; padding: 4px 10px; }
+  .gx .pg-dock-primary { min-width: 0; flex: 1; }
+  .gx .pg-dock-note, .gx .rtp-note { flex-basis: 100%; font-size: 12px; }
+}
+
+/* ===== 三個街區各自的框架外型：不只換色，連按鈕形狀、標題字體與邊框語言都不同 ===== */
+
+/* 菲比廣場：粉白糖果面板、全圓角、星形角飾、圓體字 */
+.gx[data-district="phoebe"] .gx-back,
+.gx[data-district="phoebe"] .gx-tool {
+  border-radius: 999px;
+  border-color: #fff;
+  background: linear-gradient(180deg, #ffb8e4, #ff6fc0);
+  color: #fff;
+  box-shadow: 0 4px 0 #6a1f8a, 0 0 16px rgba(255, 143, 208, 0.7);
+  -webkit-text-stroke: 2px #6a1f8a;
+  paint-order: stroke fill;
+}
+.gx[data-district="phoebe"] .gx-title b { -webkit-text-stroke: 5px #6a1f8a; text-shadow: 0 4px 0 #ff6fc0, 0 0 24px #ffe36a; font-family: "Noto Sans TC", "Microsoft JhengHei", sans-serif; }
+.gx[data-district="phoebe"] .gx-title small { color: #ffe36a; text-shadow: 0 0 8px #ff8fd0; }
+.gx[data-district="phoebe"] .gx-title b::after { content: " ★"; color: #ffe36a; -webkit-text-stroke: 0; }
+
+/* 電玩巷：方角像素按鈕、等寬字、黃色粗框 */
+.gx[data-district="arcade"] .gx-back,
+.gx[data-district="arcade"] .gx-tool {
+  border-radius: 0;
+  border-color: #05050f;
+  background: #ffd23a;
+  color: #05050f;
+  font-family: var(--font-mono);
+  box-shadow: 0 4px 0 #05050f, 0 0 0 2px #ff3b3b inset;
+}
+.gx[data-district="arcade"] .gx-title b { font-family: var(--font-mono); letter-spacing: 0.12em; text-shadow: 3px 3px 0 #ff3b3b; -webkit-text-stroke: 0; }
+.gx[data-district="arcade"] .gx-title small { color: #2cff9a; }
+.gx[data-district="arcade"] .gx-drawer { border-radius: 0; }
+
+/* 電玩巷：深藍格線底＋掃描線，不用外牆壁畫 */
+.gx[data-district="arcade"] .gx-bg {
+  background:
+    repeating-linear-gradient(0deg, rgba(79, 157, 255, 0.07) 0 1px, transparent 1px 32px),
+    repeating-linear-gradient(90deg, rgba(79, 157, 255, 0.07) 0 1px, transparent 1px 32px),
+    radial-gradient(80% 60% at 50% 0%, #1a2a7a, #05071a);
+}
+
+/* 全畫面型的 3D 遊戲：iframe 剛好填滿標題列以外的視窗，底部操作提示不會被截掉 */
+.gx-pie-phoebe .community-frame-wrap,
+.gx-phoebe-egg .community-frame-wrap,
+.gx-phoebe-peak .community-frame-wrap { min-height: calc(100svh - 84px); }
+.gx-pie-phoebe .community-frame,
+.gx-phoebe-egg .community-frame,
+.gx-phoebe-peak .community-frame { height: calc(100svh - 84px); min-height: 0; }

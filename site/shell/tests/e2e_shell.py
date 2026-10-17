@@ -279,9 +279,9 @@ def click_logout(page):
 
 def login_mock(page):
     page.goto(MOCK_URL + "#/login")
-    page.get_by_label("使用者名稱").fill("pgtest")
-    page.get_by_label("密碼").fill("previewpass123")
-    page.get_by_role("button", name="登入").click()
+    page.locator('input[name="username"]').fill("pgtest")
+    page.locator('input[name="password"]').fill("previewpass123")
+    page.locator('#loginForm button[type="submit"]').click()
     expect(page.locator("#balancePill")).to_be_visible(timeout=5000)
 
 
@@ -318,81 +318,76 @@ def main() -> int:
 
         page.set_viewport_size({"width": 1280, "height": 800})
 
-        # 2. guest can browse lobby (no redirect on community)
-        # 首頁是橫向卷軸的遊戲城；清單大廳搬到 #/list。
+        # 2. 首頁是橫向卷軸的遊戲城（舊的清單大廳與主題選單都已移除）
         page.goto(MOCK_URL + "#/")
         page.wait_for_selector(".city-canvas")
         check("city-canvas", page.locator(".city-canvas").count() == 1, "no canvas")
         check("no-brand-topbar", page.locator(".brand").count() == 0, "brand still present")
+        check("no-theme-select", page.locator("#themeSelect").count() == 0, "theme select still present")
+        check("no-old-list-route", page.locator(".lobby-section, .game-card").count() == 0, "old lobby markup present")
         check("city-fullscreen", page.evaluate("document.querySelector('.city').getBoundingClientRect().height") >= 790,
               str(page.evaluate("document.querySelector('.city').getBoundingClientRect().height")))
         check("menu-sound-switch", page.locator("#menuSound").count() == 1, "no sound switch in menu")
         check("menu-hidden-until-open", not page.locator("#menuSound").is_visible(), "menu open by default")
         check("city-map-dots", page.locator(".city-map-dot").count() >= 8,
               str(page.locator(".city-map-dot").count()))
+        check("city-map-not-clickable", page.locator("button.city-map-dot").count() == 0, "map dots are buttons")
+        page.wait_for_selector("#cityPlaque:not([hidden])")
+        first_game = page.locator("#cityPlaque b").inner_text()
+        # 按一次 D 自動跑到下一款；途中按上鍵不能進入經過的遊戲。
+        x0 = page.evaluate("document.querySelector('.city-map-me').style.left")
+        page.keyboard.press("KeyD")
+        page.wait_for_timeout(150)
         page.keyboard.press("ArrowUp")
-        page.wait_for_timeout(300)
-        check("city-no-enter-away-from-door", page.locator("#arcadeBoot").count() == 0, "boot started without a door")
-        page.locator(".city-map-dot").first.click()
+        page.wait_for_timeout(150)
+        check("city-no-enter-in-transit", page.locator("#arcadeBoot").count() == 0, "boot started in transit")
         page.wait_for_selector("#cityPlaque:not([hidden])", timeout=8000)
+        x1 = page.evaluate("document.querySelector('.city-map-me').style.left")
+        second_game = page.locator("#cityPlaque b").inner_text()
+        check("tap-d-next-game", second_game != first_game and float(x1.strip('%')) > float(x0.strip('%')), f"{x0} -> {x1}")
+        check("arrival-stops", page.locator(".city-canvas").get_attribute("data-phase") == "0.00", "run continued after arrival")
+
+        # 長按與系統 repeat 只切換一次，到了門口便停。
+        page.keyboard.down("KeyD")
+        page.wait_for_timeout(2000)
+        page.wait_for_selector("#cityPlaque:not([hidden])", timeout=8000)
+        third_game = page.locator("#cityPlaque b").inner_text()
+        check("hold-d-next-game", third_game != second_game, third_game)
+        pos = page.evaluate("document.querySelector('.city-map-me').style.left")
+        page.keyboard.down("KeyD")
+        page.wait_for_timeout(500)
+        page.keyboard.up("KeyD")
+        check("hold-repeat-ignored", page.evaluate("document.querySelector('.city-map-me').style.left") == pos, "repeat selected another game")
         page.keyboard.press("ArrowUp")
         page.wait_for_selector("#arcadeBoot", timeout=3000)
         page.keyboard.press("Space")  # 任意鍵快轉
         page.wait_for_function("location.hash.startsWith('#/game/')", timeout=8000)
         page.wait_for_function("!document.getElementById('arcadeBoot')", timeout=8000)
         check("city-enter-game", page.evaluate("location.hash").startswith("#/game/"), page.evaluate("location.hash"))
-        page.goto(MOCK_URL + "#/list")
-        page.wait_for_selector("#lobbyOfficial")
-        check("guest-lobby", page.get_by_role("heading", name="官方遊戲").count() == 1,
-              page.locator("#view").inner_text()[:200])
-        check("guest-not-login-page", page.locator("#loginForm").count() == 0, "redirected to login")
+        check("game-frame", page.locator(".gx").count() == 1, "no game frame")
+        check("game-back-to-city", page.locator(".gx-back").count() == 1, "no back button")
+        check("game-fullscreen-layout", page.evaluate("document.querySelector('.gx').getBoundingClientRect().width") >= 1270, "frame not full width")
+
+        # 登入畫面是街機螢幕＋美術
+        page.goto(MOCK_URL + "#/login")
+        page.wait_for_selector(".lg-cab")
+        check("login-art", page.locator(".lg-cab img, .lg-hero").count() >= 2, "login art missing")
+        check("login-form-on-screen", page.locator(".lg-screen #loginForm").count() == 1, "form not on arcade screen")
+        check("guest-not-redirected", page.locator("#loginForm").count() == 1, "login form missing")
 
         login_mock(page)
         check("login-balance", "金幣" in (page.locator("#balancePill").inner_text() or ""),
               page.locator("#balancePill").inner_text())
         check("login-user", "pgtest" in page.locator("#authSlot").inner_text(),
               page.locator("#authSlot").inner_text())
+        check("balance-plain-number", (page.locator("#balancePill b").inner_text() or "").replace(",", "").isdigit(),
+              page.locator("#balancePill").inner_text())
 
-        page.goto(MOCK_URL + "#/list")
-        page.wait_for_selector("#lobbyOfficial .game-card")
-        for heading in ("官方遊戲", "金幣遊戲", "一般遊戲", "多人遊戲"):
-            loc = page.get_by_role("heading", name=heading)
-            check(f"lobby-heading-{heading}", loc.count() == 1, f"count={loc.count()}")
-        check("lobby-official-five", page.locator("#lobbyOfficial .game-card").count() == 5,
-              str(page.locator("#lobbyOfficial .game-card").count()))
-        check("lobby-coin-flip", page.locator("#lobbyCoin").get_by_text("猜硬幣").count() >= 1,
-              page.locator("#lobbyCoin").inner_text())
-        check("lobby-no-lucky-wheel", page.locator("#lobbyCoin").get_by_text("幸運轉盤").count() == 0,
-              page.locator("#lobbyCoin").inner_text())
-        check("lobby-no-rejected", "bad-game" not in page.locator("#view").inner_text(),
-              page.locator("#view").inner_text()[:300])
-        check("lobby-snake", page.locator("#lobbyFree").get_by_role("heading", name="貪吃蛇").count() == 1,
-              page.locator("#lobbyFree").inner_text())
-        check("lobby-ttt", page.locator("#lobbyMulti").get_by_text("井字棋").count() >= 1,
-              page.locator("#lobbyMulti").inner_text())
-
-        page.get_by_role("link", name="拉霸").click()
-        page.wait_for_selector(".placeholder-msg, #officialRoot")
-        check("official-placeholder", page.get_by_text("搬家中，即將開放").count() >= 1
-              or page.locator("#officialRoot").count() == 1,
-              page.locator("#view").inner_text()[:300])
-
-        page.goto(MOCK_URL + "#/list")
-        page.wait_for_selector("#lobbyOfficial .game-card")
-        page.wait_for_timeout(500)
-        for theme in ("cyber", "playful"):
-            # 主題選單住在右上角的選單面板裡，要先打開
-            if not page.locator("#themeSelect").is_visible():
-                page.locator("#userMenuToggle").click()
-            page.locator("#themeSelect").select_option(theme)
-            page.wait_for_timeout(150)
-            page.locator("body").click(position={"x": 2, "y": 300})
-            html_theme = page.locator("html").get_attribute("data-theme")
-            check(f"theme-{theme}", html_theme == theme, html_theme or "")
-            page.set_viewport_size({"width": 1280, "height": 800})
-            page.screenshot(path=str(SHOTS / f"p2-{theme}-1280.png"), full_page=True)
-            page.set_viewport_size({"width": 390, "height": 844})
-            page.screenshot(path=str(SHOTS / f"p2-{theme}-390.png"), full_page=True)
+        page.goto(MOCK_URL + "#/game/slots")
+        page.wait_for_selector(".slot-cab, #officialRoot")
+        check("official-frame", page.locator(".gx-slots").count() == 1, "slots frame class missing")
+        page.set_viewport_size({"width": 390, "height": 844})
+        page.screenshot(path=str(SHOTS / "p2-slots-390.png"))
         page.set_viewport_size({"width": 1280, "height": 800})
 
         # user menu 390 / 360

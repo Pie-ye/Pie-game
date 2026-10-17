@@ -1,9 +1,15 @@
 const PROD_API_ORIGIN = 'https://coinpilet.win';
 const PROD_CONTENT_ORIGIN = 'https://play.piea.uk';
 
+// 本機或私有網段（含 Tailscale 的 100.64.0.0/10）才允許用網址參數覆寫 API／內容來源；正式網域不受影響。
 function isLocalHost() {
   const host = location.hostname;
-  return host === 'localhost' || host === '127.0.0.1';
+  if (host === 'localhost' || host === '127.0.0.1') return true;
+  const m = host.match(/^(\d+)\.(\d+)\.\d+\.\d+$/);
+  if (!m) return false;
+  const a = Number(m[1]);
+  const b = Number(m[2]);
+  return a === 10 || (a === 192 && b === 168) || (a === 172 && b >= 16 && b <= 31) || (a === 100 && b >= 64 && b <= 127);
 }
 
 function stripSlash(value) {

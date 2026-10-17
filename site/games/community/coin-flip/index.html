@@ -8,18 +8,20 @@
   <script type="module" src="./main.js"></script>
 </head>
 <body>
-  <main class="wrap">
-    <h1>猜硬幣</h1>
-    <p class="hint">點硬幣選正面或反面，到外框按下注。長期玩一定虧。</p>
+  <main class="booth">
+    <div class="beam" aria-hidden="true"></div>
+    <p class="marquee" aria-hidden="true"><span>● ● ● ● ●</span> COIN TOSS <span>● ● ● ● ●</span></p>
+    <p class="hint">點硬幣或下方按鈕選正面／反面，到外框按下注。長期玩一定虧。</p>
     <div class="stage">
+      <div class="pedestal" aria-hidden="true"></div>
       <button type="button" id="coin" class="coin" aria-label="硬幣">
-        <span class="face heads" role="img" aria-label="正面"></span>
-        <span class="face tails" role="img" aria-label="反面"></span>
+        <span class="face heads" role="img" aria-label="正面"><i>♛</i><b>正</b></span>
+        <span class="face tails" role="img" aria-label="反面"><i>★</i><b>反</b></span>
       </button>
     </div>
     <div class="choices">
-      <button type="button" data-choice="heads" class="is-active">正面</button>
-      <button type="button" data-choice="tails">反面</button>
+      <button type="button" data-choice="heads" class="is-active"><i>♛</i>正面</button>
+      <button type="button" data-choice="tails"><i>★</i>反面</button>
     </div>
     <p id="status">選好後，用外框下注</p>
   </main>

@@ -1,9 +1,9 @@
 .gx-coin-flip {
-  --gx-accent: #ffc61a;
-  --gx-accent-2: #fff3b0;
-  --gx-panel: rgba(34,24,4,.9);
-  --gx-base: #140e02;
-  --gx-bg-dim: .74;
+  --gx-accent: #35f0ff;
+  --gx-accent-2: #a8e8f4;
+  --gx-panel: rgba(6,16,40,.92);
+  --gx-base: #04061a;
+  --gx-bg-dim: .82;
   --gx-text: #f4eaff;
   --gx-muted: #a99bc9;
   --gx-ink: #0b0714;

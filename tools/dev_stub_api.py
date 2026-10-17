@@ -17,7 +17,7 @@ from aiohttp import web
 
 ROOT = Path(__file__).resolve().parents[1]
 PORT = 54480
-SHELL_ORIGINS = {"http://localhost:54470", "http://127.0.0.1:54470", "http://localhost:54472"}
+SHELL_ORIGINS = {"http://localhost:54470", "http://127.0.0.1:54470", "http://localhost:54472", "http://100.82.35.84:54470"}
 STATE = {"balance": 1000, "bj": None, "dg": None}
 SYMBOLS = ["brand", "gem", "rocket", "bank", "flame", "trend", "candles", "coins"]
 BETS = [5, 10, 20, 50, 100]
@@ -64,6 +64,12 @@ async def handle(request: web.Request) -> web.Response:
         return _json(request, {"user": user, "csrfToken": "stub-csrf"})
     if path == "/api/casino/session":
         return _json(request, {"user": user, "balance": STATE["balance"], "csrfToken": "stub-csrf"})
+    if path == "/api/casino/play-ticket":
+        return _json(request, {"ticket": f"{body.get('gameId', 'x')}|{id(request) % 100000}"})
+    if path == "/api/casino/play-ticket/redeem":
+        # 多人遊戲預覽：ticket 格式「遊戲id|序號」，序號當玩家身分
+        game_id, _, seq = str(body.get("ticket", "")).partition("|")
+        return _json(request, {"userId": "u-" + seq, "username": "stub" + seq, "displayName": "玩家" + seq, "gameId": game_id})
     if path == "/api/casino/history":
         return _json(request, {"game": "", "items": [], "summary": {"rounds": 0, "bet": 0, "payout": 0, "net": 0}})
     if path == "/api/casino/community":

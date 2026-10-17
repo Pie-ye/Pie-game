@@ -51,8 +51,9 @@ class Settings:
         if dev:
             site_dir = repository_root / "site"
             content_dir = repository_root / "site"
-            shell_origin = f"http://localhost:{shell_port}"
-            content_origin = f"http://127.0.0.1:{content_port}"
+            # 開發預設是本機；要從 Tailscale 內的其他裝置預覽時用環境變數指到 tailnet 位址。
+            shell_origin = os.environ.get("PG_SHELL_ORIGIN", f"http://localhost:{shell_port}")
+            content_origin = os.environ.get("PG_CONTENT_ORIGIN", f"http://127.0.0.1:{content_port}")
         else:
             site_dir = Path(os.environ.get("PG_SITE_DIR", "/app/site"))
             content_dir = Path(os.environ.get("PG_CONTENT_DIR", DEFAULT_CONTENT_DIR))

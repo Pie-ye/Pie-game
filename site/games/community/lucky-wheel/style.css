@@ -1,117 +1,157 @@
-:root, [data-theme="playful"] {
-  --bg: #f2eee6;
-  --ink: #1a1713;
-  --muted: #57503f;
-  --accent: #835f13;
-  --sheet: #fbf8f2;
-  --gain: #0e7354;
-  --loss: #b4322b;
+/* 幸運轉盤：嘉年華轉盤。霓虹燈泡外圈、八色扇形、紅色指針，背景是深紫色帳篷與閃爍彩燈。 */
+* { box-sizing: border-box; }
+
+:root { --ink: #0b0714; }
+
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background:
+    repeating-conic-gradient(from 0deg at 50% 120%, rgba(255, 79, 216, 0.14) 0 8deg, transparent 8deg 16deg),
+    radial-gradient(80% 70% at 50% 40%, #3a0a52, #12031a 75%);
+  color: #fff;
+  font: 16px/1.5 "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
 }
-/* 賽博電玩（外框預設主題）。studio 是 v0.1 的舊名，留著給舊外框。 */
-[data-theme="cyber"], [data-theme="studio"] {
-  --bg: #07070f;
-  --ink: #e6f7ff;
-  --muted: #a3b6cc;
-  --accent: #00e5ff;
-  --sheet: #0d0f1c;
-  --gain: #39ff88;
-  --loss: #ff3d6e;
+
+.fair { position: relative; max-width: 640px; min-height: 100vh; margin: 0 auto; padding: 14px 16px 24px; text-align: center; overflow: hidden; }
+
+/* 頂端一排彩燈 */
+.bulbs {
+  height: 18px;
+  margin: 0 -16px 10px;
+  background:
+    radial-gradient(circle, #ffe36a 0 5px, transparent 6px) 0 0 / 34px 18px repeat-x,
+    radial-gradient(circle, #ff4fd8 0 5px, transparent 6px) 17px 0 / 34px 18px repeat-x;
+  filter: drop-shadow(0 0 6px #ffe36a);
+  animation: bulbs 1s steps(1) infinite;
 }
-html, body { margin: 0; background: var(--bg); color: var(--ink); font: 1rem/1.6 sans-serif; }
-.wrap { max-width: 360px; margin: 0 auto; padding: 16px; text-align: center; }
-h1 { font-size: 1.625rem; margin: 0 0 8px; }
-.hint { color: var(--muted); }
-.wheel-wrap { position: relative; width: 260px; height: 260px; margin: 16px auto; }
+
+@keyframes bulbs { 50% { opacity: 0.55; } }
+
+h1 {
+  margin: 0;
+  font: 900 clamp(26px, 6vw, 40px)/1.1 "Orbitron", "Noto Sans TC", sans-serif;
+  letter-spacing: 0.18em;
+  color: #fff;
+  -webkit-text-stroke: 3px var(--ink);
+  paint-order: stroke fill;
+  text-shadow: 4px 4px 0 #ff4fd8, 0 0 26px #ff4fd8;
+}
+
+h1 span { color: #ffe36a; text-shadow: 4px 4px 0 #ff2b5c, 0 0 26px #ffe36a; }
+.hint { margin: 6px 0 4px; color: #e7c6ff; font-size: 14px; }
+
+.wheel-wrap { position: relative; width: min(360px, 84vw); aspect-ratio: 1; margin: 22px auto 12px; }
+
 .pointer {
   position: absolute;
-  top: -14px;
+  top: -22px;
   left: 50%;
-  width: 34px;
-  height: 40px;
-  background: url("assets/wheel-pointer.webp") center / contain no-repeat;
-  filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.7));
-  transform: translateX(-50%);
-  z-index: 3;
+  z-index: 5;
+  width: 0;
+  height: 0;
+  margin-left: -20px;
+  border-left: 20px solid transparent;
+  border-right: 20px solid transparent;
+  border-top: 46px solid #ff2b5c;
+  filter: drop-shadow(0 0 0 var(--ink)) drop-shadow(3px 4px 0 var(--ink)) drop-shadow(0 0 12px #ff2b5c);
 }
-.wheel {
-  width: 260px;
-  height: 260px;
-  border: 0;
-  padding: 0;
+
+/* 外圈：燈泡環 */
+.rim {
+  position: absolute;
+  inset: -16px;
   border-radius: 50%;
-  position: relative;
-  overflow: hidden;
-  background: #120d08;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6);
+  border: 6px solid var(--ink);
+  background:
+    radial-gradient(circle closest-side, transparent 0 88%, #ffe36a 89% 100%),
+    repeating-conic-gradient(from 0deg, #fff3b0 0 6deg, #ff4fd8 6deg 15deg);
+  box-shadow: 0 0 0 4px #ff4fd8, 0 0 40px rgba(255, 79, 216, 0.7), 0 14px 0 var(--ink);
+  -webkit-mask: radial-gradient(circle closest-side, transparent 0 87%, #000 88%);
+  mask: radial-gradient(circle closest-side, transparent 0 87%, #000 88%);
+  animation: rim 1.2s steps(2) infinite;
+}
+
+@keyframes rim { 50% { filter: hue-rotate(40deg) brightness(1.2); } }
+
+.wheel {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 6px solid var(--ink);
+  border-radius: 50%;
+  background: conic-gradient(from -22.5deg,
+    #ffc61a 0 45deg, #ff4fd8 45deg 90deg, #35f0ff 90deg 135deg, #9dff3a 135deg 180deg,
+    #ff9a1f 180deg 225deg, #3a1a6a 225deg 270deg, #24104a 270deg 315deg, #3a1a6a 315deg 360deg);
+  box-shadow: inset 0 0 0 4px rgba(255, 255, 255, 0.5), inset 0 0 40px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
   transition: transform 0ms;
 }
-.wheel.spin {
-  transition: transform 2.4s cubic-bezier(0.16, 1, 0.3, 1);
-}
-/* 八個扇形：各自貼一張材質，用 clip-path 切成 45 度 */
-.wedge {
-  position: absolute;
-  inset: 0;
-  background: var(--tex) 0 0 / 130px auto;
-  clip-path: polygon(50% 50%, 27.04% -5.4%, 72.96% -5.4%);
-  transform: rotate(calc(var(--i) * 45deg));
-}
-.wedge::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.38);
-}
-.wedge:nth-child(odd)::after { background: rgba(0, 0, 0, 0.5); }
-/* 外圈與中心：金屬貼圖環＋中心徽章 */
+
+.wheel.spin { transition: transform 2.4s cubic-bezier(0.16, 1, 0.3, 1); }
+
+/* 扇形分隔線 */
 .wheel::before {
   content: "";
   position: absolute;
   inset: 0;
-  z-index: 1;
-  background: url("assets/tex-gold.webp") 0 0 / 110px auto;
-  -webkit-mask: radial-gradient(circle closest-side, transparent 0 95%, #000 96%);
-  mask: radial-gradient(circle closest-side, transparent 0 95%, #000 96%);
+  border-radius: 50%;
+  background: repeating-conic-gradient(from -22.5deg, var(--ink) 0 1.2deg, transparent 1.2deg 45deg);
   pointer-events: none;
 }
-.wheel::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  z-index: 1;
-  width: 58px;
-  height: 58px;
-  margin: -29px 0 0 -29px;
-  background: url("assets/wheel-hub.webp") center / contain no-repeat;
-  pointer-events: none;
-}
+
 .label {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 40px;
-  margin-left: -20px;
+  width: 60px;
+  margin-left: -30px;
+  margin-top: -14px;
   z-index: 2;
-  color: #fff;
-  font-weight: 800;
-  font-size: 0.8125rem;
-  text-shadow: 0 0 3px #000, 0 1px 2px #000;
-  transform: rotate(calc(var(--i) * 45deg)) translateY(-96px);
+  color: var(--ink);
+  font: 900 24px/1 "Orbitron", "Noto Sans TC", sans-serif;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
+  transform: rotate(calc(var(--i) * 45deg)) translateY(calc(min(360px, 84vw) * -0.34));
   pointer-events: none;
 }
-#status { min-height: 2.4em; }
-#status.win { color: var(--gain); }
-#status.lose { color: var(--loss); }
 
-/* ---------- 貼圖主題（gwentCB01 LoRA 貼圖，assets/*.webp）：兩個外框主題都用同一套 ---------- */
-:root, [data-theme="playful"], [data-theme="cyber"], [data-theme="studio"] {
-  --bg: #1b140c;
-  --ink: #f5e9c8;
-  --muted: #dccaa0;
-  --accent: #e9c45e;
-  --gain: #8fe3a8;
-  --loss: #ff9a88;
+.label.dim { color: #8a74c0; text-shadow: none; }
+
+.hub {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 4;
+  width: 22%;
+  aspect-ratio: 1;
+  margin: -11% 0 0 -11%;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 6px solid var(--ink);
+  background: radial-gradient(circle at 35% 30%, #fff3b0, #ffc61a 60%, #a86a08);
+  box-shadow: 0 0 0 3px #ff4fd8, 0 0 22px #ffc61a, 3px 4px 0 var(--ink);
+  color: #b3122f;
+  font: 900 32px/1 serif;
+  pointer-events: none;
 }
-html, body { background: #1b140c url("assets/tex-felt.webp") 0 0 / 180px auto; }
-.wrap { text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7); }
+
+#status {
+  min-height: 2.6em;
+  margin: 18px auto 0;
+  padding: 8px 14px;
+  max-width: 460px;
+  border-radius: 8px;
+  border: 3px solid var(--ink);
+  background: #1a0a30;
+  color: #e7c6ff;
+  font: 700 15px/1.5 ui-monospace, "Courier New", monospace;
+  box-shadow: 0 0 0 2px #ff4fd8 inset;
+}
+
+#status.win { color: #fff3b0; text-shadow: 0 0 10px #ffc61a; }
+#status.lose { color: #ff9a88; }
+
+@media (prefers-reduced-motion: reduce) { .bulbs, .rim { animation: none; } .wheel.spin { transition-duration: 1ms; } }

@@ -24,20 +24,16 @@ for kind, ref in (('file', ('OnomaAIResearch/Illustrious-xl-early-release-v0', '
     except Exception as e:
         print('base failed', ref, repr(e)[:200], flush=True)
 pipe.scheduler = EulerAncestralDiscreteScheduler.from_config(pipe.scheduler.config)
-from safetensors.torch import load_file, save_file
-sd = load_file('/content/loras/Hi-Fi_Rush_Style_Illustrious-000016.safetensors')
-for mode in ('full', 'unet'):
-    try:
-        use = sd if mode == 'full' else {k: v for k, v in sd.items() if k.startswith('lora_unet_')}
-        save_file(use, f'/content/loras/hf_{mode}.safetensors')
-        pipe.load_lora_weights('/content/loras', weight_name=f'hf_{mode}.safetensors', adapter_name='hf'); print('LoRA loaded', mode, flush=True); break
-    except Exception as e: print('LoRA load failed', mode, repr(e)[:300], flush=True)
-pipe.to('cuda'); pipe.vae.enable_slicing(); pipe.vae.enable_tiling()
+exec(open('/content/hifi-lora.py').read())
+base_pipe = pipe
+base_pipe.to('cuda')
+set_lora = install_lora(base_pipe, '/content/loras/Hi-Fi_Rush_Style_Illustrious-000016.safetensors')
+pipe.vae.enable_slicing(); pipe.vae.enable_tiling()
 NEG = 'lowres, bad anatomy, text, watermark, signature, logo, letters, realistic, photo, blurry, jpeg artifacts, cropped, out of frame, worst quality, low quality'
 cut_session = None
 t0 = time.monotonic()
 for it in [i for sp in specs for i in sp['items']]:
-    pipe.set_adapters(['hf'], adapter_weights=[it.get('lora', .8)])
+    set_lora(it.get('lora', .8))
     prompt = f"hifirushstyle, {it['prompt']}, masterpiece, best quality, absurdres"
     for seed in it.get('seeds', [1, 2]):
         f = out / f"{it['name']}_{seed}.png"

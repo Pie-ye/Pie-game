@@ -177,3 +177,9 @@
 @media (prefers-reduced-motion: reduce) {
   .gx .pcard.is-dealt, .gx .pg-chip { animation: none; transition: none; }
 }
+
+/* 可讀性：控制列說明、表格與標籤用大一點的字，背景更暗一點讓文字有底 */
+.gx .pg-dock-note, .gx .rtp-note { font-size: 14px; color: #d8cfee; }
+.gx .pg-dock-label { font-size: 13px; }
+.gx td, .gx th { font-size: 14px; }
+.gx th { font-size: 12px; }

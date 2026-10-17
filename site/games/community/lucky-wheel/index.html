@@ -8,29 +8,24 @@
   <script type="module" src="./main.js"></script>
 </head>
 <body>
-  <main class="wrap">
-    <h1>幸運轉盤</h1>
-    <p class="hint">八格、最高 ×20。點轉盤選「旋轉」，到外框下注。</p>
+  <main class="fair">
+    <div class="bulbs" aria-hidden="true"></div>
+    <h1 aria-label="幸運轉盤">FORTUNE <span>WHEEL</span></h1>
+    <p class="hint">八格，最高 ×20。點轉盤選「旋轉」，到外框下注。</p>
     <div class="wheel-wrap">
       <div class="pointer" aria-hidden="true"></div>
+      <div class="rim" aria-hidden="true"></div>
       <button type="button" id="wheel" class="wheel" aria-label="轉盤">
-        <span class="wedge" style="--i:0;--tex:url('assets/tex-gold.webp')" aria-hidden="true"></span>
-        <span class="wedge" style="--i:1;--tex:url('assets/tex-ruby-smooth.webp')" aria-hidden="true"></span>
-        <span class="wedge" style="--i:2;--tex:url('assets/tex-jade.webp')" aria-hidden="true"></span>
-        <span class="wedge" style="--i:3;--tex:url('assets/tex-navy.webp')" aria-hidden="true"></span>
-        <span class="wedge" style="--i:4;--tex:url('assets/tex-leather.webp')" aria-hidden="true"></span>
-        <span class="wedge" style="--i:5;--tex:url('assets/tex-iron.webp')" aria-hidden="true"></span>
-        <span class="wedge" style="--i:6;--tex:url('assets/tex-stone.webp')" aria-hidden="true"></span>
-        <span class="wedge" style="--i:7;--tex:url('assets/tex-steel.webp')" aria-hidden="true"></span>
         <span class="label" style="--i:0">×20</span>
         <span class="label" style="--i:1">×5</span>
         <span class="label" style="--i:2">×2</span>
         <span class="label" style="--i:3">×2</span>
         <span class="label" style="--i:4">×1</span>
-        <span class="label" style="--i:5">—</span>
-        <span class="label" style="--i:6">—</span>
-        <span class="label" style="--i:7">—</span>
+        <span class="label dim" style="--i:5">—</span>
+        <span class="label dim" style="--i:6">—</span>
+        <span class="label dim" style="--i:7">—</span>
       </button>
+      <div class="hub" aria-hidden="true">★</div>
     </div>
     <p id="status">用外框下注後轉盤會停在開出的格子</p>
   </main>

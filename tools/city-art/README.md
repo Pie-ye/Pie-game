@@ -2,6 +2,35 @@
 
 首頁「遊戲城」（`site/shell/city/`）用的貼圖：天空、中景、人物、機器人、街機、13 棟遊戲房子。
 
+## 全身生成奔跑影格（目前使用）
+
+`prepare-fullbody-run.py` 只使用原始完整 `hero.webp` 作參考，透過 `minimax-h3-colab` 技能的 Colab CLI runner 在 A100 生成 124 格、24 fps 的動作影片。提示詞與來源影片保存在 `output/hero-run-fullbody/`。頭、身體、手、腿與鞋都是同一次模型生成；後處理只做綠幕去背、去除綠色溢色與整張影格對齊，不重畫或拼接肢體。
+
+生成完成後，使用 `extract-fullbody-run.py inspect <mp4> <frames-dir>` 輸出全片接觸表及候選循環，再目視選擇 `pack <frames-dir> --start 89 --end 101`，保留原生 12 格完整週期。依賴 `pillow numpy imageio imageio-ffmpeg`。
+
+目前首頁載入 `site/shell/city/assets/hero-run-fullbody.webp` 與同名 JSON；JSON 決定影格數、錨點、圖集排列及步幅。原生逐格 PNG、循環預覽與接觸表在 `output/hero-run-fullbody/frames/`。停止／減少動態效果／載入失敗時顯示原始完整 `hero.webp`。舊的補畫四肢圖集已不再被首頁引用。
+
+```sh
+python3 tools/city-art/prepare-fullbody-run.py
+python3 /home/pieye/.agents/skills/minimax-h3-colab/scripts/runner.py batch --manifest tools/city-art/output/hero-run-fullbody/jobs.json --gpu A100 --timeout 10800 --output-dir tools/city-art/output/hero-run-fullbody
+python3 tools/city-art/extract-fullbody-run.py inspect tools/city-art/output/hero-run-fullbody/fullbody-run.mp4 tools/city-art/output/hero-run-fullbody/frames
+python3 tools/city-art/extract-fullbody-run.py pack tools/city-art/output/hero-run-fullbody/frames --start 89 --end 101
+```
+
+## 舊版素材烘焙（已停用，保留歷史產物）
+
+`colab/bake-run.py` 在 Colab CPU 使用 Pillow，將現有 `hero-body.webp` 與固定長度的兩節四肢合成 16 張透明影格；這是既有素材烘焙，不是 AI 逐格重繪。手腳反向擺動，每條腿 40% 著地、60% 回擺，包含短暫雙腳離地。髖部與身體使用同一個位移，腳踝在骨架可達範圍內。
+
+```sh
+colab new -s pie-city-run
+colab upload -s pie-city-run site/shell/city/assets/hero-body.webp /content/hero-body.webp
+colab exec -s pie-city-run -f tools/city-art/colab/bake-run.py --timeout 120
+colab download -s pie-city-run /content/hero-run.zip /tmp/pie-city-hero-run.zip
+colab stop -s pie-city-run
+```
+
+歷史產物：`site/shell/city/assets/hero-run.webp`（4×4 圖集）、`hero-idle.webp`（站立）、`hero-run.json`（尺寸與錨點）。獨立 PNG、動畫 WebP 與檢查用接觸表存於 `tools/city-art/output/hero-run/`。每格 384×384，腳底錨點 `(190,360)`，角色基準高 320。
+
 - LoRA：`/home/pieye/Container/colab_lora/Hi-Fi_Rush_Style_Illustrious-000016.safetensors`（SDXL kohya 格式，觸發詞 `hifirushstyle`）。
   Illustrious 底模在 HF 上檔名不固定，`colab/hifi-gen.py` 先試它、失敗就退回 Animagine XL 4.0，結果都能用。
 - 產圖：`upload-lora.sh` 把 LoRA 傳上去 → `colab/hifi-gen.py <jobs.json>` 在 Colab 背景跑（可同時開兩個工作階段分工；

@@ -7,13 +7,7 @@ import PieGame from '../../../sdk/pie-game-sdk.js';
 const title = document.getElementById('title');
 const hello = document.getElementById('hello');
 
-function applyTheme(theme) {
-  document.documentElement.dataset.theme = (theme === 'cyber' || theme === 'studio') ? 'cyber' : 'playful';
-}
-
 const init = await PieGame.ready();
-applyTheme(init.theme);
-PieGame.onTheme(applyTheme);
 PieGame.setHeight();
 
 title.textContent = init.gameId;

@@ -544,7 +544,7 @@ async function renderOfficialGame(view, meta) {
 
 function renderCoinUnavailable(view, game) {
   // 伺服器沒有通過驗證的規格就不能下注，直接開網址時要說清楚，不要給一條空下注列。
-  const frame = buildFrame(view, { id: game.id, title: game.name || game.id, stageId: 'communityRoot', community: true });
+  const frame = buildFrame(view, { id: game.id, title: game.name || game.id, stageId: 'communityRoot', community: true, history: false });
   currentFrame = frame;
   frame.stage.innerHTML = '<p class="empty-hint">這個遊戲目前不能玩：伺服器還沒有通過驗證的金幣規格。</p>';
 }
@@ -561,6 +561,7 @@ async function renderCommunityGame(view, game, seq) {
     stageId: 'communityRoot',
     community: true,
     fullscreen: requestCommunityFullscreen,
+    history: isCoin,
   });
   currentFrame = frame;
   const root = frame.stage;

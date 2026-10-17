@@ -34,7 +34,8 @@ export function buildFrame(view, {
   const look = LOOKS[id] || null;
   const release = SKINNED.has(id) ? mountStylesheet(new URL(`./ui/games/${id}.css`, import.meta.url)) : () => {};
   view.className = 'page-content gx-page';
-  const art = look && look.art ? new URL(`fac-${look.art}.webp`, ART_BASE).href : '';
+  // 電玩巷的外牆壁畫是棕色木紋街機，當全螢幕背景會像舊皮膚：改用純深藍格線底（見 ui/games/<id>.css）。
+  const art = look && look.art && look.district !== 'arcade' ? new URL(`fac-${look.art}.webp`, ART_BASE).href : '';
   view.innerHTML = `
     <div class="gx gx-${escapeHtml(id)}" data-game="${escapeHtml(id)}" data-district="${look ? look.district : 'arcade'}"
       style="${art ? `--gx-bg:url('${art}');` : ''}${look ? `--gx-accent:${look.accent};` : ''}">

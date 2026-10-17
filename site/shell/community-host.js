@@ -32,10 +32,6 @@ function postToGame(payload, id) {
   iframe.contentWindow.postMessage(payload, CONTENT_ORIGIN);
 }
 
-function currentTheme() {
-  return document.documentElement.dataset.theme || 'playful';
-}
-
 function userPayload() {
   const user = getUser();
   if (!user) return null;
@@ -60,7 +56,6 @@ async function sendInit(id) {
     type: 'pg:init',
     gameId: game.id,
     user: userPayload(),
-    theme: currentTheme(),
   };
   if (game.multiplayer && getUser()) {
     const { response, payload: ticketBody } = await playTicket(game.id, { signal: abort && abort.signal });
@@ -423,9 +418,4 @@ export function activateCommunity({ spec } = {}) {
   }
 
   sendInit(id);
-}
-
-export function notifyTheme(theme) {
-  if (!current) return;
-  postToGame({ type: 'pg:theme', theme }, current.mountId);
 }

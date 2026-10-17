@@ -1,12 +1,4 @@
-:root, [data-theme="playful"] {
-  --bg: #f2eee6;
-  --ink: #1a1713;
-  --muted: #57503f;
-  --accent: #835f13;
-  --sheet: #fbf8f2;
-}
-/* 賽博電玩（外框預設主題）。studio 是 v0.1 的舊名，留著給舊外框。 */
-[data-theme="cyber"], [data-theme="studio"] {
+:root {
   --bg: #07070f;
   --ink: #e6f7ff;
   --muted: #a3b6cc;

@@ -10,8 +10,8 @@ export const SPACING = 470; // 兩棟房子的中心距離
 export const DISTRICT_GAP = 330; // 街區之間多留的空地
 export const EDGE_PAD = 640; // 城市兩端的空地（放城門）
 export const DOOR_RADIUS = 110;
-export const WALK_SPEED = 270;
-export const AUTO_SPEED = 420; // 點地圖或房子時自動走過去的速度（仍是走路，不是瞬移）
+export const WALK_SPEED = 205;
+export const AUTO_SPEED = 420; // 切換遊戲時自動跑到門口的速度
 export const BLEND_HALF = 280; // 兩個街區交界處風格漸變的半寬
 
 // 每款已知遊戲的外觀；沒登記的遊戲（之後有人投稿）用 districtFor 的預設加上自動配色。
@@ -128,6 +128,22 @@ export function clamp(value, lo, hi) {
   return Math.min(hi, Math.max(lo, value));
 }
 
+/** 每次操作從已選定的目標切換一棟；途中連按也不會重複選到同一棟。 */
+export function selectAdjacentGame(state, buildings, direction) {
+  if (!buildings.length || ![-1, 1].includes(direction)) return null;
+  const anchor = state.target ?? state.x;
+  let index = 0;
+  for (let i = 1; i < buildings.length; i += 1) {
+    if (Math.abs(buildings[i].doorX - anchor) < Math.abs(buildings[index].doorX - anchor)) index = i;
+  }
+  const next = buildings[clamp(index + direction, 0, buildings.length - 1)];
+  state.target = next.doorX;
+  state.autoRun = true;
+  // 反向切換時先停下，避免沿舊方向滑行。
+  if (Math.sign(state.vx) !== Math.sign(state.target - state.x)) state.vx = 0;
+  return next;
+}
+
 /**
  * 人往前走一步。state: { x, vx, facing, target }；input: { dir: -1|0|1 }。
  * 只有按住方向鍵才會走，放開就停（點一下只動一小步）。
@@ -142,7 +158,7 @@ export function stepPlayer(state, input, dt, worldWidth) {
     state.target = null;
     state.autoRun = false;
     // 剛按下去先給一點初速，輕點一下也看得到腳步。
-    if (state.vx === 0 || Math.sign(state.vx) !== dir) state.vx = dir * Math.min(top, 90);
+    if (state.vx === 0 || Math.sign(state.vx) !== dir) state.vx = dir * Math.min(top, 60);
   } else if (state.target != null) {
     const gap = state.target - state.x;
     if (Math.abs(gap) < 6) {
@@ -158,7 +174,7 @@ export function stepPlayer(state, input, dt, worldWidth) {
   }
   const want = dir * top;
   // 加速快、煞車更快：放開按鍵立刻停下，不會滑到下一棟。
-  const rate = dir === 0 ? 4800 : 2400;
+  const rate = dir === 0 ? 4800 : 1500;
   const delta = want - state.vx;
   const stepV = rate * dt;
   state.vx = Math.abs(delta) <= stepV ? want : state.vx + Math.sign(delta) * stepV;

@@ -1,64 +1,131 @@
-:root, [data-theme="playful"] {
-  --bg: #f2eee6;
-  --ink: #1a1713;
-  --muted: #57503f;
-  --accent: #835f13;
-  --on-accent: #ffffff;
-  --sheet: #fbf8f2;
-  --line: #dfd8ca;
-  --gain: #0e7354;
-  --loss: #b4322b;
+/* 井字棋：街機對戰畫面。深藍 CRT 底、青色 X 對粉紅 O、像素風選單與大棋盤。 */
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.03) 0 1px, transparent 1px 4px),
+    radial-gradient(90% 70% at 50% 20%, #1a2a7a, #080c22 70%);
+  color: #e6f0ff;
+  font: 16px/1.5 ui-monospace, "JetBrains Mono", "Courier New", "Noto Sans TC", monospace;
 }
-/* 賽博電玩（外框預設主題）。studio 是 v0.1 的舊名，留著給舊外框。 */
-[data-theme="cyber"], [data-theme="studio"] {
-  --bg: #07070f;
-  --ink: #e6f7ff;
-  --muted: #a3b6cc;
-  --accent: #00e5ff;
-  --on-accent: #02121a;
-  --sheet: #0d0f1c;
-  --line: rgba(0, 229, 255, 0.22);
-  --gain: #39ff88;
-  --loss: #ff3d6e;
+
+.wrap { max-width: 520px; min-height: 100vh; margin: 0 auto; padding: 14px 16px 28px; }
+
+.logo {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin: 0 0 14px;
+  padding: 10px;
+  border: 5px solid #05050f;
+  background: #0d1440;
+  box-shadow: 0 0 0 3px #4f9dff inset, 0 6px 0 #05050f;
+  font: 900 clamp(40px, 11vw, 64px)/1 ui-monospace, "Courier New", monospace;
 }
-html, body { margin: 0; background: var(--bg); color: var(--ink); font: 1rem/1.6 sans-serif; }
-.wrap { max-width: 360px; margin: 0 auto; padding: 16px; }
-h1 { font-size: 1.625rem; margin: 0 0 8px; }
-.net { background: var(--loss); color: var(--on-accent); padding: 8px 12px; border-radius: 10px; }
-.row { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+
+.logo .x { color: #35f0ff; text-shadow: 3px 3px 0 #05050f, 0 0 20px #35f0ff; }
+.logo .o { color: #ff4fd8; text-shadow: 3px 3px 0 #05050f, 0 0 20px #ff4fd8; }
+.logo i { font-size: 22px; font-style: normal; color: #ffd23a; text-shadow: 0 0 10px #ffd23a; }
+.logo small { position: absolute; right: 10px; bottom: 5px; font: 700 12px/1 sans-serif; color: #ffd23a; letter-spacing: 0.2em; }
+
+.net { margin: 0 0 10px; padding: 8px 12px; border: 3px solid #05050f; background: #ff3b5c; color: #fff; font-weight: 800; }
+
+.hello { margin: 0 0 12px; padding: 8px 12px; border: 3px solid #05050f; background: #061a12; color: #7ff0b4; box-shadow: 0 0 0 2px #1fb26b inset; }
+
+.menu { display: grid; gap: 10px; margin-bottom: 14px; }
+
 button, input {
-  min-height: 40px;
-  padding: 0 12px;
-  border-radius: 10px;
-  border: 1px solid var(--muted);
-  background: var(--sheet);
-  color: var(--ink);
+  min-height: 46px;
+  padding: 0 16px;
+  border: 4px solid #05050f;
+  border-radius: 0;
+  font: 800 16px/1 ui-monospace, "Courier New", "Noto Sans TC", monospace;
+  letter-spacing: 0.08em;
 }
-button[type] { background: var(--accent); color: var(--on-accent); border: 0; }
-#rooms { list-style: none; padding: 0; }
+
+button {
+  background: #ffd23a;
+  color: #05050f;
+  box-shadow: 0 5px 0 #05050f;
+  cursor: pointer;
+  text-align: left;
+}
+
+button:hover:not(:disabled) { background: #fff3b0; }
+button:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 1px 0 #05050f; }
+button:disabled { cursor: default; }
+.menu button:nth-child(2) { background: #35f0ff; }
+.menu button:nth-child(3) { background: #ff9ad8; }
+
+input { background: #05050f; color: #35f0ff; box-shadow: 0 0 0 2px #35f0ff inset; text-transform: uppercase; width: 8em; }
+
+.join { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; color: #ffd23a; font-weight: 800; letter-spacing: 0.15em; }
+
+#rooms { list-style: none; margin: 0; padding: 0; }
 #rooms li {
-  padding: 8px 12px;
-  margin: 4px 0;
-  background: var(--sheet);
-  border-radius: 10px;
+  margin: 6px 0;
+  padding: 10px 14px;
+  border: 4px solid #05050f;
+  background: #101a5a;
+  box-shadow: 0 0 0 2px #4f9dff inset;
   cursor: pointer;
 }
+
+#rooms li:hover { background: #1a2a8a; color: #ffd23a; }
+
+.meta { margin: 0 0 6px; color: #ffd23a; font-weight: 800; }
+.players { margin: 0 0 12px; padding: 6px 12px; border: 3px solid #05050f; background: #0d1440; color: #b8c8ff; font-size: 14px; }
+
+/* 棋盤：格線用發光的細線隔開 */
 .board {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  margin: 12px 0;
+  gap: 6px;
+  padding: 6px;
+  border: 5px solid #05050f;
+  background: #4f9dff;
+  box-shadow: 0 0 30px rgba(79, 157, 255, 0.6), 0 6px 0 #05050f;
 }
+
 .cell {
   aspect-ratio: 1;
+  min-height: 0;
+  padding: 0;
   border: 0;
-  border-radius: 10px;
-  background: var(--sheet);
-  color: var(--ink);
-  font-size: 2.125rem;
-  box-shadow: inset 0 0 0 1px var(--line);
+  background: #070b2a;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.7);
+  font: 900 clamp(48px, 16vw, 92px)/1 ui-monospace, "Courier New", monospace;
+  text-align: center;
+  color: #e6f0ff;
 }
+
+.cell:not(:disabled):hover { background: #101a5a; }
+.cell[data-mark="X"] { color: #35f0ff; text-shadow: 0 0 22px #35f0ff; }
+.cell[data-mark="O"] { color: #ff4fd8; text-shadow: 0 0 22px #ff4fd8; }
 .cell:disabled { opacity: 1; }
-#turn { min-height: 1.6em; }
-.join { display: flex; gap: 8px; align-items: center; }
-.join input { width: 6em; text-transform: uppercase; }
+
+.turn {
+  margin: 14px 0 8px;
+  padding: 8px 12px;
+  border: 4px solid #05050f;
+  background: #061a12;
+  color: #bfffd8;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-align: center;
+  text-shadow: 0 0 8px #2cff9a;
+  box-shadow: 0 0 0 2px #1fb26b inset;
+}
+
+.row { display: flex; gap: 10px; }
+
+/* 大廳主視覺：一盤進行中的 3×3，X 斜線連成勝利線 */
+.demo { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; width: min(260px, 70%); margin: 4px auto 16px; padding: 6px; border: 5px solid #05050f; background: #4f9dff; box-shadow: 0 0 30px rgba(79, 157, 255, 0.6), 0 6px 0 #05050f; }
+.demo i { aspect-ratio: 1; display: grid; place-items: center; background: #070b2a; font: 900 44px/1 ui-monospace, "Courier New", monospace; font-style: normal; color: #35f0ff; text-shadow: 0 0 16px #35f0ff; }
+.demo i:nth-child(2), .demo i:nth-child(3), .demo i:nth-child(7) { color: #ff4fd8; text-shadow: 0 0 16px #ff4fd8; }
+.demo b { position: absolute; left: -8%; top: 50%; width: 116%; height: 6px; margin-top: -3px; background: #ffd23a; box-shadow: 0 0 14px #ffd23a; transform-origin: center; transform: rotate(45deg); }
+.hello::before { content: "▶ "; }

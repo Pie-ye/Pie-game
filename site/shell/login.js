@@ -11,7 +11,10 @@ const ART = new URL('./city/assets/', import.meta.url);
 
 export function mountLoginScene(parent, { dialog = false, onSuccess, onClose }) {
   const host = document.createElement('div');
-  if (dialog) host.className = 'lg-dialog';
+  if (dialog) {
+    host.className = 'lg-dialog';
+    host.id = 'loginDialog';
+  }
   host.innerHTML = `
     <section class="lg" style="--lg-bg:url('${new URL('bg-casino.webp', ART).href}')" ${dialog ? 'role="dialog" aria-modal="true" aria-labelledby="lgTitle"' : ''}>
       <div class="lg-bg" aria-hidden="true"></div>

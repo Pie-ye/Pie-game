@@ -11,9 +11,10 @@
   border-radius: 8px;
   border: 8px solid var(--gx-ink);
   background:
-    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.12) 0 2px, transparent 2px 60px),
-    radial-gradient(120% 100% at 50% 0%, #c2381a 0%, #7a1608 55%, #3a0a05 100%);
-  box-shadow: 0 0 0 4px #ffd23a, 0 0 0 8px var(--gx-ink), 0 0 0 11px var(--gx-accent), 0 0 50px rgba(255, 106, 31, 0.5), inset 0 0 60px rgba(0, 0, 0, 0.55);
+    repeating-linear-gradient(90deg, rgba(255, 106, 31, 0.1) 0 2px, transparent 2px 60px),
+    repeating-linear-gradient(0deg, rgba(255, 106, 31, 0.07) 0 2px, transparent 2px 40px),
+    radial-gradient(120% 100% at 50% 0%, #2a1030 0%, #120618 60%, #07020c 100%);
+  box-shadow: 0 0 0 4px #ff6a1f, 0 0 0 8px var(--gx-ink), 0 0 0 11px #ff2bd6, 0 0 60px rgba(255, 106, 31, 0.6), inset 0 0 60px rgba(0, 0, 0, 0.6);
 }
 
 /* 牛角徽章 */
@@ -34,8 +35,8 @@
   border: 5px solid var(--gx-ink);
   border-bottom: 0;
   border-radius: 90px 90px 0 0 / 120px 120px 0 0;
-  background: linear-gradient(180deg, #fff3b0, #ffb81f);
-  box-shadow: 0 0 14px #ffd23a;
+  background: linear-gradient(180deg, #ffb06a, #ff6a1f);
+  box-shadow: 0 0 14px #ff6a1f;
 }
 
 .pg-official-niuniu .nn-horns i:first-child { transform: rotate(-16deg); border-right: 0; }
@@ -48,10 +49,10 @@
   height: 54px;
   border-radius: 50%;
   border: 5px solid var(--gx-ink);
-  background: #b3122f;
-  color: #ffeaa0;
+  background: #2a0a30;
+  color: #ffb06a;
   font: 900 28px/1 "Noto Serif TC", serif;
-  box-shadow: 0 0 0 3px #ffd23a;
+  box-shadow: 0 0 0 3px #ff6a1f;
 }
 
 .pg-official-niuniu .nn-hands { display: grid; gap: 20px; }
@@ -63,11 +64,11 @@
   align-items: center;
   padding: 12px 16px;
   border-radius: 10px;
-  border: 3px solid rgba(255, 234, 160, 0.5);
-  background: rgba(40, 6, 4, 0.45);
+  border: 3px solid rgba(255, 106, 31, 0.7);
+  background: rgba(255, 106, 31, 0.08);
 }
 
-.pg-official-niuniu .nn-hand-title .eyebrow { font-size: 15px; letter-spacing: 0.15em; color: #ffeaa0; }
+.pg-official-niuniu .nn-hand-title .eyebrow { font-size: 15px; letter-spacing: 0.15em; color: #ffd0a0; }
 
 .pg-official-niuniu .nn-cards { display: flex; justify-content: center; }
 .pg-official-niuniu .nn-cards.has-split { gap: 34px; }
@@ -80,14 +81,14 @@
   padding: 6px 14px;
   border-radius: 10px;
   border: 4px solid var(--gx-ink);
-  background: #ffd23a;
-  color: var(--gx-ink);
+  background: #ff6a1f;
+  color: #fff;
   font: 900 18px/1.2 "Noto Serif TC", serif;
   text-align: center;
   box-shadow: 4px 4px 0 var(--gx-ink);
 }
 
-.pg-official-niuniu .nn-waiting { padding: 34px 10px; text-align: center; color: #ffeaa0; }
+.pg-official-niuniu .nn-waiting { padding: 34px 10px; text-align: center; color: #ffd0a0; }
 .pg-official-niuniu .nn-waiting p { margin: 8px 0 0; }
 
 .pg-official-niuniu .nn-result {
@@ -102,11 +103,11 @@
   animation: nnStamp 0.4s var(--ease-spring) both;
 }
 
-.pg-official-niuniu .nn-result.is-win { background: #ffd23a; color: var(--gx-ink); box-shadow: 6px 6px 0 var(--gx-ink), 0 0 36px #ffd23a; }
+.pg-official-niuniu .nn-result.is-win { background: #ff6a1f; color: #fff; box-shadow: 6px 6px 0 var(--gx-ink), 0 0 36px #ff6a1f; }
 .pg-official-niuniu .nn-result.is-loss { background: #3a0a05; color: #ffb0a0; }
 @keyframes nnStamp { from { transform: scale(2.2) rotate(-14deg); opacity: 0; } }
 
-.pg-official-niuniu .pg-dock { border-radius: 6px; }
+.pg-official-niuniu .pg-dock { border-radius: 0; box-shadow: 0 0 0 2px #ff6a1f inset, 6px 6px 0 var(--gx-ink); clip-path: polygon(0 12px, 12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%); }
 .pg-official-niuniu .pg-dock-primary { background: linear-gradient(180deg, #ff8a3a, #d8330f); }
 
 /* 倍率：四塊木牌 */
@@ -117,14 +118,14 @@
   padding: 14px 18px;
   border-radius: 6px;
   border: 4px solid var(--gx-ink);
-  background: rgba(30, 6, 4, 0.92);
-  box-shadow: 0 0 0 2px #ffd23a inset;
+  background: rgba(10, 4, 16, 0.94);
+  box-shadow: 0 0 0 2px #ff6a1f inset;
 }
 
-.pg-official-niuniu .nn-rule-copy h3 { margin: 0 0 4px; font: 900 18px/1.2 "Noto Serif TC", serif; color: #ffeaa0; }
+.pg-official-niuniu .nn-rule-copy h3 { margin: 0 0 4px; font: 900 18px/1.2 "Noto Serif TC", serif; color: #ffd0a0; }
 .pg-official-niuniu .nn-rule-copy p { margin: 0; font-size: 13px; color: var(--gx-muted); }
 .pg-official-niuniu .nn-paytable { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.pg-official-niuniu .nn-paytable span { padding: 4px 10px; border-radius: 6px; border: 3px solid var(--gx-ink); background: #6a1a0a; color: #fff3b0; font-weight: 700; }
+.pg-official-niuniu .nn-paytable span { padding: 4px 10px; border-radius: 6px; border: 3px solid var(--gx-ink); background: #1c0a24; color: #ffd0a0; font-weight: 700; }
 .pg-official-niuniu .nn-paytable strong { color: #ffd23a; }
 .pg-official-niuniu .nn-warning { grid-column: 1 / -1; margin: 0; font-size: 12px; color: #ff9a7a; }
 
@@ -133,4 +134,65 @@
   .pg-official-niuniu .nn-hand-name { justify-self: center; }
   .pg-official-niuniu .nn-rules { grid-template-columns: 1fr; }
   .pg-official-niuniu .nn-card-group .pcard { --card-w: 50px; }
+}
+
+/* 押注：牛頭六角令牌（不用共用的圓形籌碼） */
+.pg-official-niuniu .pg-chip {
+  width: 62px;
+  height: 56px;
+  border-radius: 0;
+  border: 0;
+  background: #ff6a1f;
+  color: #fff;
+  -webkit-text-stroke: 3px var(--gx-ink);
+  paint-order: stroke fill;
+  clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+  box-shadow: none;
+  filter: drop-shadow(0 4px 0 var(--gx-ink));
+}
+.pg-official-niuniu .pg-chip:nth-of-type(odd) { background: #ff2bd6; }
+.pg-official-niuniu .pg-chip.is-active { background: #fff; color: #ff6a1f; -webkit-text-stroke: 3px var(--gx-ink); filter: drop-shadow(0 0 12px #ff6a1f) drop-shadow(0 4px 0 var(--gx-ink)); transform: translateY(-6px) scale(1.1); }
+.pg-official-niuniu .pg-dock-label, .pg-official-niuniu .nn-rule-copy p, .pg-official-niuniu .nn-warning { color: #ff9ad8; }
+.pg-official-niuniu .nn-paytable strong { color: #ff6a1f; }
+.pg-official-niuniu .nn-paytable span { border-color: #ff2bd6; background: #12061a; color: #fff; }
+
+/* ===== 版型：競技場在左，右邊是「令牌台」（垂直排列），不再是底部橫條 ===== */
+.pg-official-niuniu .nn-layout {
+  grid-template-columns: minmax(0, 1fr) 250px;
+  grid-template-areas: "arena rail" "rules rules";
+  max-width: 1120px;
+  align-items: start;
+}
+.pg-official-niuniu .nn-arena { grid-area: arena; }
+.pg-official-niuniu .nn-rules { grid-area: rules; }
+.pg-official-niuniu .pg-dock {
+  grid-area: rail;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 16px 14px 18px;
+  background: linear-gradient(180deg, #1c0a24, #0a0410);
+  border: 5px solid var(--gx-ink);
+  box-shadow: 0 0 0 3px #ff2bd6, 0 0 30px rgba(255, 43, 214, 0.45), 6px 6px 0 var(--gx-ink);
+  clip-path: none;
+  border-radius: 0 28px 0 28px;
+}
+.pg-official-niuniu .pg-dock-bet { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 0; justify-items: center; }
+.pg-official-niuniu .pg-dock-label { grid-column: 1 / -1; text-align: center; font-size: 14px; letter-spacing: 0.3em; }
+.pg-official-niuniu .pg-dock-note { text-align: center; flex-basis: auto; }
+.pg-official-niuniu .pg-dock-act { margin: 0; justify-content: center; }
+.pg-official-niuniu .pg-dock-primary {
+  width: 150px;
+  height: 150px;
+  min-width: 0;
+  border-radius: 50%;
+  font-size: 22px;
+  line-height: 1.2;
+  text-align: center;
+  white-space: normal;
+  background: radial-gradient(circle at 50% 28%, #ff9a5a, #ff6a1f 55%, #b3320a);
+  box-shadow: 0 8px 0 var(--gx-ink), 0 0 0 4px #fff inset, 0 0 30px rgba(255, 106, 31, 0.8);
+}
+@media (max-width: 900px) {
+  .pg-official-niuniu .nn-layout { grid-template-columns: 1fr; grid-template-areas: "arena" "rail" "rules"; }
+  .pg-official-niuniu .pg-dock-primary { width: 120px; height: 120px; }
 }

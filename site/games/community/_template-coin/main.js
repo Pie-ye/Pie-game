@@ -4,13 +4,7 @@
  */
 import PieGame from '../../../sdk/pie-game-sdk.js';
 
-function applyTheme(theme) {
-  document.documentElement.dataset.theme = (theme === 'cyber' || theme === 'studio') ? 'cyber' : 'playful';
-}
-
 const init = await PieGame.ready();
-applyTheme(init.theme);
-PieGame.onTheme(applyTheme);
 PieGame.setHeight();
 
 document.getElementById('pick').addEventListener('click', () => {

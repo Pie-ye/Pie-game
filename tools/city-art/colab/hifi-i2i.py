@@ -9,24 +9,20 @@ from PIL import Image
 from diffusers import StableDiffusionXLPipeline, StableDiffusionXLImg2ImgPipeline, EulerAncestralDiscreteScheduler
 spec = json.load(open(sys.argv[1])); out = pathlib.Path('/content/walk_out'); out.mkdir(exist_ok=True)
 base = StableDiffusionXLPipeline.from_pretrained('cagliostrolab/animagine-xl-4.0', torch_dtype=torch.float16, use_safetensors=True)
-from safetensors.torch import load_file, save_file
-sd = load_file('/content/loras/Hi-Fi_Rush_Style_Illustrious-000016.safetensors')
-for mode in ('full', 'unet'):
-    try:
-        use = sd if mode == 'full' else {k: v for k, v in sd.items() if k.startswith('lora_unet_')}
-        save_file(use, f'/content/loras/hf_{mode}.safetensors')
-        base.load_lora_weights('/content/loras', weight_name=f'hf_{mode}.safetensors', adapter_name='hf'); print('LoRA loaded', mode, flush=True); break
-    except Exception as e: print('LoRA load failed', mode, repr(e)[:300], flush=True)
+exec(open('/content/hifi-lora.py').read())
+base_pipe = base
+base_pipe.to('cuda')
+set_lora = install_lora(base_pipe, '/content/loras/Hi-Fi_Rush_Style_Illustrious-000016.safetensors')
 pipe = StableDiffusionXLImg2ImgPipeline(**base.components)
 pipe.scheduler = EulerAncestralDiscreteScheduler.from_config(pipe.scheduler.config)
-pipe.to('cuda'); pipe.vae.enable_slicing(); pipe.vae.enable_tiling()
+pipe.vae.enable_slicing(); pipe.vae.enable_tiling()
 init = Image.open(spec['init']).convert('RGB')
 from rembg import new_session, remove
 cut = new_session('isnet-general-use')
 NEG = 'lowres, bad anatomy, text, watermark, realistic, photo, blurry, cropped, multiple views, two characters, extra limbs, background scenery'
 t0 = time.monotonic()
 for it in spec['items']:
-    pipe.set_adapters(['hf'], adapter_weights=[it.get('lora', .9)])
+    set_lora(it.get('lora', .9))
     for seed in it.get('seeds', [1, 2, 3]):
         f = out / f"{it['name']}_{seed}.png"
         if f.exists(): continue
