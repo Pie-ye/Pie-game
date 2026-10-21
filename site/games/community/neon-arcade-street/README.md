@@ -26,13 +26,27 @@
 
 看板用的是專案既有的星光少女美術（`site/shell/city/assets/`）。
 
+## 素材來源
+
+畫面質感用第三方 CC0 素材庫，不是手繪：
+
+- 地面、牆面、金屬的顆粒、裂縫與髒污：[Poly Haven](https://polyhaven.com) PBR 材質，依世界座標平鋪成「細節層」（`src/detail.js`），手繪貼圖只留標線、窗戶、霓虹與色調。
+- 大樓立面（窗內窗簾、人影、金屬框）：[ambientCG](https://ambientcg.com) 夜景立面材質。
+- 反射用的環境光：Poly Haven `shanghai_bund` HDRI。
+- 街頭道具（消防栓、垃圾桶、配電箱、冷氣室外機、公共電話、輪胎、護欄、人孔蓋、蓋布的車、監視器）：Poly Haven 模型，建置時減面並放進 GLB。
+
+授權與作者見 `assets/pbr/CREDITS.md`。
+
 ## 資料夾
 
 ```
-assets/street.glb     Blender 匯出的整個街區（約 7.5 MB，含所有貼圖）
+assets/street.glb     Blender 匯出的整個街區（約 19 MB，含所有貼圖與道具）
+assets/pbr/           Poly Haven 細節層貼圖與 pbr.json（每組材質的實際尺寸）、CREDITS.md
+assets/env/           反射用 HDRI
 assets/scene.json     碰撞框、燈光點、動畫物件、區域名稱（與 GLB 由同一次建置產生）
 src/main.js           渲染、輸入、HUD、光源池、泛光
 src/physics.js        第一人稱移動與碰撞（純函式，可在 node 測）
+src/detail.js         世界座標細節層著色器（把 CC0 PBR 材質疊到手繪貼圖上）
 src/sky.js            夜空穹頂著色器    src/rain.js 雨絲    src/audio.js 程式合成音效與配樂
 vendor/               three.js 範例元件（GLTFLoader、泛光後製），版本與 ../pie-phoebe/vendor 相同（r186）
 ```
@@ -52,4 +66,4 @@ node --test tests/neon-street.test.mjs
 
 - 動態光源只讓離玩家最近的 10 盞點光源真的打光，其餘靠自發光貼圖與泛光撐氣氛。
 - 場景沒有可進入的室內；店面是貼圖。小巷可以進去，但是死路。
-- 網址參數可調光：`exp`（曝光）、`em`（自發光倍率）、`bs`／`bt`（泛光強度／門檻）、`hemi`、`lg`（點光源增益）、`lights`（光源池大小）、`rain=0`、`bloom=0`、`spawn=x,z,yaw,pitch`。
+- 網址參數可調光：`exp`（曝光）、`em`（自發光倍率）、`bs`／`bt`（泛光強度／門檻）、`hemi`、`lg`（點光源增益）、`lights`（光源池大小）、`detail=0`（關掉細節層）、`hdri`（環境反射強度，預設 0.25）、`hrot`（HDRI 旋轉）、`rain=0`、`bloom=0`、`spawn=x,z,yaw,pitch`。

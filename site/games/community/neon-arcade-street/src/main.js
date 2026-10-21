@@ -9,6 +9,8 @@ import { step as walkStep, prepare, zoneAt, RADIUS } from './physics.js';
 import { makeSky } from './sky.js';
 import { makeRain } from './rain.js';
 import { createAudio } from './audio.js';
+import { HDRLoader } from '../vendor/jsm/loaders/HDRLoader.js';
+import { loadDetailLibrary, preloadDetail, applyDetail } from './detail.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -83,9 +85,10 @@ function prepareScene(gltf, data) {
     const m = o.material;
     if (!seen.has(m)) {
       seen.add(m);
-      for (const k of ['map', 'emissiveMap']) if (m[k]) m[k].anisotropy = aniso;
+      for (const k of ['map', 'emissiveMap', 'roughnessMap']) if (m[k]) m[k].anisotropy = aniso;
+      if (params.get('detail') !== '0') applyDetail(m);
       m.envMap = env;
-      m.envMapIntensity = WET.has(m.name) ? P('wet', 0.55) : (m.metalness > 0.3 ? 0.8 : 0.1);
+      m.envMapIntensity = WET.has(m.name) ? P('wet', 0.55) : m.name.startsWith('prop_') ? 0.6 : (m.metalness > 0.3 ? 0.8 : 0.1);
       m.emissiveIntensity *= P('em', 0.5);
       if (/^signs_.*_f$/.test(m.name)) flickers.push({ m, base: m.emissiveIntensity, seed: Math.random() * 100 });
     }
@@ -395,6 +398,26 @@ function frame(now) {
   }
 }
 
+// 真實夜景 HDRI（Poly Haven shanghai_bund，CC0）當環境反射：濕地面、玻璃與金屬會反出霓虹天際線。
+// 下半球塗黑，免得地面的暖色磚反成假的補光。失敗就沿用上面的程式天空。
+async function loadEnvironment() {
+  if (params.get('hdri') === '0') return;
+  try {
+    const hdr = await new HDRLoader().loadAsync('./assets/env/shanghai_bund_1k.hdr');
+    hdr.mapping = THREE.EquirectangularReflectionMapping;
+    const envScene = new THREE.Scene();
+    envScene.background = hdr;
+    envScene.backgroundIntensity = P('hdri', 0.25);
+    envScene.backgroundRotation.y = P('hrot', 0.6);
+    const floor = new THREE.Mesh(new THREE.CircleGeometry(900, 24), new THREE.MeshBasicMaterial({ color: 0x07040f }));
+    floor.rotation.x = -Math.PI / 2; floor.position.y = -1.5;
+    envScene.add(floor);
+    const pm = new THREE.PMREMGenerator(renderer);
+    scene.userData.env = pm.fromScene(envScene, 0, 0.1, 2000).texture;
+    pm.dispose(); hdr.dispose();
+  } catch (err) { console.warn('HDRI 載入失敗，改用程式天空', err); }
+}
+
 async function boot() {
   setupRenderer();
   const bar = $('load-bar'), pct = $('load-pct');
@@ -403,6 +426,13 @@ async function boot() {
     fetch('./assets/scene.json').then((r) => r.json()),
     load('./assets/street.glb', (e) => { if (e.total) { const p = Math.round(e.loaded / e.total * 100); bar.style.width = `${p}%`; pct.textContent = `${p}%`; } }),
   ]);
+  await loadEnvironment();
+  if (params.get('detail') !== '0') {
+    await loadDetailLibrary();
+    const mats = new Set();
+    gltf.scene.traverse((o) => { if (o.isMesh) mats.add(o.material); });
+    await preloadDetail(mats, renderer);
+  }
   prepareScene(gltf, data);
   world = { colliders: prepare(data.colliders), bounds: data.bounds, eye: data.eye, zones: data.zones, ring: data.ring };
   const sp = params.get('spawn');

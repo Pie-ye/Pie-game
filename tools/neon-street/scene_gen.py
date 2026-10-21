@@ -49,6 +49,28 @@ THEME = {
               awning='awning_W', light='#6dffc4'),
 }
 N_FAC = 6
+# 每種立面用的 ambientCG（CC0）夜景立面材質與其實際邊長（公尺；依樓層高約 3.2 m 抓）
+FAC_SRC = [('Facade009', 32.0), ('Facade007', 40.0), ('Facade010', 46.0),
+           ('Facade017', 26.0), ('Facade016', 60.0), ('Facade011', 44.0)]
+FAC_TILES = {f'fac_{i}': (t, t) for i, (_, t) in enumerate(FAC_SRC)}
+# Poly Haven（CC0）道具模型。size＝實際尺寸 (寬, 深, 高) 公尺，用來算碰撞；tris＝減面目標。
+# tex＝貼圖邊長（預設 512，小東西用 256）。only/skip：同一個檔案裡有新舊兩種外觀時，用網格名稱挑一種。
+PROP_MODELS = {
+    'ubox1': dict(id='utility_box_01', tris=500, tex=256, size=(0.52, 0.43, 1.12)),
+    'ubox2': dict(id='utility_box_02', tris=550, tex=256, size=(0.92, 0.43, 1.12)),
+    'trash': dict(id='metal_trash_can', tris=700, skip=('rust', 'lid'), size=(0.78, 0.56, 0.91)),
+    'trash_rust': dict(id='metal_trash_can', tris=700, only='rust', skip='lid', size=(0.78, 0.56, 0.91)),
+    'hydrant': dict(id='fire_hydrant', tris=700, skip='aged', size=(0.28, 0.32, 0.8)),
+    'hydrant_old': dict(id='fire_hydrant', tris=700, only='aged', size=(0.28, 0.32, 0.8)),
+    'aircon': dict(id='exterior_aircon_unit', tris=450, skip='rusted', size=(0.8, 0.38, 0.93)),
+    'aircon_rust': dict(id='exterior_aircon_unit', tris=450, only='rusted', size=(0.8, 0.38, 0.93)),
+    'phone': dict(id='korean_public_payphone_01', tris=600, tex=256, size=(0.4, 0.3, 0.74)),
+    'tyre': dict(id='old_tyre', tris=350, tex=256, rx=90, size=(0.6, 0.6, 0.165)),
+    'barrier': dict(id='concrete_road_barrier', tris=500, size=(1.55, 0.64, 0.83)),
+    'manhole': dict(id='water_manhole_cover', tris=250, tex=256, size=(0.69, 0.69, 0.068)),
+    'ccar': dict(id='covered_car', tris=2000, size=(1.79, 4.38, 1.41)),
+    'camera': dict(id='security_camera_01', tris=300, tex=256, size=(0.17, 0.55, 0.29)),
+}
 # 弧形大樓的大看板：(材質, 寬, 高)
 ARC_BB = [('bb_phoebe', 8.4, 8.4), ('bb_castle', 11.0, 4.6), ('bb_hero', 5.2, 9.0), ('bb_arcade', 11.0, 4.6),
           ('bb_phoebe', 8.4, 8.4), ('bb_casino', 11.0, 4.6), ('bb_hero', 5.2, 9.0), ('bb_castle', 11.0, 4.6)]
@@ -88,26 +110,33 @@ BILLBOARDS = {  # 材質名 → 來源（make_textures 去 site/shell/city/asset
 MATERIALS = {}
 
 
-def _mat(name, base='#202030', rough=0.7, metal=0.0, em=None, es=1.0, tex=None, emtex=None, double=False):
-    MATERIALS[name] = dict(base=base, rough=rough, metal=metal, em=em, es=es, tex=tex, emtex=emtex, double=double)
+def _mat(name, base='#202030', rough=0.7, metal=0.0, em=None, es=1.0, tex=None, emtex=None, double=False,
+         mr=None, detail=None, detail2=None, dn=1.0, nrm=None):
+    """mr＝遮罩貼圖（R＝detail 與 detail2 的混合，G＝粗糙度，B＝金屬度）；
+    detail / detail2＝assets/pbr 內的細節層名稱（Poly Haven CC0，見 fetch_pbr.py），dn＝法線強度。"""
+    MATERIALS[name] = dict(base=base, rough=rough, metal=metal, em=em, es=es, tex=tex, emtex=emtex, double=double,
+                           mr=mr, detail=detail, detail2=detail2, dn=dn, nrm=nrm)
 
 
-_mat('ground_plaza', rough=0.42, tex='ground_plaza_c.jpg', emtex='ground_plaza_e.jpg', base='#ffffff', es=1.6)
+_mat('ground_plaza', rough=0.42, tex='ground_plaza_c.jpg', emtex='ground_plaza_e.jpg', base='#ffffff', es=1.6,
+     mr='ground_plaza_m.jpg', detail='plaza', detail2='pavement', dn=0.9)
 for _a in 'NESW':
-    _mat(f'ground_{_a}', rough=0.38, tex=f'ground_{_a}_c.jpg', emtex=f'ground_{_a}_e.jpg', base='#ffffff', es=1.6)
+    _mat(f'ground_{_a}', rough=0.38, tex=f'ground_{_a}_c.jpg', emtex=f'ground_{_a}_e.jpg', base='#ffffff', es=1.6,
+         mr=f'ground_{_a}_m.jpg', detail='asphalt', detail2='pavement', dn=1.0)
 _mat('ground_far', base='#0c0a14', rough=0.9)
-_mat('concrete', base='#25213a', rough=0.8)
-_mat('roof', base='#17142a', rough=0.9)
-_mat('metal', base='#33344a', rough=0.45, metal=0.7)
-_mat('pole', base='#2a2b3c', rough=0.5, metal=0.6)
-_mat('trim_dark', base='#15131f', rough=0.6, metal=0.3)
+_mat('concrete', base='#25213a', rough=0.8, detail='wall_g')
+_mat('roof', base='#17142a', rough=0.9, detail='wall_g')
+_mat('metal', base='#33344a', rough=0.45, metal=0.7, detail='metal')
+_mat('pole', base='#2a2b3c', rough=0.5, metal=0.6, detail='metal')
+_mat('trim_dark', base='#15131f', rough=0.6, metal=0.3, detail='metal')
 for _i in range(N_FAC):
-    _mat(f'fac_{_i}', base='#ffffff', rough=0.85, tex=f'fac_{_i}_c.jpg', emtex=f'fac_{_i}_e.jpg', es=1.5)
+    _mat(f'fac_{_i}', base='#ffffff', rough=0.85, tex=f'fac_{_i}_c.jpg', emtex=f'fac_{_i}_e.jpg', es=2.4,
+         mr=f'fac_{_i}_m.jpg', nrm=f'fac_{_i}_n.jpg')
 for _a in 'NESW':
     _mat(f'shop_{_a}', base='#ffffff', rough=0.6, tex=f'shop_{_a}_c.jpg', emtex=f'shop_{_a}_e.jpg', es=1.4)
 _AW = {'N': '#b03c9a', 'E': '#1f6f9a', 'S': '#b8481c', 'W': '#1f8a6a'}
 for _a in 'NESW':
-    _mat(f'awning_{_a}', base=_AW[_a], rough=0.7)
+    _mat(f'awning_{_a}', base=_AW[_a], rough=0.7, detail='corr')
 for _n, (_h, _s) in NEON.items():
     _mat(_n, base='#000000', em=_h, es=_s)
 _mat('signs_h', base='#000000', emtex='signs_h.jpg', es=2.2)
@@ -117,18 +146,18 @@ _mat('signs_v_f', base='#000000', emtex='signs_v.jpg', es=2.2)
 _mat('signs_big', base='#000000', emtex='signs_big.jpg', es=2.4)
 for _b in BILLBOARDS:
     _mat(_b, base='#000000', emtex=f'{_b}.jpg', es=1.5)
-_mat('cab_body', base='#2b2a60', rough=0.45, metal=0.3)
+_mat('cab_body', base='#2b2a60', rough=0.45, metal=0.3, detail='paint')
 _mat('cab_screen', base='#000000', emtex='cabs.jpg', es=2.4)
-_mat('vend_body', base='#2a2c3e', rough=0.4, metal=0.5)
+_mat('vend_body', base='#2a2c3e', rough=0.4, metal=0.5, detail='paint')
 _mat('vend_front', base='#000000', emtex='vend.jpg', es=2.0)
 _mat('bridge_glow', base='#06222a', em='#3fe0ff', es=1.2)
 _mat('leaf_pink', base='#6a2a62', em='#ff6ad0', es=0.6, rough=0.8)
 _mat('trunk', base='#2a1830', rough=0.9)
-_mat('car_a', base='#6a1fa0', rough=0.25, metal=0.6)
-_mat('car_b', base='#1f6a9a', rough=0.25, metal=0.6)
-_mat('car_c', base='#a01f5a', rough=0.25, metal=0.6)
+_mat('car_a', detail='paint', base='#6a1fa0', rough=0.25, metal=0.6)
+_mat('car_b', detail='paint', base='#1f6a9a', rough=0.25, metal=0.6)
+_mat('car_c', detail='paint', base='#a01f5a', rough=0.25, metal=0.6)
 _mat('car_glass', base='#07070f', rough=0.1, metal=0.9)
-_mat('monument', base='#201a38', rough=0.4, metal=0.6)
+_mat('monument', base='#201a38', rough=0.4, metal=0.6, detail='metal')
 _mat('star_gold', base='#000000', em='#ffcf4a', es=4.5)
 _mat('heart_pink', base='#000000', em='#ff4fb0', es=4.5)
 _mat('moon_ring', base='#000000', em='#b88cff', es=4.0)
@@ -179,7 +208,7 @@ class Geo:
         p2 = (p1[0], y1, p1[2])
         p3 = (p0[0], y1, p0[2])
         if tile:  # 以公尺平鋪
-            tw, th = tile
+            tw, th = FAC_TILES.get(mat, tile)
             u0, u1 = uoff, uoff + 2 * hw / tw
             v0, v1 = y0 / th, y1 / th
             uvs = [(u0, v0), (u1, v0), (u1, v1), (u0, v1)]
@@ -331,6 +360,7 @@ class Scene:
         self.zones = {}
         self.buildings = []
         self.alleys = []
+        self.props = []       # Poly Haven 道具實例 dict(m, x, y, z, f=(fx, fz))
         self.stats = {}
 
 
@@ -549,6 +579,140 @@ def make_gate(sc, r, key):
     g.vface(bb, (wall_c[0] + fx * 1.52, wall_c[1] + fz * 1.52), (fx, fz), 33, 12, 12 + 66 * 0 + 28.3, uv=(0, 0, 1, 1))
     _light(sc, (wall_c[0] + fx * 8, 20, wall_c[1] + fz * 8), '#ffffff', 1.6, 50)
     _obb(sc, wall_c[0], wall_c[1], ex, ww / 2, 1.5, 'wall')
+
+
+def _blocked(sc, x, z, rad, ignore=('far',)):
+    """(x, z) 半徑 rad 內是否已有碰撞體或道具。ignore＝略過的碰撞體標籤（貼牆的東西要略過 'b'）。"""
+    for c in sc.colliders:
+        if c['tag'] in ignore:
+            continue
+        if c['t'] == 'circle':
+            if math.hypot(x - c['cx'], z - c['cz']) < c['r'] + rad:
+                return True
+        else:
+            u = (x - c['cx']) * c['ax'] + (z - c['cz']) * c['az']
+            v = -(x - c['cx']) * c['az'] + (z - c['cz']) * c['ax']
+            if abs(u) < c['hw'] + rad and abs(v) < c['hd'] + rad:
+                return True
+    for q in sc.props:
+        if math.hypot(x - q['x'], z - q['z']) < q.get('rad', 0.3) + rad:
+            return True
+    return False
+
+
+def _prop(sc, m, x, z, f, y=0.0, solid=True, rad=None):
+    """放一個道具；solid 時加碰撞體。f＝正面朝向（單位向量）。"""
+    w, d, h = PROP_MODELS[m]['size']
+    rad = rad if rad is not None else max(w, d) / 2
+    sc.props.append(dict(m=m, x=round(x, 3), y=round(y, 3), z=round(z, 3), f=[round(f[0], 4), round(f[1], 4)], rad=round(rad, 2)))
+    if solid:
+        if m in ('trash', 'trash_rust', 'hydrant', 'hydrant_old'):
+            _circle(sc, x, z, max(w, d) / 2, 'prop')
+        else:
+            _obb(sc, x, z, (f[1], -f[0]), w / 2, d / 2, 'prop')
+
+
+def place_props(sc):
+    """把 Poly Haven 的街頭道具散在人行道、牆面與巷內。位置固定（SEED），避開既有碰撞體。"""
+    pr = random.Random(SEED + 9)
+    alley_t = {k: [] for k in AVENUES}
+    for al in sc.alleys:
+        dx, dz = AVENUES[al['key']]['d']
+        alley_t[al['key']].append(al['cx'] * dx + al['cz'] * dz)
+
+    for key, a in AVENUES.items():
+        dx, dz = a['d']
+        nx, nz = -dz, dx
+
+        def at(t, lat):
+            return dx * t + nx * lat, dz * t + nz * lat
+
+        def in_alley(t):
+            return any(abs(t - at_) < 3.0 for at_ in alley_t[key])
+
+        def scatter(n, tmin, tmax, lat_of, models, face, y=0.0, solid=True, wall=False, tries=40, rad=None, ignore=('far',)):
+            """face(side) → 正面朝向；wall＝貼牆（避開巷口）"""
+            done = 0
+            for _ in range(tries):
+                if done >= n:
+                    break
+                side = pr.choice((-1, 1))
+                t = pr.uniform(tmin, tmax)
+                if wall and in_alley(t):
+                    continue
+                m = pr.choice(models)
+                lat = lat_of(side, PROP_MODELS[m]['size'])
+                x, z = at(t, lat)
+                f = face(side)
+                if _blocked(sc, x, z, (rad if rad is not None else max(PROP_MODELS[m]['size'][:2]) / 2) + 0.15, ignore):
+                    continue
+                yy = y(pr) if callable(y) else y
+                _prop(sc, m, x, z, f, y=yy, solid=solid and not wall, rad=rad)
+                done += 1
+
+        toward_road = lambda side: (-nx * side, -nz * side)      # 面向大道中心
+        # 消防栓：路緣
+        scatter(3, 30, L - 8, lambda s_, sz: s_ * (ROAD + 0.55), ['hydrant', 'hydrant', 'hydrant_old'], toward_road)
+        # 垃圾桶：靠牆那一側的人行道
+        scatter(5, 29, L - 6, lambda s_, sz: s_ * (W - 0.6), ['trash', 'trash', 'trash_rust'], toward_road)
+        # 配電箱：貼牆
+        scatter(4, 29, L - 6, lambda s_, sz: s_ * (W - 0.1 - sz[1] / 2), ['ubox1', 'ubox2'], toward_road)
+        # 冷氣室外機：掛在牆面中高處
+        scatter(6, 30, L - 4, lambda s_, sz: s_ * (W - 0.03 - sz[1] / 2), ['aircon', 'aircon', 'aircon_rust'], toward_road,
+                y=lambda r_: r_.choice((6.2, 7.4, 8.6, 10.0)), wall=True, solid=False,
+                ignore=('far', 'b', 'cab', 'vend', 'lamp', 'bench', 'car', 'tree'))
+        # 監視器：牆上高處
+        scatter(2, 30, L - 4, lambda s_, sz: s_ * (W - 0.03 - sz[1] / 2), ['camera'], toward_road, y=lambda r_: r_.uniform(5.7, 6.6),
+                wall=True, solid=False, ignore=('far', 'b', 'cab', 'vend', 'lamp', 'bench', 'car', 'tree'))
+        # 人孔蓋：路面
+        for t in (36.0, 58.0, 80.0):
+            for lat in (-2.6, 2.4):
+                x, z = at(t + pr.uniform(-3, 3), lat + pr.uniform(-0.6, 0.6))
+                _prop(sc, 'manhole', x, z, (pr.choice((0, 1)), 0), y=-0.025, solid=False, rad=0.4)
+        # 施工護欄：路邊成排
+        t0 = pr.uniform(40, L - 25)
+        side = pr.choice((-1, 1))
+        lat = side * (ROAD - 1.0)
+        for i in range(3):
+            x, z = at(t0 + i * 1.62, lat)
+            if not _blocked(sc, x, z, 0.8):
+                _prop(sc, 'barrier', x, z, (nx, nz), y=0.0, rad=0.8)
+        # 蓋布的車：停在路邊
+        for _ in range(1):
+            for _try in range(20):
+                side = pr.choice((-1, 1))
+                t = pr.uniform(34, L - 12)
+                x, z = at(t, side * (ROAD - 1.35))
+                if not _blocked(sc, x, z, 2.6):
+                    _prop(sc, 'ccar', x, z, (dx * pr.choice((-1, 1)), dz * pr.choice((-1, 1))), rad=2.4)
+                    break
+
+    # 巷內：一台蓋布的車（順著巷子停）、輪胎堆、垃圾桶
+    for i, al in enumerate(sc.alleys):
+        nrm, ex = al['nrm'], al['ex']
+        P = lambda u, lat: (al['cx'] + nrm[0] * u + ex[0] * lat, al['cz'] + nrm[1] * u + ex[1] * lat)
+        if i % 3 == 1:
+            x, z = P(4.9, 0.0)
+            if not _blocked(sc, x, z, 2.3, ('far', 'b')):
+                _prop(sc, 'ccar', x, z, (nrm[0], nrm[1]), rad=2.3)
+        for lat in (-1.3, 1.3):
+            x, z = P(pr.uniform(2.6, 4.2), lat)
+            if _blocked(sc, x, z, 0.3, ('far', 'b')):
+                continue
+            for k in range(pr.choice((1, 2))):
+                _prop(sc, 'tyre', x, z, (pr.uniform(-1, 1), pr.uniform(-1, 1)), y=0.165 * k, solid=(k == 0), rad=0.4)
+        # 巷子兩側牆：公共電話（胸口高）與冷氣室外機
+        for j, (m, yy) in enumerate((('phone', 1.0), (pr.choice(('aircon', 'aircon_rust')), pr.uniform(2.5, 3.6)),
+                                     (pr.choice(('aircon', 'aircon_rust')), pr.uniform(3.4, 4.4)))):
+            sgn = 1 if (i + j) % 2 == 0 else -1
+            d_ = PROP_MODELS[m]['size'][1]
+            x, z = P(pr.uniform(2.8, 6.2) if m == 'phone' else pr.uniform(2.0, 6.6), sgn * (2.0 - 0.03 - d_ / 2))
+            if _blocked(sc, x, z, 0.2, ('far', 'b', 'prop')) and m == 'phone':
+                continue
+            _prop(sc, m, x, z, (-sgn * ex[0], -sgn * ex[1]), y=yy, solid=False, rad=0.2)
+        x, z = P(pr.uniform(5.6, 6.6), pr.choice((-1.3, 1.3)))
+        if not _blocked(sc, x, z, 0.4, ('far', 'b')):
+            _prop(sc, pr.choice(('trash', 'trash_rust')), x, z, (nrm[0], nrm[1]))
 
 
 def build():
@@ -915,9 +1079,10 @@ def build():
         a = 2 * math.pi * i / 10
         _glow(sc, 17 * math.cos(a), 17 * math.sin(a), ['#ff3fb4', '#29e6ff', '#a96bff'][i % 3], 5.5, 0.22)
 
+    place_props(sc)
     sc.zones = {k: dict(name=v['name'], en=v['en']) for k, v in AVENUES.items()}
     sc.zones['P'] = dict(name='星光廣場', en='STAR PLAZA')
-    sc.stats = dict(buildings=len(sc.buildings), colliders=len(sc.colliders), lights=len(sc.lights),
+    sc.stats = dict(props=len(sc.props), buildings=len(sc.buildings), colliders=len(sc.colliders), lights=len(sc.lights),
                     objects=sum(len(o['mats']) for o in g.objs.values()),
                     faces=sum(len(f) for o in g.objs.values() for f in o['mats'].values()))
     return sc

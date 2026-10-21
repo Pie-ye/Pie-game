@@ -1,0 +1,92 @@
+{
+ "asphalt": {
+  "tile": 3.0,
+  "source": "asphalt_02",
+  "mean_rough": 0.77,
+  "authors": [
+   "Rob Tuytel"
+  ]
+ },
+ "pavement": {
+  "tile": 1.8,
+  "source": "concrete_pavement",
+  "mean_rough": 0.862,
+  "authors": [
+   "Charlotte Baglioni"
+  ]
+ },
+ "plaza": {
+  "tile": 2.09,
+  "source": "concrete_tile_facade",
+  "mean_rough": 0.507,
+  "authors": [
+   "Charlotte Baglioni"
+  ]
+ },
+ "wall_a": {
+  "tile": 2.0,
+  "source": "concrete_wall_004",
+  "mean_rough": 0.768,
+  "authors": [
+   "Dario Barresi",
+   "Charlotte Baglioni"
+  ]
+ },
+ "wall_b": {
+  "tile": 2.3,
+  "source": "concrete_slab_wall",
+  "mean_rough": 0.866,
+  "authors": [
+   "Dimitrios Savva"
+  ]
+ },
+ "wall_d": {
+  "tile": 1.05,
+  "source": "dark_brick_wall",
+  "mean_rough": 0.813,
+  "authors": [
+   "Dario Barresi",
+   "Dimitrios Savva"
+  ]
+ },
+ "wall_e": {
+  "tile": 3.0,
+  "source": "factory_wall",
+  "mean_rough": 0.95,
+  "authors": [
+   "Rob Tuytel"
+  ]
+ },
+ "wall_g": {
+  "tile": 1.23,
+  "source": "rough_concrete",
+  "mean_rough": 0.842,
+  "authors": [
+   "Dimitrios Savva"
+  ]
+ },
+ "metal": {
+  "tile": 2.0,
+  "source": "metal_plate_02",
+  "mean_rough": 0.659,
+  "authors": [
+   "Rob Tuytel"
+  ]
+ },
+ "paint": {
+  "tile": 2.5,
+  "source": "blue_metal_plate",
+  "mean_rough": 0.284,
+  "authors": [
+   "Rob Tuytel"
+  ]
+ },
+ "corr": {
+  "tile": 2.0,
+  "source": "corrugated_iron_03",
+  "mean_rough": 0.757,
+  "authors": [
+   "Charlotte Baglioni"
+  ]
+ }
+}

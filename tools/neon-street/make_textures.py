@@ -43,7 +43,7 @@ def save(img, name, q=88):
     if name.endswith('.png'):
         img.save(p, optimize=True)
     else:
-        img.convert('RGB').save(p, quality=q, optimize=True, subsampling=0 if 'sign' in name else 2)
+        img.convert('RGB').save(p, quality=q, optimize=True, subsampling=0 if ('sign' in name or '_m.' in name) else 2)
     print('  ', name, img.size, p.stat().st_size // 1024, 'KB')
 
 
@@ -167,57 +167,70 @@ FAC_STYLE = [
 ]
 
 
+# 立面不再手繪：用 ambientCG（CC0）的夜景立面實拍材質（含窗內窗簾、人影的發光圖），
+# 再把發光圖染成各街區的霓虹色調。來源與授權見 assets/pbr/CREDITS.md。
+ACG_SRC = HERE / 'acg_src'
+
+
+def acg_get(asset):
+    """下載並解壓 ambientCG 的 1K-JPG 包（只留要用的圖），回傳資料夾。已存在就略過。"""
+    import io
+    import urllib.request
+    import zipfile
+    d = ACG_SRC / asset
+    if (d / f'{asset}_1K-JPG_Color.jpg').exists():
+        return d
+    d.mkdir(parents=True, exist_ok=True)
+    url = f'https://ambientcg.com/get?file={asset}_1K-JPG.zip'
+    print('   下載', url)
+    req = urllib.request.Request(url, headers={'User-Agent': 'pie-game-asset-fetch/1.0'})
+    with urllib.request.urlopen(req, timeout=180) as r:
+        data = r.read()
+    with zipfile.ZipFile(io.BytesIO(data)) as z:
+        for n in z.namelist():
+            if n.endswith(('_Color.jpg', '_Emission.jpg', '_NormalGL.jpg', '_Roughness.jpg', '_Metalness.jpg')):
+                (d / Path(n).name).write_bytes(z.read(n))
+    return d
+
+
+def tint_field(size, colors, seed, cells=7):
+    """可無縫平鋪的柔和色塊場：同一區的窗戶同色調，區與區之間漸變。"""
+    rnd = random.Random(seed)
+    small = Image.new('RGB', (cells, cells))
+    small.putdata([hx(rnd.choice(colors)) if isinstance(colors[0], str) else rnd.choice(colors) for _ in range(cells * cells)])
+    big = Image.new('RGB', (cells * 3, cells * 3))
+    for i in range(3):
+        for j in range(3):
+            big.paste(small, (i * cells, j * cells))
+    big = big.resize((size * 3, size * 3), Image.BICUBIC)
+    return big.crop((size, size, size * 2, size * 2))
+
+
 def make_facade(i):
+    asset, tile_m = S.FAC_SRC[i]
     wall_h, lights = FAC_STYLE[i]
+    d = acg_get(asset)
+    ld = lambda k: Image.open(d / f'{asset}_1K-JPG_{k}.jpg')
+    size = 1024
     wall = hx(wall_h)
-    rnd = random.Random(100 + i)
-    w, h = 512, 1024
-    color = Image.new('RGB', (w, h), wall)
-    n = noise((w, h), 10, i).convert('RGB')
-    color = ImageChops.add(color, n.point(lambda v: max(0, v - 118) // 3))
-    emi = Image.new('RGB', (w, h), (0, 0, 0))
-    d, e = ImageDraw.Draw(color), ImageDraw.Draw(emi)
-    cw, ch = 128, 128
-    for row in range(8):
-        for colu in range(4):
-            x0, y0 = colu * cw, row * ch
-            # 窗框
-            mx, my = 18, 22
-            win = (x0 + mx, y0 + my, x0 + cw - mx, y0 + ch - 26)
-            d.rectangle((win[0] - 4, win[1] - 4, win[2] + 4, win[3] + 4), fill=mul(wall, 1.6))
-            lit = rnd.random() < 0.52
-            if lit:
-                c = hx(rnd.choice(lights))
-                c = mul(c, rnd.uniform(0.7, 1.0))
-                e.rectangle(win, fill=c)
-                d.rectangle(win, fill=mul(c, 0.5))
-                # 窗內剪影
-                if rnd.random() < 0.35:
-                    sx = rnd.randint(win[0] + 10, win[2] - 22)
-                    e.rectangle((sx, win[3] - rnd.randint(14, 30), sx + 12, win[3]), fill=mul(c, 0.35))
-                # 窗格
-                e.line((win[0], (win[1] + win[3]) // 2, win[2], (win[1] + win[3]) // 2), fill=mul(c, 0.55), width=2)
-                e.line(((win[0] + win[2]) // 2, win[1], (win[0] + win[2]) // 2, win[3]), fill=mul(c, 0.55), width=2)
-            else:
-                dark = mix((8, 8, 20), wall, 0.15)
-                d.rectangle(win, fill=dark)
-                # 玻璃反光
-                d.polygon([(win[0] + 4, win[3] - 4), (win[0] + 30, win[1] + 4), (win[0] + 46, win[1] + 4), (win[0] + 20, win[3] - 4)],
-                          fill=mix(dark, mul(hx(lights[0]), 0.4), 0.25))
-                if rnd.random() < 0.12:  # 冷氣室外機
-                    d.rectangle((win[0] + 8, win[3] - 26, win[0] + 52, win[3] - 4), fill=(52, 54, 70))
-                    d.ellipse((win[0] + 16, win[3] - 22, win[0] + 40, win[3] - 6), outline=(20, 20, 30), width=3)
-            # 樓板線
-            d.rectangle((x0, y0 + ch - 14, x0 + cw, y0 + ch - 8), fill=mul(wall, 1.9))
-    # 外牆水痕
-    for _ in range(26):
-        x = rnd.randint(0, w)
-        d.line((x, rnd.randint(0, h), x, h), fill=mul(wall, 0.7), width=rnd.randint(1, 3))
-    # 垂直管線
-    px = rnd.choice([cw - 8, 2 * cw + 4])
-    d.rectangle((px, 0, px + 6, h), fill=mul(wall, 2.3))
-    save(color, f'fac_{i}_c.jpg', 86)
-    save(emi, f'fac_{i}_e.jpg', 88)
+    # 反照率：夜裡偏暗，並朝街區的牆色微微染色
+    col = ld('Color').convert('RGB').resize((size, size), Image.LANCZOS)
+    tint = tuple(min(255, int(v * 255 / max(wall))) for v in wall)
+    col = Image.blend(col, ImageChops.multiply(col, Image.new('RGB', (size, size), tint)), 0.4).point(lambda v: int(v * 0.55))
+    save(col, f'fac_{i}_c.jpg', 84)
+    # 發光：保留窗簾與人影的明暗，色調換成霓虹
+    em = ld('Emission').convert('RGB').resize((size, size), Image.LANCZOS)
+    lum = em.convert('L').point(lambda v: min(255, int(v * 1.35)))
+    zones = tint_field(size, lights, 40 + i)
+    neon = ImageChops.multiply(Image.merge('RGB', (lum, lum, lum)), zones)
+    save(Image.blend(em, neon, 0.85), f'fac_{i}_e.jpg', 84)
+    # 法線與材質遮罩（G＝粗糙度，B＝金屬度）
+    save(ld('NormalGL').convert('RGB').resize((size, size), Image.LANCZOS), f'fac_{i}_n.jpg', 86)
+    rough = ld('Roughness').convert('L').resize((size, size), Image.LANCZOS)
+    metal = (ld('Metalness').convert('L').resize((size, size), Image.LANCZOS) if (d / f'{asset}_1K-JPG_Metalness.jpg').exists()
+             else Image.new('L', (size, size), 0))
+    zero = Image.new('L', (size, size), 0)
+    save(Image.merge('RGB', (zero, rough, metal)), f'fac_{i}_m.jpg', 86)
 
 
 # ───────────────────────── 店面 ─────────────────────────
@@ -425,29 +438,33 @@ def make_avenue(key):
     em = Image.new('RGB', (w, h), (0, 0, 0))
     de = ImageDraw.Draw(em)
     y_of = lambda lat: int((lat + S.W) * PX_M)
+    # 材質遮罩（R＝0 柏油／255 人行道，G＝粗糙度，B＝金屬度）。方磚與柏油顆粒由實拍細節層負責，手繪圖不再畫磚線
+    mk_r = Image.new('L', (w, h), 0)
+    mk_g = Image.new('L', (w, h), 84)                      # 柏油：微濕
+    dr_, dg_ = ImageDraw.Draw(mk_r), ImageDraw.Draw(mk_g)
     # 人行道
     for lat0, lat1 in ((-S.W, -S.ROAD), (S.ROAD, S.W)):
         d.rectangle((0, y_of(lat0), w, y_of(lat1)), fill=(44, 40, 66))
-        # 磚線
-        for gx in range(0, w, int(1.6 * PX_M)):
-            d.line((gx, y_of(lat0), gx, y_of(lat1)), fill=(34, 31, 52), width=3)
-        for gl in range(int(lat0), int(lat1) + 1):
-            d.line((0, y_of(gl), w, y_of(gl)), fill=(34, 31, 52), width=3)
+        dr_.rectangle((0, y_of(lat0), w, y_of(lat1)), fill=255)
+        dg_.rectangle((0, y_of(lat0), w, y_of(lat1)), fill=124)
     # 路緣
     for lat in (-S.ROAD, S.ROAD):
         d.rectangle((0, y_of(lat) - 9, w, y_of(lat) + 9), fill=(90, 84, 124))
     # 馬路標線
     for lat in (-5.5, 5.5):
         d.rectangle((0, y_of(lat) - 5, w, y_of(lat) + 5), fill=(150, 146, 176))
+        dg_.rectangle((0, y_of(lat) - 5, w, y_of(lat) + 5), fill=140)
     x = int(5 * PX_M)
     while x < w:
         d.rectangle((x, y_of(0) - 5, x + int(3 * PX_M), y_of(0) + 5), fill=(220, 200, 90))
+        dg_.rectangle((x, y_of(0) - 5, x + int(3 * PX_M), y_of(0) + 5), fill=140)
         de.rectangle((x, y_of(0) - 4, x + int(3 * PX_M), y_of(0) + 4), fill=(70, 60, 20))
         x += int(7 * PX_M)
     # 斑馬線（近廣場）
     for k in range(int(2 * S.ROAD / 0.9)):
         lat = -S.ROAD + 0.4 + k * 0.9
         d.rectangle((int(0.4 * PX_M), y_of(lat), int(3.8 * PX_M), y_of(lat + 0.45)), fill=(190, 186, 214))
+        dg_.rectangle((int(0.4 * PX_M), y_of(lat), int(3.8 * PX_M), y_of(lat + 0.45)), fill=140)
     # 路緣霓虹（自發光）：用主題色
     col = hx(S.NEON[S.THEME[key]['neon'][0]][0])
     col2 = hx(S.NEON[S.THEME[key]['neon'][1]][0])
@@ -467,6 +484,13 @@ def make_avenue(key):
         dp.ellipse((px - rw, y_of(lat) - rh, px + rw, y_of(lat) + rh), fill=(26, 28, 52))
     pud = pud.filter(ImageFilter.GaussianBlur(12))
     img = ImageChops.add(img, pud)
+    # 水窪在遮罩裡是近乎鏡面（粗糙度 ≈ 0.04），整條路另有大範圍的濕度起伏
+    pud_l = pud.convert('L').point(lambda v: min(255, v * 7))
+    wet = noise((w // 24, h // 24), 30, ord(key) + 5).resize((w, h), Image.BICUBIC).point(lambda v: max(0, min(255, (v - 128) // 4)))
+    mk_g = ImageChops.subtract(mk_g, ImageChops.multiply(wet, Image.new('L', (w, h), 255)).point(lambda v: v // 2))
+    mk_g = Image.composite(Image.new('L', (w, h), 10), mk_g, pud_l)
+    mk_r = mk_r.filter(ImageFilter.GaussianBlur(6))
+    mask = Image.merge('RGB', (mk_r, mk_g, Image.new('L', (w, h), 0)))
     # 光暈
     glow = Image.new('RGB', (w, h), (0, 0, 0))
     for g in S_GLOWS:
@@ -481,6 +505,7 @@ def make_avenue(key):
     half = (w // 2, h // 2)
     save(img.resize(half, Image.LANCZOS), f'ground_{key}_c.jpg', 86)
     save(em.resize((w // 4, h // 4), Image.LANCZOS), f'ground_{key}_e.jpg', 88)
+    save(mask.resize((w // 4, h // 4), Image.LANCZOS), f'ground_{key}_m.jpg', 90)
 
 
 def make_plaza():
@@ -496,19 +521,26 @@ def make_plaza():
     d.ellipse((c - S.RING * ppm, c - S.RING * ppm, c + S.RING * ppm, c + S.RING * ppm), fill=(44, 40, 66))
     # 廣場石板
     d.ellipse((c - S.R * ppm, c - S.R * ppm, c + S.R * ppm, c + S.R * ppm), fill=(30, 26, 52))
-    # 磚格
-    tile = 1.5 * ppm
-    layer = Image.new('RGB', (N, N), (0, 0, 0))
-    dl = ImageDraw.Draw(layer)
-    k = -S.RING
-    while k < S.RING:
-        px = (k + S.RING) * ppm
-        dl.line((px, 0, px, N), fill=(18, 16, 34), width=5)
-        dl.line((0, px, N, px), fill=(18, 16, 34), width=5)
-        k += 1.5
-    mask = Image.new('L', (N, N), 0)
-    ImageDraw.Draw(mask).ellipse((c - S.RING * ppm, c - S.RING * ppm, c + S.RING * ppm, c + S.RING * ppm), fill=255)
-    img = Image.composite(ImageChops.subtract(img, layer), img, mask)
+    # 材質遮罩：R＝0 廣場方磚／255 外圈人行道，G＝粗糙度。磚縫由實拍細節層負責，手繪圖不再畫格線
+    mk_r = Image.new('L', (N, N), 255)
+    ImageDraw.Draw(mk_r).ellipse((c - S.R * ppm, c - S.R * ppm, c + S.R * ppm, c + S.R * ppm), fill=0)
+    mk_r = mk_r.filter(ImageFilter.GaussianBlur(5))
+    mk_g = Image.new('L', (N, N), 96)
+    ImageDraw.Draw(mk_g).ellipse((c - S.R * ppm, c - S.R * ppm, c + S.R * ppm, c + S.R * ppm), fill=78)
+    # 水窪
+    prnd = random.Random(31)
+    pud = Image.new('L', (N, N), 0)
+    dpp = ImageDraw.Draw(pud)
+    for _ in range(30):
+        a_, r_ = prnd.uniform(0, 6.283), prnd.uniform(3, S.R - 3)
+        px_, py_ = c + math.cos(a_) * r_ * ppm, c + math.sin(a_) * r_ * ppm
+        rw, rh = prnd.uniform(1.0, 3.2) * ppm, prnd.uniform(0.6, 1.8) * ppm
+        dpp.ellipse((px_ - rw, py_ - rh, px_ + rw, py_ + rh), fill=255)
+    pud = pud.filter(ImageFilter.GaussianBlur(0.25 * ppm))
+    pud_l = pud.point(lambda v: min(255, v * 4))
+    mk_g = Image.composite(Image.new('L', (N, N), 10), mk_g, pud_l)
+    plaza_mask = Image.merge('RGB', (mk_r, mk_g, Image.new('L', (N, N), 0)))
+    img = ImageChops.add(img, pud.point(lambda v: v // 10).convert('RGB'))
     d = ImageDraw.Draw(img)
     # 噪點
     img = ImageChops.add(img, noise((N, N), 9, 77).convert('RGB').point(lambda v: max(0, v - 122) // 4))
@@ -563,6 +595,7 @@ def make_plaza():
     img = ImageChops.add(img, glow)
     save(img.resize((2048, 2048), Image.LANCZOS), 'ground_plaza_c.jpg', 88)
     save(em.resize((2048, 2048), Image.LANCZOS), 'ground_plaza_e.jpg', 90)
+    save(plaza_mask.resize((1024, 1024), Image.LANCZOS), 'ground_plaza_m.jpg', 90)
 
 
 def main():

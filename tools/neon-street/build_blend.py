@@ -18,6 +18,7 @@ HERE = Path(bpy.data.filepath).parent if bpy.data.filepath else Path(__file__).r
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import scene_gen as S  # noqa: E402
+import props_blender as PB  # noqa: E402
 
 argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
 
@@ -65,6 +66,27 @@ def make_material(name, spec):
     bsdf = nt.nodes['Principled BSDF']
     bsdf.inputs['Roughness'].default_value = spec['rough']
     bsdf.inputs['Metallic'].default_value = spec['metal']
+    if spec.get('mr'):
+        # 遮罩貼圖：G＝粗糙度、B＝金屬度（glTF 的 metallicRoughness 慣例）；R 色版是自訂的細節層混合，匯出時原樣保留
+        n = nt.nodes.new('ShaderNodeTexImage')
+        n.image = load_img(spec['mr'], srgb=False)
+        sep = nt.nodes.new('ShaderNodeSeparateColor')
+        nt.links.new(n.outputs['Color'], sep.inputs['Color'])
+        nt.links.new(sep.outputs['Green'], bsdf.inputs['Roughness'])
+        nt.links.new(sep.outputs['Blue'], bsdf.inputs['Metallic'])
+    if spec.get('nrm'):
+        n = nt.nodes.new('ShaderNodeTexImage')
+        n.image = load_img(spec['nrm'], srgb=False)
+        nm = nt.nodes.new('ShaderNodeNormalMap')
+        nt.links.new(n.outputs['Color'], nm.inputs['Color'])
+        nt.links.new(nm.outputs['Normal'], bsdf.inputs['Normal'])
+    # 實拍細節層（Poly Haven CC0）：名稱寫進自訂屬性，匯出成 glTF extras，遊戲載入後由 detail.js 套用
+    if spec.get('detail'):
+        m['detail'] = spec['detail']
+        if spec.get('detail2'):
+            m['detail2'] = spec['detail2']
+        if spec.get('dn', 1.0) != 1.0:
+            m['dnormal'] = spec['dn']
     if spec['tex']:
         n = nt.nodes.new('ShaderNodeTexImage')
         n.image = load_img(spec['tex'])
@@ -109,6 +131,33 @@ def build_mesh(name, faces, pivot):
     return ob
 
 
+def build_props(sc, coll):
+    """Poly Haven 道具：每種模型匯入一次、減面，再複製到各處並合併成一個物件（一種模型一次繪製）。"""
+    n = 0
+    for key in sorted({p['m'] for p in sc.props}):
+        tmpl = PB.load_prop(key, S.PROP_MODELS[key])
+        for u in list(tmpl.users_collection):
+            u.objects.unlink(tmpl)
+        copies = []
+        for p in (q for q in sc.props if q['m'] == key):
+            c = tmpl.copy()
+            c.data = tmpl.data                      # 共用網格資料，合併前不佔額外記憶體
+            c.location = bl((p['x'], p['y'], p['z']))
+            c.rotation_euler = (0.0, 0.0, math.atan2(p['f'][0], p['f'][1]))
+            coll.objects.link(c)
+            copies.append(c)
+        bpy.ops.object.select_all(action='DESELECT')
+        for c in copies:
+            c.select_set(True)
+        bpy.context.view_layer.objects.active = copies[0]
+        bpy.ops.object.join()
+        joined = bpy.context.view_layer.objects.active
+        joined.name = f'props__{key}'
+        n += 1
+        print('prop', key, len(copies), 'x', tmpl['tris_after'], 'tris')
+    return n
+
+
 def main():
     reset_scene()
     sc = S.build()
@@ -127,6 +176,7 @@ def main():
             ob.data.materials.append(mats[mname])
             coll.objects.link(ob)
             n_obj += 1
+    n_obj += build_props(sc, coll)
     # 動畫部件：同一個名稱的多個材質物件要能被前端一起找到——名稱以 oname__ 開頭
     # 燈光標記（空物件），方便在 Blender 裡檢視與調整
     lcoll = bpy.data.collections.new('LightMarkers')
@@ -170,7 +220,7 @@ def main():
             filepath=GLB, export_format='GLB', use_selection=True, export_apply=True,
             export_yup=True, export_texcoords=True, export_normals=True, export_materials='EXPORT',
             export_image_format='AUTO', export_cameras=False, export_lights=False,
-            export_extras=False, export_animations=False, export_draco_mesh_compression_enable=False,
+            export_extras=True, export_animations=False, export_draco_mesh_compression_enable=False,
         )
         print('wrote', GLB, Path(GLB).stat().st_size // 1024, 'KB')
 

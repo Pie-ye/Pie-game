@@ -2,3 +2,6 @@ tex/
 *.blend
 *.blend1
 __pycache__/
+acg_src/
+pbr_src/
+props_src/

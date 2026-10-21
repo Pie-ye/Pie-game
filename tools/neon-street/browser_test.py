@@ -40,14 +40,19 @@ with sync_playwright() as p:
     pl = lambda: page.evaluate('({x: __street.player.x, z: __street.player.z, yaw: __street.player.yaw, y: __street.player.y})')
     page.evaluate('__street.setPose(0, 40, 0, 0)')
     page.wait_for_timeout(200)
+    def hold(cond):   # 軟體渲染幀率很低，按住直到條件成立（最多 20 秒）而不是固定時間
+        try:
+            page.wait_for_function(cond, timeout=20000)
+        except Exception:
+            pass
     a = pl()
-    page.keyboard.down('KeyW'); page.wait_for_timeout(1500); page.keyboard.up('KeyW'); page.wait_for_timeout(300)
+    page.keyboard.down('KeyW'); hold(f"__street.player.z < {a['z'] - 2.6}"); page.keyboard.up('KeyW'); page.wait_for_timeout(300)
     b2 = pl()
     check(b2['z'] < a['z'] - 2.5 and abs(b2['x'] - a['x']) < 0.1, f"W 往前走（朝北）：z {a['z']:.1f} → {b2['z']:.1f}")
-    page.keyboard.down('KeyD'); page.wait_for_timeout(1000); page.keyboard.up('KeyD'); page.wait_for_timeout(300)
+    page.keyboard.down('KeyD'); hold(f"__street.player.x > {b2['x'] + 1.6}"); page.keyboard.up('KeyD'); page.wait_for_timeout(300)
     c = pl()
     check(c['x'] > b2['x'] + 1.5, f"D 往右（東）走：x {b2['x']:.1f} → {c['x']:.1f}")
-    page.keyboard.down('KeyS'); page.wait_for_timeout(800); page.keyboard.up('KeyS'); page.wait_for_timeout(200)
+    page.keyboard.down('KeyS'); hold(f"__street.player.z > {c['z'] + 1.6}"); page.keyboard.up('KeyS'); page.wait_for_timeout(200)
     d = pl()
     check(d['z'] > c['z'] + 1.5, f"S 往後退：z {c['z']:.1f} → {d['z']:.1f}")
     # 奔跑速度比較（讀速度而不是距離，不受軟體渲染的低幀率影響）
@@ -61,7 +66,12 @@ with sync_playwright() as p:
     check(3.0 < v_walk < 3.8 and 6.0 < v_run < 6.9, f"步行 {v_walk:.1f} m/s、奔跑 {v_run:.1f} m/s")
     # 轉視角（滑鼠拖曳，無法鎖定時的備案模式；或方向鍵）
     y0 = pl()['yaw']
-    page.keyboard.down('ArrowLeft'); page.wait_for_timeout(600); page.keyboard.up('ArrowLeft')
+    page.keyboard.down('ArrowLeft')
+    try:
+        page.wait_for_function(f'__street.player.yaw > {y0 + 0.5}', timeout=15000)   # 軟體渲染很慢，等到轉夠為止
+    except Exception:
+        pass
+    page.keyboard.up('ArrowLeft')
     y1 = pl()['yaw']
     check(y1 > y0 + 0.5, f"方向鍵左轉視角：yaw {y0:.2f} → {y1:.2f}")
     page.mouse.move(600, 360); page.mouse.down(); page.mouse.move(700, 360, steps=5); page.mouse.up()
