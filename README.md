@@ -10,6 +10,8 @@
 
 這次未恢復下注、派彩或金幣社群規格引擎；下方相關架構為既有設計，不代表目前可用。自由遊戲與電玩街不需這些金幣介面。正式使用者的登入密碼不應交給測試工具或存入此 repo。
 
+正式首頁的訪客／錯誤帳密連線測試：`python3 tools/shared_auth_smoke.py`（需 Playwright Chromium，不使用正式帳密）。成功登入、共用 session、登出與多人票券由 Retire-count `api/test/game-auth.test.ts` 在隔離測試庫驗證。
+
 ## 架構
 
 ```
