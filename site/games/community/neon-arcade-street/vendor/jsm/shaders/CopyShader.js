@@ -1,6 +1,6 @@
 /**
  * @module CopyShader
- * @three_import import { CopyShader } from 'three/addons/shaders/CopyShader.js';
+ * @three_import import { CopyShader } from './CopyShader.js';
  */
 
 /**

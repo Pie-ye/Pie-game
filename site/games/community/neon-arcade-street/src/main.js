@@ -1,9 +1,9 @@
-import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import * as THREE from '../../pie-phoebe/vendor/three.module.js';
+import { GLTFLoader } from '../vendor/jsm/loaders/GLTFLoader.js';
+import { EffectComposer } from '../vendor/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from '../vendor/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from '../vendor/jsm/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from '../vendor/jsm/postprocessing/OutputPass.js';
 import PieGame from '../../../../sdk/pie-game-sdk.js';
 import { step as walkStep, prepare, zoneAt, RADIUS } from './physics.js';
 import { makeSky } from './sky.js';

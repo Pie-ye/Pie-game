@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import * as THREE from '../../pie-phoebe/vendor/three.module.js';
 
 // 夜空穹頂：漸層、星空、彎月、極光帶。顏色以線性 HDR 輸出，月亮超過 1 會被泛光抓到。
 const frag = /* glsl */`

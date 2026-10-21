@@ -120,3 +120,15 @@ test('被傳送到紀念碑裡面會被推出來，但不會被彈飛', () => {
   assert.ok(Math.hypot(p.x, p.z) >= 9 + RADIUS - 0.05 && Math.hypot(p.x, p.z) < 14, `r=${Math.hypot(p.x, p.z)}`);
   assert.ok(Math.hypot(p.vx, p.vz) < RUN * 1.06);
 });
+
+test('線上 CSP 相容：沒有內嵌 import map，也沒有裸模組名稱', async () => {
+  const { readFileSync, readdirSync, statSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const root = new URL('../site/games/community/neon-arcade-street/', import.meta.url).pathname;
+  assert.ok(!/importmap/.test(readFileSync(join(root, 'index.html'), 'utf8')), '平台 CSP 不允許內嵌腳本');
+  const walk = (d) => readdirSync(d).flatMap((f) => (statSync(join(d, f)).isDirectory() ? walk(join(d, f)) : [join(d, f)]));
+  for (const f of walk(root).filter((x) => x.endsWith('.js'))) {
+    const bare = readFileSync(f, 'utf8').match(/^\s*(?:import|export)\b[^'"\n]*from\s+['"](?![./])[^'"]+['"]/gm);
+    assert.equal(bare, null, `${f} 有裸模組名稱匯入：${bare}`);
+  }
+});

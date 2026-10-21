@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import * as THREE from '../../pie-phoebe/vendor/three.module.js';
 
 // 以相機為中心的雨絲：座標在著色器裡依「世界位置」循環，所以走動時雨不會跟著人飄。
 const BOX = 44, HEIGHT = 32;

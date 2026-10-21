@@ -37,7 +37,7 @@ src/sky.js            夜空穹頂著色器    src/rain.js 雨絲    src/audio.j
 vendor/               three.js 範例元件（GLTFLoader、泛光後製），版本與 ../pie-phoebe/vendor 相同（r186）
 ```
 
-three.js 本體共用 `../pie-phoebe/vendor/three.module.js`，用 `index.html` 裡的 import map 對應。不需要 CDN、建置步驟或後端。
+three.js 本體共用 `../pie-phoebe/vendor/three.module.js`，用 `index.html` 裡的 相對路徑匯入（線上 CSP 不允許內嵌 import map）。不需要 CDN、建置步驟或後端。
 
 ## 重新建置場景
 

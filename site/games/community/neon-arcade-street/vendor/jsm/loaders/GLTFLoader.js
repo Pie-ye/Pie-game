@@ -64,7 +64,7 @@ import {
 	VectorKeyframeTrack,
 	SRGBColorSpace,
 	InstancedBufferAttribute
-} from 'three';
+} from '../../../../pie-phoebe/vendor/three.module.js';
 import { toTrianglesDrawMode } from '../utils/BufferGeometryUtils.js';
 import { clone } from '../utils/SkeletonUtils.js';
 
@@ -124,7 +124,7 @@ import { clone } from '../utils/SkeletonUtils.js';
  * ```
  *
  * @augments Loader
- * @three_import import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+ * @three_import import { GLTFLoader } from './GLTFLoader.js';
  */
 class GLTFLoader extends Loader {
 
@@ -2651,7 +2651,8 @@ class GLTFParser {
 
 		}
 
-		if ( typeof createImageBitmap === 'undefined' || ( isSafari && safariVersion < 17 ) || ( isFirefox && firefoxVersion < 98 ) ) {
+		// 本專案修改：平台 CSP 的 connect-src 不含 blob:，ImageBitmapLoader 讀內嵌貼圖會被擋，一律改用 TextureLoader（<img> 受 img-src 管轄，允許 blob:）。
+		if ( true || typeof createImageBitmap === 'undefined' || ( isSafari && safariVersion < 17 ) || ( isFirefox && firefoxVersion < 98 ) ) {
 
 			this.textureLoader = new TextureLoader( this.options.manager );
 

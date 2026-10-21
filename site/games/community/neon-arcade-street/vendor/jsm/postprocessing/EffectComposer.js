@@ -4,7 +4,7 @@ import {
 	Timer,
 	Vector2,
 	WebGLRenderTarget
-} from 'three';
+} from '../../../../pie-phoebe/vendor/three.module.js';
 import { CopyShader } from '../shaders/CopyShader.js';
 import { ShaderPass } from './ShaderPass.js';
 import { ClearMaskPass, MaskPass } from './MaskPass.js';
@@ -37,7 +37,7 @@ import { ClearMaskPass, MaskPass } from './MaskPass.js';
  * }
  * ```
  *
- * @three_import import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+ * @three_import import { EffectComposer } from './EffectComposer.js';
  */
 class EffectComposer {
 

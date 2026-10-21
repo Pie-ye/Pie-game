@@ -7,11 +7,11 @@ import {
 	SkeletonHelper,
 	Vector3,
 	VectorKeyframeTrack
-} from 'three';
+} from '../../../../pie-phoebe/vendor/three.module.js';
 
 /**
  * @module SkeletonUtils
- * @three_import import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+ * @three_import import * as SkeletonUtils from './SkeletonUtils.js';
  */
 
 function getBoneName( bone, options ) {
