@@ -348,8 +348,12 @@ function updateZone(dt) {
 
 // ───────── 主迴圈 ─────────
 let fpsAcc = 0, fpsN = 0, lowFor = 0, simTime = 0;
+// 幀率上限預設 60（高更新率螢幕不必畫到 120／144，省電也省發熱）。網址 fps=30 可改，fps=0 不設上限
+const FPS_CAP = params.has('fps') ? Number(params.get('fps')) : 60;
+const MIN_FRAME_MS = FPS_CAP > 0 ? 1000 / FPS_CAP - 2 : 0;   // 減 2ms 容許 rAF 的抖動，60 Hz 螢幕才不會隔幀被跳過
 function frame(now) {
   requestAnimationFrame(frame);
+  if (now - clock < MIN_FRAME_MS) return;
   const dt = Math.min(0.25, (now - clock) / 1000);  // 卡頓時模擬仍追上實際時間（下面切成小步）
   clock = now;
   simTime += dt;

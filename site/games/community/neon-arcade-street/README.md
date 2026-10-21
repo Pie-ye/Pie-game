@@ -66,4 +66,4 @@ node --test tests/neon-street.test.mjs
 
 - 動態光源只讓離玩家最近的 10 盞點光源真的打光，其餘靠自發光貼圖與泛光撐氣氛。
 - 場景沒有可進入的室內；店面是貼圖。小巷可以進去，但是死路。
-- 網址參數可調光：`exp`（曝光）、`em`（自發光倍率）、`bs`／`bt`（泛光強度／門檻）、`hemi`、`lg`（點光源增益）、`lights`（光源池大小）、`detail=0`（關掉細節層）、`hdri`（環境反射強度，預設 0.25）、`hrot`（HDRI 旋轉）、`rain=0`、`bloom=0`、`spawn=x,z,yaw,pitch`。
+- 網址參數可調光：`exp`（曝光）、`em`（自發光倍率）、`bs`／`bt`（泛光強度／門檻）、`hemi`、`lg`（點光源增益）、`lights`（光源池大小）、`detail=0`（關掉細節層）、`fps`（幀率上限，預設 60，0 為不限）、`hdri`（環境反射強度，預設 0.25）、`hrot`（HDRI 旋轉）、`rain=0`、`bloom=0`、`spawn=x,z,yaw,pitch`。
