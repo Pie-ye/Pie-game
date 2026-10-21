@@ -105,7 +105,7 @@ with sync_playwright() as p:
     ps = b.new_page(viewport={'width': 480, 'height': 270})
     ps.on('pageerror', lambda e: errors.append(f'solo: {e}'))
     ps.goto(BASE + '/games/community/neon-arcade-street/index.html?autoq=0' + Q)
-    ps.wait_for_function('window.__street && window.__street.world', timeout=180000)
+    ps.wait_for_function('window.__street && window.__street.mode === "title"', timeout=180000)
     ps.wait_for_function("document.getElementById('online').textContent.length > 0", timeout=20000)
     check(ps.evaluate("document.getElementById('online').dataset.mode") == 'solo', '未登入退回單機')
     check(ps.evaluate("document.getElementById('start').disabled") is False, '單機模式仍可進入遊戲')
