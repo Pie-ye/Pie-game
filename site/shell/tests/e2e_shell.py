@@ -331,7 +331,7 @@ def main() -> int:
         check("menu-hidden-until-open", not page.locator("#menuSound").is_visible(), "menu open by default")
         check("city-map-dots", page.locator(".city-map-dot").count() >= 8,
               str(page.locator(".city-map-dot").count()))
-        check("city-map-not-clickable", page.locator("button.city-map-dot").count() == 0, "map dots are buttons")
+        check("city-map-clickable", page.locator("button.city-map-dot").count() >= 8, "map dots should be buttons")
         page.wait_for_selector("#cityPlaque:not([hidden])")
         first_game = page.locator("#cityPlaque b").inner_text()
         # 按一次 D 自動跑到下一款；途中按上鍵不能進入經過的遊戲。

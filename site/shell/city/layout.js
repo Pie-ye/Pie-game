@@ -141,7 +141,25 @@ export function selectAdjacentGame(state, buildings, direction) {
   state.autoRun = true;
   // 反向切換時先停下，避免沿舊方向滑行。
   if (Math.sign(state.vx) !== Math.sign(state.target - state.x)) state.vx = 0;
+  state.runSpeed = null;
   return next;
+}
+
+/**
+ * 從導覽列點某款遊戲：整條街快速奔跑過去，鏡頭跟著人平移。
+ * 距離越遠跑越快，但全程控制在約 RUN_MAX_SECONDS 秒內。
+ */
+export const RUN_MAX_SECONDS = 1.8;
+export const RUN_MAX_SPEED = 2600;
+export function runToGame(state, building) {
+  if (!building) return null;
+  const gap = building.doorX - state.x;
+  if (Math.abs(gap) < 6) return building;
+  state.target = building.doorX;
+  state.autoRun = true;
+  state.runSpeed = clamp(Math.abs(gap) / RUN_MAX_SECONDS, AUTO_SPEED, RUN_MAX_SPEED);
+  if (Math.sign(state.vx) !== Math.sign(gap)) state.vx = 0;
+  return building;
 }
 
 /**
@@ -155,7 +173,7 @@ export function stepPlayer(state, input, dt, worldWidth) {
   let dir = input.dir;
   let top = WALK_SPEED;
   if (dir !== 0) {
-    state.target = null;
+    state.target = null; state.runSpeed = null;
     state.autoRun = false;
     // 剛按下去先給一點初速，輕點一下也看得到腳步。
     if (state.vx === 0 || Math.sign(state.vx) !== dir) state.vx = dir * Math.min(top, 60);
@@ -164,17 +182,17 @@ export function stepPlayer(state, input, dt, worldWidth) {
     if (Math.abs(gap) < 6) {
       state.x = state.target;
       state.vx = 0;
-      state.target = null;
+      state.target = null; state.runSpeed = null;
       state.autoRun = false;
       state.moving = false;
       return state;
     }
     dir = Math.sign(gap);
-    top = AUTO_SPEED;
+    top = state.runSpeed || AUTO_SPEED;
   }
   const want = dir * top;
   // 加速快、煞車更快：放開按鍵立刻停下，不會滑到下一棟。
-  const rate = dir === 0 ? 4800 : 1500;
+  const rate = dir === 0 ? 4800 : Math.max(1500, top * 4);
   const delta = want - state.vx;
   const stepV = rate * dt;
   state.vx = Math.abs(delta) <= stepV ? want : state.vx + Math.sign(delta) * stepV;
@@ -185,7 +203,7 @@ export function stepPlayer(state, input, dt, worldWidth) {
     if (Math.sign(gap) === Math.sign(move) && Math.abs(move) >= Math.abs(gap)) {
       state.x = state.target;
       state.vx = 0;
-      state.target = null;
+      state.target = null; state.runSpeed = null;
       state.autoRun = false;
     } else {
       state.x += move;

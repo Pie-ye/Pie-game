@@ -11,7 +11,7 @@ import {
 import { bootArcade, preloadArcade } from './arcade-boot.js';
 import {
   DISTRICTS, GROUND_Y, WALK_SPEED, WALK_Y, WORLD_H,
-  cameraFor, doorAt, layoutCity, selectAdjacentGame, stepPlayer, themeAt,
+  cameraFor, doorAt, layoutCity, runToGame, selectAdjacentGame, stepPlayer, themeAt,
 } from './layout.js';
 import {
   FACADE_W, THEMES, drawBackdrop, drawFacade, drawFacadeReflection, drawGate, drawGround, drawLamps, drawWeather,
@@ -129,8 +129,17 @@ export function mountCity(view, { games, open, onNear }) {
     track.appendChild(label);
   }
   for (const b of buildings) {
-    // 地圖只是位置指示，不能點：要自己走到門口。
-    const dot = document.createElement('i');
+    // 點地圖上的點：快速奔跑到該遊戲門口，畫面跟著平移。
+    const dot = document.createElement('button');
+    dot.type = 'button';
+    dot.setAttribute('aria-label', `前往 ${b.game.name || b.id}`);
+    dot.addEventListener('click', () => {
+      if (entering) return;
+      unlockAudio();
+      runToGame(player, b);
+      input.up = false;
+      updateNear(null);
+    });
     dot.className = 'city-map-dot';
     dot.style.left = `${(b.doorX / world.width) * 100}%`;
     dot.style.setProperty('--c', b.look.accent);

@@ -127,3 +127,14 @@ test('theme blends only near district gates', () => {
   assert.equal(past.b, 'phoebe');
   assert.ok(past.t > 0.5);
 });
+
+test('runToGame：遠距離快速奔跑，約 2 秒內到門口', async () => {
+  const { runToGame } = await import('../site/shell/city/layout.js');
+  const { buildings, width } = layoutCity(Array.from({ length: 14 }, (_, i) => ({ id: `g${i}`, name: `g${i}` })));
+  const s = { x: buildings[0].doorX, vx: 0, facing: 1, target: null, autoRun: false, moving: false };
+  runToGame(s, buildings[13]);
+  let t = 0;
+  while (s.target != null && t < 10) { stepPlayer(s, { dir: 0 }, 1 / 60, width); t += 1 / 60; }
+  assert.equal(s.x, buildings[13].doorX);
+  assert.ok(t < 2.5, `took ${t}s`);
+});
