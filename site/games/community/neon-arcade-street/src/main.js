@@ -394,6 +394,11 @@ function drawMap() {
     mctx.fillRect(-o.hw * sc, -o.hd * sc, o.hw * 2 * sc, o.hd * 2 * sc); mctx.restore();
   }
   mctx.fillStyle = '#ffd84a'; mctx.beginPath(); mctx.arc(c, c, 3, 0, 7); mctx.fill();
+  if (interactDoor) {
+    mctx.fillStyle = '#ff8fd0'; mctx.fillRect(wx(interactDoor.position.x) - 3, wz(interactDoor.position.z) - 3, 6, 6);
+    mctx.font = '10px system-ui'; mctx.textAlign = 'center';
+    mctx.fillText('電玩屋', wx(interactDoor.position.x), wz(interactDoor.position.z) + 15);
+  }
   mctx.translate(wx(player.x), wz(player.z)); mctx.rotate(-player.yaw);
   mctx.fillStyle = '#29e6ff'; mctx.shadowColor = '#29e6ff'; mctx.shadowBlur = 6;
   mctx.beginPath(); mctx.moveTo(0, -7); mctx.lineTo(5, 5); mctx.lineTo(0, 2); mctx.lineTo(-5, 5); mctx.closePath(); mctx.fill();
