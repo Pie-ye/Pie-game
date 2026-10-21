@@ -3,32 +3,35 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-  <meta name="theme-color" content="#0b0618">
-  <title>星光電玩街 · STAR ARCADE STREET</title>
+  <meta name="theme-color" content="#070d12">
+  <title>霓虹電玩街 · NEON ARCADE STREET</title>
   <link rel="stylesheet" href="./style.css">
 </head>
 <body data-mode="loading">
   <main id="app" tabindex="0">
-    <canvas id="world" aria-label="賽博龐克星光電玩街的第一人稱 3D 場景"></canvas>
+    <canvas id="world" aria-label="破舊賽博龐克霓虹電玩街的第一人稱 3D 場景"></canvas>
 
     <section id="hud" aria-label="街區資訊">
-      <div id="zone-banner"><span id="zone-name">星光廣場</span><span id="zone-en">STAR PLAZA</span></div>
+      <div id="zone-banner"><span id="zone-name">中央廣場</span><span id="zone-en">CENTRAL HUB</span></div>
       <canvas id="compass" width="420" height="30" aria-label="羅盤"></canvas>
       <aside id="minimap"><canvas id="map" width="176" height="176" aria-label="街區小地圖：青色箭頭是你，金點是廣場中心"></canvas></aside>
       <div id="hint"><b>WASD</b> 移動　<b>滑鼠</b> 視角　<b>Shift</b> 奔跑　<b>Space</b> 跳　<b>Esc</b> 選單　<b>R</b> 雨　<b>B</b> 泛光　<b>M</b> 音效　<b>N</b> 配樂</div>
+      <div id="interact" aria-live="polite"></div>
       <div id="crosshair"></div>
       <div id="fps"></div>
+      <div id="online" data-mode="solo"></div>
       <div id="toast" role="status"></div>
       <div id="joy"><i id="joy-knob"></i></div>
       <button id="jump-btn" aria-label="跳">跳</button>
+      <button id="interact-btn" aria-label="互動">進入</button>
     </section>
 
     <section id="title" class="overlay" aria-label="標題">
       <div class="card">
         <span class="eyebrow">PIE GAME · 首頁環景原型</span>
-        <h1><em>星光</em>電玩街</h1>
-        <p class="en">STAR ARCADE STREET</p>
-        <p class="lead">賽博龐克 × 星光少女 × 電玩街。雨夜的圓形星光廣場連出四條霓虹大道，用第一人稱慢慢逛。</p>
+        <h1><em>霓虹</em>電玩街</h1>
+        <p class="en">NEON ARCADE STREET</p>
+        <p class="lead">破舊的賽博龐克 × 高科技的未來感 × 電玩街。雨夜的圓形中央廣場連出四條霓虹大道，用第一人稱慢慢逛。</p>
         <div class="load"><div id="load-bar"></div></div>
         <button id="start" class="primary" disabled>載入中…</button>
         <span id="load-pct" class="fine">0%</span>
@@ -54,6 +57,18 @@
         </ul>
       </div>
     </section>
+    <dialog id="arcade-game" aria-labelledby="arcade-title">
+      <div class="arcade-heading"><span>STAR ARCADE · 街機 01 / 02</span><button id="arcade-close" aria-label="關閉遊戲回到室內">返回電玩屋 ×</button></div>
+      <h2 id="arcade-title">星光反應</h2>
+      <p>按亮起的方向，試試你的反應速度。</p>
+      <p id="arcade-status" role="status"></p>
+      <div class="arcade-pads" aria-label="方向鍵或觸控遊戲">
+        <button data-pad="0" aria-label="上">↑</button><button data-pad="1" aria-label="右">→</button>
+        <button data-pad="2" aria-label="下">↓</button><button data-pad="3" aria-label="左">←</button>
+      </div>
+      <button id="arcade-start" class="primary">開始遊戲</button>
+      <p class="fine">方向鍵／點擊／觸控 · 本機休閒遊戲，不使用金幣</p>
+    </dialog>
   </main>
   <script type="module" src="./src/main.js"></script>
 </body>

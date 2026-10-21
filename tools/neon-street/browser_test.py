@@ -111,6 +111,17 @@ with sync_playwright() as p:
     except Exception:
         pass
     check('廣場' in page.inner_text('#zone-name'), f"回到廣場顯示區域名：{page.inner_text('#zone-name')}")
+    # 室內垂直切片：入口載入的是 Kenney Mini Arcade 的 CC0 GLB，不是程式方塊。
+    page.evaluate('__street.setPose(10.45, 49.1, 0, 0)'); page.wait_for_timeout(300)
+    check(page.evaluate("document.getElementById('interact-btn').classList.contains('on')"), '靠近金色入口顯示進入提示')
+    page.keyboard.press('KeyE')
+    page.wait_for_function("document.getElementById('zone-name').textContent.includes('星光電玩屋')", timeout=10000)
+    check('星光電玩屋' in page.inner_text('#zone-name'), '按 E 進入星光電玩屋')
+    page.evaluate('__street.setPose(0, -236.7, Math.PI, 0)'); page.wait_for_timeout(300)
+    check(page.evaluate("document.getElementById('interact-btn').classList.contains('on')"), '室內出口顯示返回提示')
+    page.keyboard.press('KeyE')
+    page.wait_for_function("document.getElementById('zone-name').textContent.includes('夜市')", timeout=10000)
+    check('夜市' in page.inner_text('#zone-name'), '按 E 返回星光電玩街')
     # 切換
     page.keyboard.press('KeyR'); page.wait_for_timeout(100)
     check(page.evaluate('__street.mode') == 'play', 'R 切換雨不影響遊玩')

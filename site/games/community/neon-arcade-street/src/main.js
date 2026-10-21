@@ -10,6 +10,9 @@ import { makeSky } from './sky.js';
 import { makeRain } from './rain.js';
 import { createAudio } from './audio.js';
 import { HDRLoader } from '../vendor/jsm/loaders/HDRLoader.js';
+import { createMultiplayer } from './multiplayer.js';
+import { loadArcade, ROOM_Z } from './interior.js';
+import { createArcadeGame } from './arcade-game.js';
 import { loadDetailLibrary, preloadDetail, applyDetail } from './detail.js';
 
 const $ = (id) => document.getElementById(id);
@@ -24,7 +27,14 @@ let mode = 'loading';           // loading | title | play | pause
 let dragLook = false, dragging = false, rainOn = params.get('rain') !== '0', bloomOn = params.get('bloom') !== '0';
 let autoQuality = params.get('autoq') !== '0';
 let world = null, renderer, scene, camera, composer, bloom, sky, rain, lightPool = [], lightsData = [];
+let streetRoot = null, interiorRoot = null, interiorActive = false, exteriorReturn = null;
+let interactDoor = null, interactNear = false;
+let nearCabinet = false;
+const cabinetGame = createArcadeGame(() => { mode = 'pause'; document.body.dataset.mode = 'pause'; });
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+let interiorWorld = null, streetColliders = null, streetBounds = 0;
 const parts = [], flickers = [];
+let net = null;
 const audio = createAudio();
 const touch = { id: null, x: 0, y: 0, ox: 0, oy: 0, look: null, lx: 0, ly: 0 };
 let lastZone = '', zoneTimer = 0, stepDist = 0, clock = performance.now(), jumpQueued = false;
@@ -32,18 +42,19 @@ let lastZone = '', zoneTimer = 0, stepDist = 0, clock = performance.now(), jumpQ
 // ───────── 初始化渲染器 ─────────
 function setupRenderer() {
   renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
+  renderer.info.autoReset = false;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, params.get('hi') ? 2 : 1.5));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = P('exp', 0.85);
   scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0x1d0c3c, 0.0105);
+  scene.fog = new THREE.FogExp2(0x0a1a20, 0.0115);
   camera = new THREE.PerspectiveCamera(72, 1, 0.08, 900);
   camera.rotation.order = 'YXZ';
   sky = makeSky();
   scene.add(sky);
   rain = makeRain();
   scene.add(rain);
-  scene.add(new THREE.HemisphereLight(0x7a5cd0, 0x1a1030, P('hemi', 0.4)));
+  scene.add(new THREE.HemisphereLight(0x4c8ea0, 0x140c08, P('hemi', 0.4)));
   const moon = new THREE.DirectionalLight(0x8aa8ff, P('moon', 0.3));
   moon.position.set(-30, 60, -86);
   scene.add(moon);
@@ -77,6 +88,7 @@ window.addEventListener('resize', () => renderer && onResize());
 // ───────── 載入場景 ─────────
 const WET = new Set(['ground_plaza', 'ground_N', 'ground_E', 'ground_S', 'ground_W']);
 function prepareScene(gltf, data) {
+  streetRoot = gltf.scene;
   const env = scene.userData.env;
   const aniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
   const seen = new Set();
@@ -87,6 +99,9 @@ function prepareScene(gltf, data) {
       seen.add(m);
       for (const k of ['map', 'emissiveMap', 'roughnessMap']) if (m[k]) m[k].anisotropy = aniso;
       if (params.get('detail') !== '0') applyDetail(m);
+      // 葉片：貼圖 Alpha 鏤空（MASK），並乘上 Blender 給的色調，同一張葉圖變出健康／乾枯／發光
+      if (m.userData && m.userData.cut) { m.alphaTest = 0.5; m.transparent = false; m.side = THREE.DoubleSide; m.depthWrite = true; }
+      if (m.userData && m.userData.tint) m.color.multiply(new THREE.Color(m.userData.tint));
       m.envMap = env;
       m.envMapIntensity = WET.has(m.name) ? P('wet', 0.55) : m.name.startsWith('prop_') ? 0.6 : (m.metalness > 0.3 ? 0.8 : 0.1);
       m.emissiveIntensity *= P('em', 0.5);
@@ -115,6 +130,45 @@ function prepareScene(gltf, data) {
     scene.add(L);
     lightPool.push({ L, id: -1, target: 0 });
   }
+}
+
+async function makeInterior() {
+  const room = await loadArcade();
+  interiorRoot = room.root; scene.add(interiorRoot);
+  interactDoor = room.makeEntrance(); scene.add(interactDoor);
+  return room;
+}
+function enterInterior() {
+  if (interiorActive || !interactNear || !interiorRoot) return;
+  exteriorReturn = { x: player.x, z: player.z, yaw: player.yaw, pitch: player.pitch };
+  interiorActive = true; interiorRoot.visible = true; streetRoot.visible = false; interactDoor.visible = false;
+  sky.visible = false; rain.visible = false; audio.setRain(false);
+  for (const s of lightPool) s.L.visible = false;
+  scene.fog = null;
+  Object.assign(player, { x: 0, z: ROOM_Z + 2.7, y: 0, vx: 0, vz: 0, vy: 0, yaw: 0, pitch: 0, bob: 0 });
+  world.colliders = interiorWorld.colliders; world.bounds = interiorWorld.bounds; lastZone = '';
+  $('zone-name').textContent = '星光電玩屋'; $('zone-en').textContent = 'STAR ARCADE ROOM'; document.body.dataset.zone = 'P';
+  toast('進入星光電玩屋');
+}
+function exitInterior() {
+  if (!interiorActive || !exteriorReturn || !interactNear) return;
+  interiorActive = false; interiorRoot.visible = false; streetRoot.visible = true; interactDoor.visible = true;
+  sky.visible = true; rain.visible = rainOn; audio.setRain(rainOn);
+  for (const s of lightPool) s.L.visible = true;
+  scene.fog = new THREE.FogExp2(0x0a1a20, 0.0115);
+  Object.assign(player, exteriorReturn, { y: 0, vx: 0, vz: 0, vy: 0, bob: 0 }); world.colliders = streetColliders; world.bounds = streetBounds; lastZone = '';
+  toast('回到星光電玩街');
+}
+function interact() {
+  if (mode !== 'play') return;
+  if (interiorActive && nearCabinet) {
+    mode = 'arcade'; document.body.dataset.mode = 'arcade';
+    keys.clear(); touch.id = touch.look = null; touch.x = touch.y = 0; jumpQueued = false;
+    player.vx = player.vz = 0;
+    if (document.pointerLockElement) document.exitPointerLock();
+    cabinetGame.open();
+  } else if (interiorActive) exitInterior();
+  else enterInterior();
 }
 
 const LIGHT_GAIN = P('lg', 10);
@@ -156,6 +210,12 @@ function animateWorld(t, dt) {
   for (const p of parts) {
     if (p.kind === 'spin') {
       for (const n of p.nodes) n.rotation.y += p.speed * dt;
+    } else if (p.kind === 'patrol') {
+      const a = t * p.speed + p.phase;
+      p.nodes.forEach((n, i) => {
+        n.position.set(p.cx + Math.cos(a) * p.r, p.base[i] + Math.sin(t * 1.3 + p.phase) * p.bob, p.cz + Math.sin(a) * p.r);
+        n.rotation.y = -a + (p.speed > 0 ? -Math.PI / 2 : Math.PI / 2);
+      });
     } else if (p.kind === 'float') {
       p.nodes.forEach((n, i) => {
         n.position.y = p.base[i] + Math.sin(t * p.speed + p.phase) * p.amp;
@@ -172,15 +232,17 @@ function animateWorld(t, dt) {
 // ───────── 輸入 ─────────
 const MOVE_KEYS = { KeyW: 'f', KeyS: 'b', KeyA: 'l', KeyD: 'r' };
 window.addEventListener('keydown', (e) => {
+  if (mode === 'arcade') return;
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const c = e.code;
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(c)) e.preventDefault();
   keys.add(c);
   if (e.repeat) return;
   if (c === 'Space') jumpQueued = true;  // 輕按也算數，不會在兩幀之間被漏掉
+  if (c === 'KeyE' && mode === 'play') interact();
   if (c === 'KeyM') { const m = audio.toggleMute(); toast(m ? '音效 關' : '音效 開'); }
   else if (c === 'KeyN') { const m = audio.toggleMusic(); toast(m ? '配樂 開' : '配樂 關'); }
-  else if (c === 'KeyR') { rainOn = !rainOn; rain.visible = rainOn; audio.setRain(rainOn); toast(rainOn ? '雨 開' : '雨 關'); }
+  else if (c === 'KeyR') { rainOn = !rainOn; rain.visible = rainOn && !interiorActive; audio.setRain(rain.visible); toast(rainOn ? '雨 開' : '雨 關'); }
   else if (c === 'KeyB') { bloomOn = !bloomOn; bloom.enabled = bloomOn; toast(bloomOn ? '泛光 開' : '泛光 關'); }
   else if (c === 'KeyH') { document.body.classList.toggle('hud-off'); }
   else if (c === 'Enter' && mode === 'title' && !$('start').disabled) begin();
@@ -242,6 +304,7 @@ canvas.addEventListener('touchmove', onTouchMove, { passive: false });
 canvas.addEventListener('touchend', onTouchEnd);
 canvas.addEventListener('touchcancel', onTouchEnd);
 $('jump-btn').addEventListener('touchstart', (e) => { jumpQueued = true; e.preventDefault(); }, { passive: false });
+$('interact-btn').addEventListener('click', interact);
 
 function readInput(dt) {
   const a = (...c) => c.some((k) => keys.has(k));
@@ -259,14 +322,14 @@ function readInput(dt) {
 // ───────── 流程 ─────────
 function begin() {
   audio.start();
-  audio.setRain(rainOn);
+  audio.setRain(rainOn && !interiorActive);
   if (matchMedia('(pointer: coarse)').matches) { dragLook = false; enterPlay(); return; } // 觸控裝置不需要鎖定滑鼠
   try {
     const p = canvas.requestPointerLock();
     if (p && p.catch) p.catch(() => { dragLook = true; enterPlay(); toast('無法鎖定滑鼠：改用按住左鍵拖曳轉視角'); });
   } catch { dragLook = true; enterPlay(); }
   // 某些環境 requestPointerLock 不會觸發事件也不會報錯：保底
-  setTimeout(() => { if (mode !== 'play') { dragLook = true; enterPlay(); toast('改用按住左鍵拖曳轉視角'); } }, 900);
+  setTimeout(() => { if (mode === 'title' || mode === 'pause') { dragLook = true; enterPlay(); toast('改用按住左鍵拖曳轉視角'); } }, 900);
 }
 function enterPlay() {
   mode = 'play';
@@ -286,6 +349,11 @@ $('resume').addEventListener('click', () => { if (dragLook) enterPlay(); else be
 $('menu-title').addEventListener('click', () => { mode = 'title'; document.body.dataset.mode = 'title'; });
 
 let toastTimer = 0;
+function showOnline(s) {
+  const el = $('online');
+  el.dataset.mode = s.mode;
+  el.textContent = s.mode === 'online' ? `● 線上 ${s.online} 人` : s.mode === 'reconnecting' ? '連線中斷，重連中…' : s.reason || '單機';
+}
 function toast(msg) {
   const t = $('toast'); t.textContent = msg; t.classList.add('on');
   clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), 1400);
@@ -295,6 +363,20 @@ function toast(msg) {
 const mapCv = $('map'), mctx = mapCv.getContext('2d'), compass = $('compass'), cctx = compass.getContext('2d');
 let mapTimer = 0;
 function drawMap() {
+  if (interiorActive) {
+    const S = mapCv.width, scale = S / 16, c = S / 2;
+    mctx.clearRect(0, 0, S, S);
+    mctx.fillStyle = 'rgba(18,10,36,.9)'; mctx.fillRect(0, 0, S, S);
+    mctx.strokeStyle = '#b48cff'; mctx.lineWidth = 2;
+    mctx.strokeRect(c - 6 * scale, c - 4 * scale, 12 * scale, 8 * scale);
+    mctx.fillStyle = '#ff8fd0';
+    for (const o of interiorWorld.colliders) if (o.tag === 'cabinet')
+      mctx.fillRect(c + (o.cx - o.hw) * scale, c + (o.cz - ROOM_Z - o.hd) * scale, o.hw * 2 * scale, o.hd * 2 * scale);
+    mctx.fillStyle = '#ffd84a'; mctx.fillRect(c - scale, c + 3.7 * scale, 2 * scale, .3 * scale);
+    mctx.save(); mctx.translate(c + player.x * scale, c + (player.z - ROOM_Z) * scale); mctx.rotate(-player.yaw);
+    mctx.fillStyle = '#5ee1ff'; mctx.beginPath(); mctx.moveTo(0, -6); mctx.lineTo(4, 4); mctx.lineTo(-4, 4); mctx.closePath(); mctx.fill(); mctx.restore();
+    return;
+  }
   const S = mapCv.width, sc = S / 210, c = S / 2;
   mctx.clearRect(0, 0, S, S);
   mctx.save();
@@ -305,7 +387,7 @@ function drawMap() {
   mctx.fillRect(wx(-10), wz(-100), 20 * sc, 200 * sc);
   mctx.fillRect(wx(-100), wz(-10), 200 * sc, 20 * sc);
   mctx.beginPath(); mctx.arc(c, c, 27 * sc, 0, 7); mctx.fill();
-  mctx.strokeStyle = '#ff3fb4'; mctx.lineWidth = 1.5; mctx.beginPath(); mctx.arc(c, c, 24 * sc, 0, 7); mctx.stroke();
+  mctx.strokeStyle = '#ff8a3d'; mctx.lineWidth = 1.5; mctx.beginPath(); mctx.arc(c, c, 24 * sc, 0, 7); mctx.stroke();
   mctx.fillStyle = 'rgba(255,255,255,.14)';
   for (const o of world.colliders) if (o.t === 'obb' && o.tag === 'b') {
     mctx.save(); mctx.translate(wx(o.cx), wz(o.cz)); mctx.rotate(Math.atan2(o.az, o.ax));
@@ -329,13 +411,26 @@ function drawCompass() {
     const x = w / 2 + (ang - heading + (ang - heading > 180 ? -360 : ang - heading < -180 ? 360 : 0)) * ppd;
     if (x < 6 || x > w - 6) continue;
     const dir = DIRS.find((q) => q[1] === ang);
-    cctx.strokeStyle = dir ? '#ff7ad9' : 'rgba(200,190,255,.45)';
+    cctx.strokeStyle = dir ? '#5ae8ff' : 'rgba(180,200,210,.45)';
     cctx.beginPath(); cctx.moveTo(x, h - 4); cctx.lineTo(x, h - (dir ? 14 : ang % 15 === 0 ? 10 : 7)); cctx.stroke();
-    if (dir) { cctx.fillStyle = dir[0].length === 1 ? '#ffe27a' : '#cfc3ff'; cctx.fillText(dir[0], x, 16); }
+    if (dir) { cctx.fillStyle = dir[0].length === 1 ? '#ffd84a' : '#bcd3da'; cctx.fillText(dir[0], x, 16); }
   }
   cctx.fillStyle = '#29e6ff'; cctx.beginPath(); cctx.moveTo(w / 2 - 5, 0); cctx.lineTo(w / 2 + 5, 0); cctx.lineTo(w / 2, 7); cctx.fill();
 }
 function updateZone(dt) {
+  // street world is published before the optional interior assets finish loading;
+  // do not query the entrance until its portal has been created.
+  if (!world || !interactDoor) return;
+  if (interiorActive) {
+    interactNear = player.z > ROOM_Z + 2.6 && Math.abs(player.x) < 1.6;
+    nearCabinet = interiorWorld.machines.some(m => m.name === 'arcade-machine'
+      && player.z > m.z && Math.hypot(player.x - m.x, player.z - m.z) < 1.8);
+    const el = $('interact'); el.textContent = nearCabinet ? 'E／按鈕　遊玩星光反應' : interactNear ? 'E／按鈕　離開星光電玩屋' : '星光電玩屋 · 室內探索'; el.classList.toggle('on', true);
+    $('interact-btn').textContent = nearCabinet ? '遊玩' : '離開';
+    $('interact-btn').classList.toggle('on', interactNear || nearCabinet);
+    return;
+  }
+  nearCabinet = false;
   const z = zoneAt(player.x, player.z, world.ring);
   if (z !== lastZone) {
     lastZone = z;
@@ -344,6 +439,11 @@ function updateZone(dt) {
     const b = $('zone-banner'); b.classList.remove('flash'); void b.offsetWidth; b.classList.add('flash');
     document.body.dataset.zone = z;
   }
+  const dx = player.x - interactDoor.position.x, dz = player.z - interactDoor.position.z;
+  interactNear = dx * dx + dz * dz < 2.2 * 2.2;
+  const el = $('interact'); el.textContent = interactNear ? 'E　進入星光電玩屋' : ''; el.classList.toggle('on', interactNear);
+  $('interact-btn').textContent = '進入';
+  $('interact-btn').classList.toggle('on', interactNear);
 }
 
 // ───────── 主迴圈 ─────────
@@ -358,6 +458,7 @@ function frame(now) {
   clock = now;
   simTime += dt;
   if (!world) return;
+  if (mode === 'arcade') { if (net) net.update(dt, camera.position); return; }
   let moved = 0;
   if (mode === 'play') {
     const input = readInput(dt);
@@ -372,18 +473,22 @@ function frame(now) {
       if (stepDist > stride && r.speed > 0.5) { stepDist = 0; audio.step(input.run, true); }
     }
   }
-  const bobAmp = Math.min(1, Math.hypot(player.vx, player.vz) / 6) * 0.045;
+  const motion = reducedMotion.matches || params.get('motion') === '0' ? 0 : 1;
+  const bobAmp = Math.min(1, Math.hypot(player.vx, player.vz) / 6) * 0.025 * motion;
+  const sway = Math.sin(player.bob * Math.PI * 0.5) * bobAmp * 0.12;
   camera.position.set(player.x, world.eye + player.y + Math.sin(player.bob * Math.PI) * bobAmp, player.z);
-  camera.rotation.set(player.pitch, player.yaw, Math.sin(player.bob * Math.PI * 0.5) * bobAmp * 0.12);
+  camera.rotation.set(player.pitch, player.yaw, sway);
   sky.position.copy(camera.position);
   sky.material.uniforms.uTime.value = simTime;
   rain.material.uniforms.uTime.value = simTime;
   rain.material.uniforms.uCam.value.copy(camera.position);
   animateWorld(simTime, dt);
+  if (net) net.update(dt, camera.position);
   updateLights(dt);
   updateZone(dt);
   mapTimer -= dt;
   if (mapTimer <= 0) { mapTimer = 0.1; drawMap(); drawCompass(); }
+  renderer.info.reset();
   composer.render(dt);
   // 效能自動降級：連續 3 秒低於 24 fps 就關泛光、降像素比
   fpsAcc += dt; fpsN++;
@@ -424,6 +529,8 @@ async function loadEnvironment() {
 
 async function boot() {
   setupRenderer();
+  net = createMultiplayer({ scene, getPose: () => (world ? { ...player, area: interiorActive ? 'arcade' : 'street' } : null), toast, onStatus: showOnline });
+  net.start();
   const bar = $('load-bar'), pct = $('load-pct');
   const load = (url, onProgress) => new Promise((res, rej) => new GLTFLoader().load(url, res, onProgress, rej));
   const [data, gltf] = await Promise.all([
@@ -439,6 +546,8 @@ async function boot() {
   }
   prepareScene(gltf, data);
   world = { colliders: prepare(data.colliders), bounds: data.bounds, eye: data.eye, zones: data.zones, ring: data.ring };
+  streetColliders = world.colliders; streetBounds = world.bounds;
+  interiorWorld = await makeInterior();
   const sp = params.get('spawn');
   if (sp) { const [x, z, yaw, pitch] = sp.split(',').map(Number); Object.assign(player, { x, z, yaw: yaw || 0, pitch: pitch || 0 }); }
   else Object.assign(player, { x: data.spawn.x, z: data.spawn.z, yaw: data.spawn.yaw });
@@ -453,8 +562,10 @@ async function boot() {
 
 window.__street = {
   player, THREE, get world() { return world; }, get mode() { return mode; },
-  setPose(x, z, yaw = 0, pitch = 0) { Object.assign(player, { x, z, yaw, pitch, vx: 0, vz: 0 }); updateLights(0.2, true); },
+  get interior() { return interiorActive; }, get interiorWorld() { return interiorWorld; },
+  setPose(x, z, yaw = 0, pitch = 0) { Object.assign(player, { x, z, yaw, pitch, vx: 0, vz: 0 }); updateLights(0.2, true); if (world) updateZone(0); },
   get fps() { return $('fps').textContent; },
+  get net() { return net; },
   stats() { return { calls: renderer.info.render.calls, tris: renderer.info.render.triangles, tex: renderer.info.memory.textures }; },
 };
 

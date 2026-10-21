@@ -81,6 +81,14 @@
    "Rob Tuytel"
   ]
  },
+ "bark": {
+  "tile": 1.0,
+  "source": "bark_brown_02",
+  "mean_rough": 0.902,
+  "authors": [
+   "Rob Tuytel"
+  ]
+ },
  "corr": {
   "tile": 2.0,
   "source": "corrugated_iron_03",

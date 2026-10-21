@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""產生星光電玩街的所有貼圖（Pillow）。輸出到 tools/neon-street/tex/。
+"""產生霓虹電玩街的所有貼圖（Pillow）。輸出到 tools/neon-street/tex/。
 
 用法：python3 make_textures.py [--only 名稱前綴]
 招牌文字、光暈位置來自 scene_gen（與 Blender 組裝用同一份排版）。
@@ -16,7 +16,7 @@ import scene_gen as S
 HERE = Path(__file__).resolve().parent
 OUT = HERE / 'tex'
 OUT.mkdir(exist_ok=True)
-CITY_ASSETS = HERE.parent.parent / 'site' / 'shell' / 'city' / 'assets'
+ART = HERE / 'art'
 FONT = '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc'
 FONT_LAT = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'
 
@@ -50,6 +50,29 @@ def save(img, name, q=88):
 def noise(size, sigma=14, seed=0):
     random.seed(seed)
     return Image.effect_noise(size, sigma)
+
+
+def _tnoise(cells, w, h, sigma, seed, tile):
+    """cells＝低解析度雜訊格數 (cw, ch)，放大成 w×h；tile=True 時可無縫平鋪。"""
+    cw, ch = cells
+    small = noise((cw, ch), sigma, seed)
+    if not tile:
+        return small.resize((w, h), Image.BICUBIC)
+    big = Image.new('L', (cw * 3, ch * 3))
+    for i in range(3):
+        for j in range(3):
+            big.paste(small, (i * cw, j * ch))
+    big = big.resize((w * 3, h * 3), Image.BICUBIC)
+    return big.crop((w, h, w * 2, h * 2))
+
+
+def grime(img, seed, strength=0.55, streak=True, tile=False):
+    """髒污：垂直雨水流痕與斑駁污漬，乘在底圖上（只暗化，不加色）。tile=True 可無縫平鋪。"""
+    w, h = img.size
+    sm = _tnoise((max(4, w // 64), max(4, h // 4)), w, h, 40, seed, tile) if streak else Image.new('L', (w, h), 128)
+    blotch = _tnoise((max(4, w // 48), max(4, h // 48)), w, h, 40, seed + 1, tile)
+    m = ImageChops.multiply(sm, blotch).point(lambda v: int(255 - min(255, max(0, (v - 40) * 1.4)) * strength))
+    return ImageChops.multiply(img, Image.merge('RGB', (m, m, m)))
 
 
 _GRAD = None
@@ -132,10 +155,28 @@ def sign_cell(w, h, text, col_hex, vertical=False, stars=False):
         pad = 0.16 if not stars else 0.28
         f = fit_font(w * (1 - 2 * pad), h * 0.56, text, max_size=300)
         glow_text(img, (w / 2, h / 2 + 2), text, f, col, blur=8, stroke=2)
-        if stars:
+        if stars:   # 大招牌兩端的裝飾：改成機械式的箭頭標記
             sd = ImageDraw.Draw(img)
-            for sx in (w * 0.1, w * 0.9):
-                star(sd, sx, h / 2, h * 0.22, mix(col, (255, 255, 255), 0.5))
+            for sx, sg in ((w * 0.07, 1), (w * 0.93, -1)):
+                for k in range(3):
+                    x0 = sx + sg * k * h * 0.13
+                    sd.polygon([(x0, h / 2 - h * 0.16), (x0 + sg * h * 0.12, h / 2), (x0, h / 2 + h * 0.16)],
+                               outline=mix(col, (255, 255, 255), 0.5), width=4)
+    # 老舊感：幾段燈管壞掉（暗掉）、整體髒污
+    seed = sum(ord(c) for c in text)
+    rnd = random.Random(seed)
+    if rnd.random() < 0.45:
+        px = img.load()
+        for _ in range(rnd.randint(1, 2)):
+            if vertical:
+                y0 = rnd.randint(int(h * 0.15), int(h * 0.8)); y1 = y0 + rnd.randint(int(h * 0.04), int(h * 0.12))
+                x0, x1 = 0, w
+            else:
+                x0 = rnd.randint(int(w * 0.15), int(w * 0.8)); x1 = x0 + rnd.randint(int(w * 0.03), int(w * 0.1))
+                y0, y1 = 0, h
+            reg = img.crop((x0, y0, x1, y1)).point(lambda v: int(v * 0.12))
+            img.paste(reg, (x0, y0))
+    img = grime(img, seed, 0.3, streak=True)
     return img
 
 
@@ -158,10 +199,10 @@ def make_signs():
 
 # ───────────────────────── 大樓立面 ─────────────────────────
 FAC_STYLE = [
-    ('#2a1f3d', ['#ffd0f0', '#ff9ae0', '#fff2b0', '#bfe9ff']),
-    ('#1c2347', ['#8ae8ff', '#bfe9ff', '#ffffff', '#ff9ae0']),
-    ('#172a3a', ['#7affd9', '#ffd96a', '#ff7ad9', '#8ae8ff']),
-    ('#2a2630', ['#ffe08a', '#ffc96a', '#fff2c0']),
+    ('#1f2b36', ['#bfe9ff', '#8ae8ff', '#fff2b0', '#ffb070']),
+    ('#1c2a3a', ['#8ae8ff', '#bfe9ff', '#ffffff', '#ff7ab0']),
+    ('#172a2e', ['#7affd9', '#ffd96a', '#8ae8ff', '#d0f0ff']),
+    ('#26282c', ['#ffe08a', '#ffc96a', '#fff2c0']),
     ('#3a1e24', ['#ffb066', '#ff8a5a', '#ffe0a0']),
     ('#14302e', ['#7affb0', '#b0ffe0', '#7ae8ff']),
 ]
@@ -188,7 +229,7 @@ def acg_get(asset):
         data = r.read()
     with zipfile.ZipFile(io.BytesIO(data)) as z:
         for n in z.namelist():
-            if n.endswith(('_Color.jpg', '_Emission.jpg', '_NormalGL.jpg', '_Roughness.jpg', '_Metalness.jpg')):
+            if n.endswith(('_Color.jpg', '_Emission.jpg', '_NormalGL.jpg', '_Roughness.jpg', '_Metalness.jpg', '_Opacity.jpg')):
                 (d / Path(n).name).write_bytes(z.read(n))
     return d
 
@@ -216,7 +257,8 @@ def make_facade(i):
     # 反照率：夜裡偏暗，並朝街區的牆色微微染色
     col = ld('Color').convert('RGB').resize((size, size), Image.LANCZOS)
     tint = tuple(min(255, int(v * 255 / max(wall))) for v in wall)
-    col = Image.blend(col, ImageChops.multiply(col, Image.new('RGB', (size, size), tint)), 0.4).point(lambda v: int(v * 0.55))
+    col = Image.blend(col, ImageChops.multiply(col, Image.new('RGB', (size, size), tint)), 0.4).point(lambda v: int(v * 0.46))
+    col = grime(col, 300 + i, 0.6, tile=True)
     save(col, f'fac_{i}_c.jpg', 84)
     # 發光：保留窗簾與人影的明暗，色調換成霓虹
     em = ld('Emission').convert('RGB').resize((size, size), Image.LANCZOS)
@@ -235,87 +277,120 @@ def make_facade(i):
 
 # ───────────────────────── 店面 ─────────────────────────
 def make_shop(key):
+    """破舊的賽博店面：四種業態，部分鐵捲門半拉、塗鴉、剝落的海報；整張圖可無縫左右平鋪。"""
     rnd = random.Random({'N': 1, 'E': 2, 'S': 3, 'W': 4}[key])
     w, h = 1024, 512
-    img = Image.new('RGB', (w, h), (6, 5, 12))
-    d = ImageDraw.Draw(img)
+    em = Image.new('RGB', (w, h), (4, 4, 8))        # 發光圖（也是亮處的底色）
+    alb = None
+    d = ImageDraw.Draw(em)
     bay = 256
+    rust = [(86, 60, 44), (70, 74, 78), (92, 70, 52)]
+    shutters = []
     for b in range(4):
         x0 = b * bay
         ix0, ix1, iy0, iy1 = x0 + 18, x0 + bay - 18, 70, h - 42
         if key == 'E':
             # 電玩店：一排排投幣機
-            d.rectangle((ix0, iy0, ix1, iy1), fill=(18, 24, 58))
-            blob(img, (ix0 + ix1) / 2, iy0 + 20, 190, (80, 200, 255), 0.45, 1.2)
+            d.rectangle((ix0, iy0, ix1, iy1), fill=(10, 20, 44))
+            blob(em, (ix0 + ix1) / 2, iy0 + 20, 190, (60, 190, 255), 0.4, 1.2)
             for k in range(3):
                 cx = ix0 + 12 + k * 70
                 cab = (cx, iy0 + 40, cx + 62, iy1)
-                d.rectangle(cab, fill=(40, 36, 96))
-                sc = rnd.choice([(90, 240, 255), (255, 90, 210), (255, 220, 90), (120, 255, 150)])
-                d.rectangle((cx + 6, cab[1] + 28, cx + 56, cab[1] + 92), fill=mul(sc, 0.85))
+                d.rectangle(cab, fill=(26, 26, 64))
+                sc_ = rnd.choice([(90, 240, 255), (255, 90, 120), (255, 190, 60), (120, 255, 150)])
+                d.rectangle((cx + 6, cab[1] + 28, cx + 56, cab[1] + 92), fill=mul(sc_, rnd.uniform(0.4, 0.85)))
                 for _ in range(8):
                     px = rnd.randint(cx + 8, cx + 50); py = rnd.randint(cab[1] + 30, cab[1] + 88)
-                    d.rectangle((px, py, px + 5, py + 5), fill=mix(sc, (255, 255, 255), 0.6))
-                d.rectangle((cx + 4, cab[1] + 6, cx + 58, cab[1] + 22), fill=rnd.choice([(255, 80, 160), (255, 200, 60), (60, 220, 255)]))
-                d.rectangle((cx + 6, cab[1] + 104, cx + 56, cab[1] + 120), fill=(30, 30, 60))
+                    d.rectangle((px, py, px + 5, py + 5), fill=mix(sc_, (255, 255, 255), 0.6))
+                d.rectangle((cx + 4, cab[1] + 6, cx + 58, cab[1] + 22), fill=rnd.choice([(255, 80, 120), (255, 170, 40), (40, 200, 255)]))
+                d.rectangle((cx + 6, cab[1] + 104, cx + 56, cab[1] + 120), fill=(20, 20, 40))
                 for q in range(3):
                     d.ellipse((cx + 10 + q * 16, cab[1] + 108, cx + 18 + q * 16, cab[1] + 116), fill=rnd.choice([(255, 60, 60), (60, 160, 255), (255, 230, 80)]))
         elif key == 'N':
-            # 星光精品店：粉紫、玩偶、吊星
-            d.rectangle((ix0, iy0, ix1, iy1), fill=(70, 30, 90))
-            blob(img, (ix0 + ix1) / 2, (iy0 + iy1) / 2, 200, (255, 140, 230), 0.55, 1.2)
-            d.rectangle((ix0, iy1 - 60, ix1, iy1), fill=(255, 180, 230))
-            for k in range(3):
-                cx = ix0 + 40 + k * 70
-                cy = iy1 - 78
-                body = rnd.choice([(255, 255, 255), (255, 190, 220), (190, 170, 255), (170, 230, 255)])
-                d.ellipse((cx - 26, cy - 22, cx + 26, cy + 26), fill=body)
-                d.ellipse((cx - 22, cy - 40, cx - 8, cy - 18), fill=body)
-                d.ellipse((cx + 8, cy - 40, cx + 22, cy - 18), fill=body)
-                d.ellipse((cx - 11, cy - 6, cx - 5, cy + 0), fill=(40, 20, 50)); d.ellipse((cx + 5, cy - 6, cx + 11, cy + 0), fill=(40, 20, 50))
-            for k in range(4):
-                sx = ix0 + 24 + k * 50 + rnd.randint(-8, 8)
-                d.line((sx, iy0, sx, iy0 + rnd.randint(28, 60)), fill=(255, 230, 255), width=2)
-                star(d, sx, iy0 + 60 + rnd.randint(0, 10), 12, rnd.choice([(255, 235, 120), (255, 170, 240), (160, 230, 255)]))
+            # 義體店：冷青色展示櫃，一格一格發光的義眼、義肢與晶片
+            d.rectangle((ix0, iy0, ix1, iy1), fill=(6, 26, 32))
+            blob(em, (ix0 + ix1) / 2, (iy0 + iy1) / 2, 200, (60, 220, 230), 0.45, 1.2)
+            for r_ in range(3):
+                sy = iy0 + 24 + r_ * 92
+                d.rectangle((ix0 + 6, sy + 70, ix1 - 6, sy + 76), fill=(120, 200, 210))
+                for k in range(3):
+                    cx = ix0 + 30 + k * 62
+                    kind = rnd.randrange(3)
+                    c = rnd.choice([(120, 255, 240), (255, 120, 80), (180, 255, 150)])
+                    if kind == 0:      # 義眼
+                        d.ellipse((cx - 17, sy + 28, cx + 17, sy + 62), fill=mul(c, 0.8))
+                        d.ellipse((cx - 7, sy + 38, cx + 7, sy + 52), fill=(6, 10, 14))
+                    elif kind == 1:    # 義肢
+                        d.rectangle((cx - 6, sy + 8, cx + 6, sy + 64), fill=mul(c, 0.65))
+                        d.rectangle((cx - 12, sy + 36, cx + 12, sy + 42), fill=mul(c, 0.9))
+                    else:              # 晶片
+                        d.rectangle((cx - 16, sy + 34, cx + 16, sy + 62), fill=mul(c, 0.6))
+                        for q in range(4):
+                            d.line((cx - 16 + q * 10, sy + 62, cx - 16 + q * 10, sy + 70), fill=mul(c, 0.9), width=2)
         elif key == 'S':
-            # 夜市：暖光、紅燈籠、攤位
-            d.rectangle((ix0, iy0, ix1, iy1), fill=(80, 36, 12))
-            blob(img, (ix0 + ix1) / 2, iy0 + 40, 200, (255, 160, 60), 0.6, 1.2)
-            d.rectangle((ix0, iy1 - 70, ix1, iy1), fill=(130, 70, 30))
-            d.rectangle((ix0, iy1 - 74, ix1, iy1 - 66), fill=(255, 210, 120))
+            # 夜市：暖光、紅燈籠、攤位與蒸氣
+            d.rectangle((ix0, iy0, ix1, iy1), fill=(70, 30, 10))
+            blob(em, (ix0 + ix1) / 2, iy0 + 40, 200, (255, 140, 40), 0.55, 1.2)
+            d.rectangle((ix0, iy1 - 70, ix1, iy1), fill=(110, 56, 24))
+            d.rectangle((ix0, iy1 - 74, ix1, iy1 - 66), fill=(230, 170, 90))
             for k in range(4):
                 cx = ix0 + 24 + k * 54
-                d.line((cx, iy0, cx, iy0 + 26), fill=(255, 220, 160), width=2)
-                d.ellipse((cx - 17, iy0 + 22, cx + 17, iy0 + 64), fill=(255, 60, 50))
-                d.rectangle((cx - 9, iy0 + 20, cx + 9, iy0 + 26), fill=(255, 210, 90))
+                d.line((cx, iy0, cx, iy0 + 26), fill=(220, 190, 140), width=2)
+                d.ellipse((cx - 17, iy0 + 22, cx + 17, iy0 + 64), fill=(235, 50, 40))
+                d.rectangle((cx - 9, iy0 + 20, cx + 9, iy0 + 26), fill=(220, 170, 60))
             for k in range(3):
                 cx = ix0 + 20 + k * 68
-                d.rectangle((cx, iy1 - 110, cx + 44, iy1 - 74), fill=rnd.choice([(255, 200, 100), (255, 120, 80), (255, 240, 180)]))
+                d.rectangle((cx, iy1 - 110, cx + 44, iy1 - 74), fill=rnd.choice([(230, 170, 80), (230, 100, 60), (230, 210, 150)]))
+            blob(em, (ix0 + ix1) / 2, iy1 - 90, 90, (255, 220, 170), 0.3, 1.6)
         else:
-            # 賽博巷：螢幕牆、青綠電路
-            d.rectangle((ix0, iy0, ix1, iy1), fill=(8, 28, 32))
+            # 賽博巷：螢幕牆與伺服器機櫃
+            d.rectangle((ix0, iy0, ix1, iy1), fill=(6, 22, 26))
             for gy in range(4):
                 for gx in range(3):
                     sx, sy = ix0 + 8 + gx * 72, iy0 + 10 + gy * 62
-                    c = rnd.choice([(80, 255, 200), (60, 200, 255), (180, 110, 255), (255, 90, 120)])
-                    d.rectangle((sx, sy, sx + 64, sy + 54), fill=mul(c, rnd.uniform(0.35, 0.9)))
+                    c = rnd.choice([(80, 255, 200), (60, 200, 255), (200, 120, 255), (255, 90, 120)])
+                    d.rectangle((sx, sy, sx + 64, sy + 54), fill=mul(c, rnd.uniform(0.2, 0.8)))
                     for _ in range(3):
                         yy = rnd.randint(sy + 6, sy + 46)
                         d.line((sx + 6, yy, sx + rnd.randint(20, 58), yy), fill=mix(c, (255, 255, 255), 0.55), width=2)
         # 天花燈管與地面反光
-        d.rectangle((ix0, iy0 - 4, ix1, iy0 + 2), fill=(255, 255, 255) if key != 'S' else (255, 230, 170))
-        blob(img, (ix0 + ix1) / 2, iy0, 120, (255, 255, 255), 0.25, 1.4)
+        d.rectangle((ix0, iy0 - 4, ix1, iy0 + 2), fill=(240, 250, 255) if key != 'S' else (255, 220, 160))
+        blob(em, (ix0 + ix1) / 2, iy0, 120, (230, 240, 255), 0.22, 1.4)
         # 立柱
-        d.rectangle((x0 - 6, 50, x0 + 8, h), fill=(14, 12, 24))
-        d.rectangle((x0 + bay - 8, 50, x0 + bay + 8, h), fill=(14, 12, 24))
-    # 上檻（暗）與底部踢腳
-    d.rectangle((0, 0, w, 52), fill=(12, 10, 20))
-    d.rectangle((0, h - 40, w, h), fill=(14, 12, 24))
-    d.line((0, 52, w, 52), fill=(60, 56, 90), width=3)
-    e = img
-    c = img.point(lambda v: int(v * 0.30))
-    save(c, f'shop_{key}_c.jpg', 86)
-    save(e, f'shop_{key}_e.jpg', 88)
+        d.rectangle((x0 - 6, 50, x0 + 8, h), fill=(10, 10, 16))
+        d.rectangle((x0 + bay - 8, 50, x0 + bay + 8, h), fill=(10, 10, 16))
+        if rnd.random() < 0.4:          # 鐵捲門半拉
+            shutters.append((ix0 - 8, iy0 - 6, ix1 + 8, iy0 + int((iy1 - iy0) * rnd.uniform(0.5, 1.0))))
+    d.rectangle((0, 0, w, 52), fill=(8, 8, 14))
+    d.rectangle((0, h - 40, w, h), fill=(10, 10, 16))
+    d.line((0, 52, w, 52), fill=(50, 56, 70), width=3)
+    # 底色：亮處以發光圖為本，暗化；鐵捲門與牆面另外上色
+    alb = em.point(lambda v: int(v * 0.30))
+    da = ImageDraw.Draw(alb)
+    for (sx0, sy0, sx1, sy1) in shutters:
+        base = rnd.choice(rust)
+        da.rectangle((sx0, sy0, sx1, sy1), fill=base)
+        for yy in range(sy0, sy1, 7):
+            da.line((sx0, yy, sx1, yy), fill=mul(base, 0.62), width=2)
+        d.rectangle((sx0, sy0, sx1, sy1), fill=(2, 2, 4))      # 擋住裡面的光
+        d.rectangle((sx0, sy1, sx1, sy1 + 3), fill=(2, 2, 4))
+    # 塗鴉與剝落的海報（踢腳板與立柱）
+    for _ in range(14):
+        gx = rnd.randint(0, w - 80)
+        gy = rnd.randint(h - 150, h - 44)
+        c = rnd.choice([(255, 60, 160), (60, 230, 255), (255, 220, 70), (120, 255, 150)])
+        pts = [(gx + rnd.randint(0, 70), gy + rnd.randint(-26, 26)) for _ in range(rnd.randint(3, 6))]
+        da.line(pts, fill=mul(c, 0.7), width=rnd.randint(3, 6), joint='curve')
+        d.line(pts, fill=mul(c, 0.32), width=rnd.randint(3, 6), joint='curve')
+    for _ in range(6):
+        px = rnd.randint(0, w - 40); py = rnd.randint(60, h - 140)
+        pw, ph = rnd.randint(18, 34), rnd.randint(30, 52)
+        c = rnd.choice([(200, 190, 170), (180, 120, 120), (120, 160, 170)])
+        da.rectangle((px, py, px + pw, py + ph), fill=mul(c, 0.55))
+    alb = grime(alb, 71 + ord(key), 0.55, tile=True)
+    em = grime(em, 73 + ord(key), 0.25, tile=True)
+    save(alb, f'shop_{key}_c.jpg', 86)
+    save(em, f'shop_{key}_e.jpg', 88)
 
 
 # ───────────────────────── 投幣機 / 販賣機 ─────────────────────────
@@ -326,11 +401,11 @@ def make_cabs():
     for i in range(4):
         col, row = i % 2, i // 2
         x0, y0 = col * 256, row * 512
-        pal = [(60, 230, 255), (255, 80, 200), (255, 220, 80), (120, 255, 150)][i]
+        pal = [(60, 230, 255), (255, 90, 120), (255, 190, 60), (120, 255, 150)][i]
         d.rectangle((x0 + 6, y0 + 6, x0 + 250, y0 + 506), fill=(20, 18, 44))
         d.rectangle((x0 + 12, y0 + 12, x0 + 244, y0 + 80), fill=mul(pal, 0.9))       # 招牌
         for k in range(5):
-            star(d, x0 + 40 + k * 44, y0 + 46, 12, (255, 255, 255))
+            d.rectangle((x0 + 30 + k * 44, y0 + 40, x0 + 48 + k * 44, y0 + 52), fill=(255, 255, 255))
         sc = (x0 + 28, y0 + 100, x0 + 228, y0 + 300)                                   # 螢幕
         d.rectangle(sc, fill=(6, 8, 20))
         if i == 0:   # 太空射擊
@@ -373,12 +448,12 @@ def make_vend():
     img = Image.new('RGB', (768, 512), (0, 0, 0))
     d = ImageDraw.Draw(img)
     rnd = random.Random(8)
-    pals = [((255, 120, 200), (255, 230, 250)), ((100, 255, 200), (230, 255, 245)), ((255, 220, 100), (255, 248, 220))]
+    pals = [((255, 150, 60), (255, 236, 215)), ((100, 255, 200), (230, 255, 245)), ((90, 200, 255), (225, 245, 255))]
     for i, (a, b) in enumerate(pals):
         x0 = i * 256
         d.rectangle((x0 + 6, 6, x0 + 250, 506), fill=mul(a, 0.35))
         d.rectangle((x0 + 14, 14, x0 + 242, 70), fill=a)
-        star(d, x0 + 128, 42, 18, (255, 255, 255))
+        d.rectangle((x0 + 98, 34, x0 + 158, 50), fill=(255, 255, 255))
         for r_ in range(4):
             for c_ in range(3):
                 cx, cy = x0 + 36 + c_ * 66, 92 + r_ * 70
@@ -390,30 +465,54 @@ def make_vend():
     save(img, 'vend.jpg', 88)
 
 
-# ───────────────────────── 看板（沿用專案既有美術） ─────────────────────────
+# ───────────────────────── 看板（Grok 生成的賽博龐克廣告圖） ─────────────────────────
 def make_billboards():
-    for name, (src, _) in S.BILLBOARDS.items():
-        im = Image.open(CITY_ASSETS / src)
-        if name == 'bb_hero':
-            bg = Image.new('RGB', (600, 1000), (30, 10, 60))
-            for i in range(1000):
-                t = i / 999
-                ImageDraw.Draw(bg).line((0, i, 600, i), fill=mix((255, 80, 190), (40, 210, 255), t))
-            glowl = Image.new('RGB', bg.size, (0, 0, 0))
-            blob(glowl, 300, 480, 420, (255, 255, 255), 0.6, 1.3)
-            bg = ImageChops.add(bg, glowl)
-            d = ImageDraw.Draw(bg)
-            for sx, sy, sr in ((90, 120, 36), (520, 210, 26), (470, 840, 40), (80, 780, 22)):
-                star(d, sx, sy, sr, (255, 255, 255))
-            im = im.convert('RGBA')
-            im.thumbnail((560, 940))
-            bg.paste(im, ((600 - im.width) // 2, 1000 - im.height - 20), im)
-            im = bg
+    for name, (src, (tw, th_)) in S.BILLBOARDS.items():
+        f = ART / src
+        if not f.exists():
+            raise SystemExit(f'缺 {f}：先用 art/prompt.md 請 Grok 生成看板圖')
+        im = Image.open(f).convert('RGB')
+        # 置中裁成目標比例，再縮到目標尺寸
+        ar, tar = im.width / im.height, tw / th_
+        if ar > tar:
+            nw = int(im.height * tar)
+            im = im.crop(((im.width - nw) // 2, 0, (im.width - nw) // 2 + nw, im.height))
         else:
-            im = im.convert('RGB')
-            if im.width > 1024:
-                im = im.resize((1024, int(im.height * 1024 / im.width)), Image.LANCZOS)
+            nh = int(im.width / tar)
+            im = im.crop((0, (im.height - nh) // 2, im.width, (im.height - nh) // 2 + nh))
+        im = im.resize((tw, th_), Image.LANCZOS)
+        # 舊螢幕感：掃描線與髒污（發光貼圖，暗處不發光）
+        px = im.load()
+        for y in range(0, th_, 3):
+            for x in range(tw):
+                r_, g_, b_ = px[x, y]
+                px[x, y] = (int(r_ * 0.78), int(g_ * 0.78), int(b_ * 0.78))
+        im = grime(im, 90 + len(name), 0.35, streak=True)
         save(im, f'{name}.jpg', 86)
+
+
+# ───────────────────────── 葉片圖集（ambientCG Leaf001／002／003，CC0） ─────────────────────────
+def make_leaf_atlas():
+    cells = []
+    for asset in ('Leaf001', 'Leaf002', 'Leaf003', 'Leaf001'):
+        d = acg_get(asset)
+        col = Image.open(d / f'{asset}_1K-JPG_Color.jpg').convert('RGB').resize((256, 256), Image.LANCZOS)
+        a = Image.open(d / f'{asset}_1K-JPG_Opacity.jpg').convert('L').resize((256, 256), Image.LANCZOS)
+        # 透明處的顏色填成葉片平均色，避免縮圖與過濾時邊緣出現黑邊
+        mean = tuple(int(v) for v in ImageChops.multiply(col, Image.merge('RGB', (a,) * 3)).resize((1, 1), Image.BOX).getpixel((0, 0)))
+        cov = max(1, sum(a.getdata()) / 255 / (256 * 256))
+        mean = tuple(min(255, int(v / cov)) for v in mean)
+        col = Image.composite(col, Image.new('RGB', col.size, mean), a.point(lambda v: 255 if v > 24 else 0).filter(ImageFilter.MaxFilter(3)))
+        col = col.point(lambda v: int(v * 0.8))          # 夜裡偏暗
+        if len(cells) == 3:
+            col, a = ImageOps.mirror(col), ImageOps.mirror(a)
+        cells.append((col, a))
+    atlas = Image.new('RGBA', (512, 512), (0, 0, 0, 0))
+    for i, (col, a) in enumerate(cells):
+        im = col.convert('RGBA')
+        im.putalpha(a)
+        atlas.paste(im, ((i % 2) * 256, (i // 2) * 256))
+    save(atlas, 'leaf_atlas.png')
 
 
 # ───────────────────────── 地面 ─────────────────────────
@@ -502,6 +601,7 @@ def make_avenue(key):
             continue
         blob(glow, (t - T0) * PX_M, y_of(lat), g['r'] * PX_M, hx(g['c']), g['a'] * 0.5, 2.2)
     img = ImageChops.add(img, glow)
+    img = grime(img, 66 + ord(key), 0.4, streak=False)
     half = (w // 2, h // 2)
     save(img.resize(half, Image.LANCZOS), f'ground_{key}_c.jpg', 86)
     save(em.resize((w // 4, h // 4), Image.LANCZOS), f'ground_{key}_e.jpg', 88)
@@ -552,18 +652,18 @@ def make_plaza():
         if emi:
             de.ellipse((c - rr, c - rr, c + rr, c + rr), outline=col, width=max(2, int(w_m * ppm)))
 
-    pink, cyan, yel, vio = (255, 70, 180), (60, 230, 255), (255, 216, 74), (170, 110, 255)
+    pink, cyan, yel, vio = (255, 130, 40), (60, 230, 255), (255, 216, 74), (40, 220, 190)   # pink 其實是橘（舊名沿用）
     ring(S.R, pink, 0.22)
     ring(S.R - 1.2, cyan, 0.1)
     ring(11.0, vio, 0.14)
     ring(13.0, cyan, 0.1)
     ring(9.4, yel, 0.1)
-    # 五芒星外框與內亮線
+    # 六角外框與內亮線（取代原本的星形）
     for rr_o, rr_i, col, wm in ((21.0, 8.6, pink, 0.2), (17.5, 7.2, yel, 0.1)):
         pts = []
-        for i in range(10):
+        for i in range(12):
             r_ = rr_o if i % 2 == 0 else rr_i
-            a = -math.pi / 2 + math.pi * i / 5
+            a = -math.pi / 2 + math.pi * i / 6
             pts.append((c + math.cos(a) * r_ * ppm, c + math.sin(a) * r_ * ppm))
         pts.append(pts[0])
         d.line(pts, fill=mul(col, 0.8), width=max(2, int(wm * ppm)), joint='curve')
@@ -576,15 +676,19 @@ def make_plaza():
             x1, z1 = S.R * math.cos(a) - off * math.sin(a), S.R * math.sin(a) + off * math.cos(a)
             d.line((c + x0 * ppm, c + z0 * ppm, c + x1 * ppm, c + z1 * ppm), fill=(120, 230, 255), width=int(.12 * ppm))
             de.line((c + x0 * ppm, c + z0 * ppm, c + x1 * ppm, c + z1 * ppm), fill=(60, 200, 255), width=int(.12 * ppm))
-    # 散落的小星星
+    # 散落的電路焊點與短線
     rnd = random.Random(9)
-    for _ in range(70):
+    for _ in range(90):
         r_ = rnd.uniform(14, S.R - 2)
         a = rnd.uniform(0, 6.283)
         x, y = c + math.cos(a) * r_ * ppm, c + math.sin(a) * r_ * ppm
         cc = rnd.choice([pink, cyan, yel, vio])
-        star(de, x, y, rnd.uniform(.25, .6) * ppm, mul(cc, 0.9))
-        star(d, x, y, rnd.uniform(.25, .6) * ppm, mul(cc, 0.5))
+        sz = rnd.uniform(.12, .3) * ppm
+        ln = rnd.uniform(.6, 2.2) * ppm
+        ca, sa = math.cos(a + 1.57 * rnd.randrange(2)), math.sin(a + 1.57 * rnd.randrange(2))
+        for dd, col_, wd in ((de, mul(cc, 0.9), 0.07), (d, mul(cc, 0.45), 0.07)):
+            dd.line((x, y, x + ca * ln, y + sa * ln), fill=col_, width=max(2, int(wd * ppm)))
+            dd.ellipse((x - sz, y - sz, x + sz, y + sz), fill=col_)
     # 光暈
     glow = Image.new('RGB', (N, N), (0, 0, 0))
     for g in S_GLOWS:
@@ -593,6 +697,7 @@ def make_plaza():
         x, y = P(g['x'], g['z'])
         blob(glow, x, y, g['r'] * ppm, hx(g['c']), g['a'] * 0.55, 2.2)
     img = ImageChops.add(img, glow)
+    img = grime(img, 55, 0.4, streak=False)
     save(img.resize((2048, 2048), Image.LANCZOS), 'ground_plaza_c.jpg', 88)
     save(em.resize((2048, 2048), Image.LANCZOS), 'ground_plaza_e.jpg', 90)
     save(plaza_mask.resize((1024, 1024), Image.LANCZOS), 'ground_plaza_m.jpg', 90)
@@ -605,7 +710,7 @@ def main():
     S_GLOWS = sc.glows
     jobs = [('signs', make_signs), ('fac', lambda: [make_facade(i) for i in range(S.N_FAC)]),
             ('shop', lambda: [make_shop(k) for k in 'NESW']), ('cabs', make_cabs), ('vend', make_vend),
-            ('bb', make_billboards), ('plaza', make_plaza), ('avenue', lambda: [make_avenue(k) for k in 'NESW'])]
+            ('bb', make_billboards), ('leaf', make_leaf_atlas), ('plaza', make_plaza), ('avenue', lambda: [make_avenue(k) for k in 'NESW'])]
     for name, fn in jobs:
         if only and not name.startswith(only):
             continue

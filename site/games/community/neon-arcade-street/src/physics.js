@@ -43,6 +43,9 @@ export function prepare(colliders) {
 }
 
 export function resolve(p, r, colliders, bounds) {
+  // Street bounds are symmetric; interiors may live away from the street origin.
+  const b = typeof bounds === 'number'
+    ? { minX: -bounds, maxX: bounds, minZ: -bounds, maxZ: bounds } : bounds;
   let hit = false;
   for (let it = 0; it < 3; it++) {
     let any = false;
@@ -51,8 +54,8 @@ export function resolve(p, r, colliders, bounds) {
       if (dx * dx + dz * dz > reach * reach) continue;
       if (c.t === 'obb' ? pushOutObb(p, r, c) : pushOutCircle(p, r, c)) any = true;
     }
-    p.x = Math.max(-bounds, Math.min(bounds, p.x));
-    p.z = Math.max(-bounds, Math.min(bounds, p.z));
+    p.x = Math.max(b.minX, Math.min(b.maxX, p.x));
+    p.z = Math.max(b.minZ, Math.min(b.maxZ, p.z));
     if (!any) break;
     hit = true;
   }

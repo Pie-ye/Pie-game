@@ -92,6 +92,12 @@ def make_material(name, spec):
         n.image = load_img(spec['tex'])
         n.interpolation = 'Linear'
         nt.links.new(n.outputs['Color'], bsdf.inputs['Base Color'])
+        if spec.get('cut'):
+            # 葉片：貼圖的 Alpha 當透明度，輸出成 glTF 的 MASK（鏤空，不用半透明排序）
+            nt.links.new(n.outputs['Alpha'], bsdf.inputs['Alpha'])
+            m.blend_method = 'CLIP'
+            m.alpha_threshold = 0.5
+            m['cut'] = 1
     else:
         bsdf.inputs['Base Color'].default_value = hex_rgba(spec['base'])
     if spec['emtex']:
@@ -104,6 +110,8 @@ def make_material(name, spec):
         bsdf.inputs['Emission Strength'].default_value = spec['es']
     else:
         bsdf.inputs['Emission Strength'].default_value = 0.0
+    if spec.get('tint'):
+        m['tint'] = spec['tint']          # 遊戲載入時乘在貼圖上，同一張葉片圖變出健康／乾枯／發光三種
     m.use_backface_culling = not spec['double']
     return m
 

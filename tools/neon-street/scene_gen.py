@@ -1,4 +1,4 @@
-"""星光電玩街：場景排版（純 Python，不依賴 bpy / PIL）。
+"""霓虹電玩街：場景排版（純 Python，不依賴 bpy / PIL）。
 
 make_textures.py 與 build_blend.py（Blender）都會 import 這個模組，用同一個種子重建同一份場景，
 所以貼圖上的光暈位置、GLB 裡的招牌、遊戲裡的碰撞框永遠對得上。
@@ -21,7 +21,7 @@ EYE = 1.65
 
 # 大道：d 為從廣場向外的方向
 AVENUES = {
-    'N': dict(d=(0, -1), name='星光大道', en='STAR AVENUE'),
+    'N': dict(d=(0, -1), name='中樞大道', en='CENTRAL GRID'),
     'E': dict(d=(1, 0), name='電玩街', en='ARCADE STREET'),
     'S': dict(d=(0, 1), name='霓虹夜市', en='NEON NIGHT MARKET'),
     'W': dict(d=(-1, 0), name='賽博巷', en='CYBER ALLEY'),
@@ -39,13 +39,13 @@ NEON = {  # 材質名 → (hex, 強度)
 }
 
 THEME = {
-    'N': dict(neon=['neon_pink', 'neon_purple', 'neon_cyan', 'neon_white', 'neon_yellow'], fac=[0, 1], shop='shop_N',
-              awning='awning_N', light='#ff7ad9'),
-    'E': dict(neon=['neon_cyan', 'neon_pink', 'neon_yellow', 'neon_green'], fac=[2, 1], shop='shop_E',
+    'N': dict(neon=['neon_cyan', 'neon_white', 'neon_purple', 'neon_pink'], fac=[0, 1], shop='shop_N',
+              awning='awning_N', light='#5ae8ff'),
+    'E': dict(neon=['neon_cyan', 'neon_green', 'neon_yellow', 'neon_pink'], fac=[2, 1], shop='shop_E',
               awning='awning_E', light='#4fe8ff'),
-    'S': dict(neon=['neon_orange', 'neon_yellow', 'neon_red', 'neon_pink'], fac=[4, 3], shop='shop_S',
-              awning='awning_S', light='#ffb05a'),
-    'W': dict(neon=['neon_cyan', 'neon_green', 'neon_purple', 'neon_red'], fac=[5, 2], shop='shop_W',
+    'S': dict(neon=['neon_orange', 'neon_red', 'neon_yellow', 'neon_cyan'], fac=[4, 3], shop='shop_S',
+              awning='awning_S', light='#ff9a4a'),
+    'W': dict(neon=['neon_green', 'neon_cyan', 'neon_purple', 'neon_red'], fac=[5, 2], shop='shop_W',
               awning='awning_W', light='#6dffc4'),
 }
 N_FAC = 6
@@ -72,25 +72,25 @@ PROP_MODELS = {
     'camera': dict(id='security_camera_01', tris=300, tex=256, size=(0.17, 0.55, 0.29)),
 }
 # 弧形大樓的大看板：(材質, 寬, 高)
-ARC_BB = [('bb_phoebe', 8.4, 8.4), ('bb_castle', 11.0, 4.6), ('bb_hero', 5.2, 9.0), ('bb_arcade', 11.0, 4.6),
-          ('bb_phoebe', 8.4, 8.4), ('bb_casino', 11.0, 4.6), ('bb_hero', 5.2, 9.0), ('bb_castle', 11.0, 4.6)]
+ARC_BB = [('bb_sq', 8.4, 8.4), ('bb_w1', 11.0, 4.6), ('bb_t1', 5.2, 8.7), ('bb_w2', 11.0, 4.6),
+          ('bb_sq', 8.4, 8.4), ('bb_w3', 11.0, 4.6), ('bb_t2', 5.2, 8.7), ('bb_w1', 11.0, 4.6)]
 
 # 招牌圖集（make_textures.py 依這份清單畫字）。hex 是主色。
 SIGNS_H = [  # 1024x256，2 欄 × 8 列
-    ('PIE GAME', '#ff3fb4'), ('電玩街', '#29e6ff'), ('ARCADE', '#ffd84a'), ('星光少女', '#ff7ad9'),
+    ('PIE GAME', '#29e6ff'), ('電玩街', '#ff3fb4'), ('ARCADE', '#ffd84a'), ('義體診所', '#46ff9a'),
     ('遊戲幣兌換', '#46ff9a'), ('夾娃娃', '#ff8a3d'), ('拉麵 RAMEN', '#ff3d5a'), ('CYBER BAR', '#a96bff'),
-    ('太空射擊', '#29e6ff'), ('LUCKY 777', '#ffd84a'), ('24H 營業中', '#46ff9a'), ('魔法少女', '#ff3fb4'),
-    ('STAR GIRL', '#a96bff'), ('節奏樂園', '#ff7ad9'), ('GAME OVER?', '#ff3d5a'), ('INSERT COIN', '#ffd84a'),
+    ('太空射擊', '#29e6ff'), ('LUCKY 777', '#ffd84a'), ('24H 營業中', '#46ff9a'), ('駭客工坊', '#29e6ff'),
+    ('NEURAL LINK', '#a96bff'), ('零件回收', '#ff8a3d'), ('GAME OVER?', '#ff3d5a'), ('INSERT COIN', '#ffd84a'),
 ]
 SIGNS_V = [  # 256x1024，8 欄 × 2 列（直排）
-    ('電玩城', '#29e6ff'), ('街機', '#ff3fb4'), ('星光', '#ffd84a'), ('夜市', '#ff8a3d'),
+    ('電玩城', '#29e6ff'), ('街機', '#ff3fb4'), ('義體', '#46ff9a'), ('夜市', '#ff8a3d'),
     ('賽博', '#46ff9a'), ('拉麵', '#ff3d5a'), ('酒場', '#a96bff'), ('遊戲幣', '#ffd84a'),
     ('格鬥', '#ff3d5a'), ('賽車', '#29e6ff'), ('PIE', '#ff3fb4'), ('抽獎', '#46ff9a'),
-    ('BAR', '#a96bff'), ('LIVE', '#ff7ad9'), ('NEON', '#29e6ff'), ('少女', '#ff7ad9'),
+    ('BAR', '#a96bff'), ('LIVE', '#29e6ff'), ('NEON', '#29e6ff'), ('維修', '#ffd84a'),
 ]
 # 大招牌 2048x512，4 列：四座閘門
 SIGNS_BIG = [
-    ('PIE GAME  星光大道', '#ff7ad9'), ('PIE GAME  電玩街', '#29e6ff'),
+    ('PIE GAME  中樞大道', '#5ae8ff'), ('PIE GAME  電玩街', '#ff3fb4'),
     ('PIE GAME  霓虹夜市', '#ffb05a'), ('PIE GAME  賽博巷', '#6dffc4'),
 ]
 GATE_CELL = {'N': 0, 'E': 1, 'S': 2, 'W': 3}
@@ -98,12 +98,14 @@ GATE_CELL = {'N': 0, 'E': 1, 'S': 2, 'W': 3}
 N_CAB = 4
 N_VEND = 3
 
-BILLBOARDS = {  # 材質名 → 來源（make_textures 去 site/shell/city/assets 抓）
-    'bb_phoebe': ('fac-phoebe.webp', (1.0, 1.0)),
-    'bb_castle': ('bg-phoebe.webp', (1536, 640)),
-    'bb_arcade': ('bg-arcade.webp', (1536, 640)),
-    'bb_casino': ('bg-casino.webp', (1536, 640)),
-    'bb_hero': ('hero.webp', (518, 900)),
+# 看板廣告圖：材質名 → (tools/neon-street/art/ 內的檔名, 輸出像素 (寬, 高))。圖由 Grok 依 art/prompt.md 生成。
+BILLBOARDS = {
+    'bb_w1': ('ad_wide_1.png', (1536, 640)),
+    'bb_w2': ('ad_wide_2.png', (1536, 640)),
+    'bb_w3': ('ad_wide_3.png', (1536, 640)),
+    'bb_t1': ('ad_tall_1.png', (768, 1280)),
+    'bb_t2': ('ad_tall_2.png', (768, 1280)),
+    'bb_sq': ('ad_sq.png', (1024, 1024)),
 }
 
 # 材質：name → dict。base=底色，em=自發光色，es=自發光強度，tex/emtex=貼圖檔名（tex/ 底下）
@@ -111,11 +113,11 @@ MATERIALS = {}
 
 
 def _mat(name, base='#202030', rough=0.7, metal=0.0, em=None, es=1.0, tex=None, emtex=None, double=False,
-         mr=None, detail=None, detail2=None, dn=1.0, nrm=None):
+         mr=None, detail=None, detail2=None, dn=1.0, nrm=None, cut=False, tint=None):
     """mr＝遮罩貼圖（R＝detail 與 detail2 的混合，G＝粗糙度，B＝金屬度）；
     detail / detail2＝assets/pbr 內的細節層名稱（Poly Haven CC0，見 fetch_pbr.py），dn＝法線強度。"""
     MATERIALS[name] = dict(base=base, rough=rough, metal=metal, em=em, es=es, tex=tex, emtex=emtex, double=double,
-                           mr=mr, detail=detail, detail2=detail2, dn=dn, nrm=nrm)
+                           mr=mr, detail=detail, detail2=detail2, dn=dn, nrm=nrm, cut=cut, tint=tint)
 
 
 _mat('ground_plaza', rough=0.42, tex='ground_plaza_c.jpg', emtex='ground_plaza_e.jpg', base='#ffffff', es=1.6,
@@ -134,7 +136,7 @@ for _i in range(N_FAC):
          mr=f'fac_{_i}_m.jpg', nrm=f'fac_{_i}_n.jpg')
 for _a in 'NESW':
     _mat(f'shop_{_a}', base='#ffffff', rough=0.6, tex=f'shop_{_a}_c.jpg', emtex=f'shop_{_a}_e.jpg', es=1.4)
-_AW = {'N': '#b03c9a', 'E': '#1f6f9a', 'S': '#b8481c', 'W': '#1f8a6a'}
+_AW = {'N': '#3b4a55', 'E': '#25505c', 'S': '#6a3418', 'W': '#2c4a3c'}   # 舊、髒、生鏽的雨棚
 for _a in 'NESW':
     _mat(f'awning_{_a}', base=_AW[_a], rough=0.7, detail='corr')
 for _n, (_h, _s) in NEON.items():
@@ -145,21 +147,24 @@ _mat('signs_v', base='#000000', emtex='signs_v.jpg', es=2.2)
 _mat('signs_v_f', base='#000000', emtex='signs_v.jpg', es=2.2)
 _mat('signs_big', base='#000000', emtex='signs_big.jpg', es=2.4)
 for _b in BILLBOARDS:
-    _mat(_b, base='#000000', emtex=f'{_b}.jpg', es=1.5)
+    _mat(_b, base='#000000', emtex=f'{_b}.jpg', es=1.4)
 _mat('cab_body', base='#2b2a60', rough=0.45, metal=0.3, detail='paint')
 _mat('cab_screen', base='#000000', emtex='cabs.jpg', es=2.4)
 _mat('vend_body', base='#2a2c3e', rough=0.4, metal=0.5, detail='paint')
 _mat('vend_front', base='#000000', emtex='vend.jpg', es=2.0)
 _mat('bridge_glow', base='#06222a', em='#3fe0ff', es=1.2)
-_mat('leaf_pink', base='#6a2a62', em='#ff6ad0', es=0.6, rough=0.8)
-_mat('trunk', base='#2a1830', rough=0.9)
+# 樹：樹皮用 Poly Haven 實拍細節層；葉片是 ambientCG 的真葉片貼圖（含透明度），十字交錯的葉卡
+_mat('trunk', base='#4f4238', rough=0.95, detail='bark', dn=1.4)
+_mat('leaf_a', base='#ffffff', rough=0.75, tex='leaf_atlas.png', double=True, cut=True, tint='#9fc2a8')
+_mat('leaf_b', base='#ffffff', rough=0.8, tex='leaf_atlas.png', double=True, cut=True, tint='#b8a766')
+_mat('leaf_c', base='#ffffff', rough=0.7, tex='leaf_atlas.png', double=True, cut=True, tint='#78d8c8')
+_mat('cable', base='#0b0b0f', rough=0.85)
+_mat('drone', base='#1f2329', rough=0.4, metal=0.7, detail='metal')
 _mat('car_a', detail='paint', base='#6a1fa0', rough=0.25, metal=0.6)
 _mat('car_b', detail='paint', base='#1f6a9a', rough=0.25, metal=0.6)
 _mat('car_c', detail='paint', base='#a01f5a', rough=0.25, metal=0.6)
 _mat('car_glass', base='#07070f', rough=0.1, metal=0.9)
 _mat('monument', base='#201a38', rough=0.4, metal=0.6, detail='metal')
-_mat('star_gold', base='#000000', em='#ffcf4a', es=4.5)
-_mat('heart_pink', base='#000000', em='#ff4fb0', es=4.5)
 _mat('moon_ring', base='#000000', em='#b88cff', es=4.0)
 
 CAR_MATS = ['car_a', 'car_b', 'car_c']
@@ -315,6 +320,32 @@ class Geo:
                 self.face(mat, ps, [(i / seg, j / ring), ((i + 1) / seg, j / ring), ((i + 1) / seg, (j + 1) / ring),
                                     (i / seg, (j + 1) / ring)], n=v_sub(fc, cen))
 
+    def limb(self, mat, p0, p1, r0, r1, seg=6, cap=False):
+        """任意方向的錐台（樹幹、樹枝、電纜）。p0、p1 為兩端中心，r0、r1 為兩端半徑。"""
+        ax = v_sub(p1, p0)
+        ln = math.sqrt(v_dot(ax, ax)) or 1e-6
+        ax = (ax[0] / ln, ax[1] / ln, ax[2] / ln)
+        ref = (0.0, 1.0, 0.0) if abs(ax[1]) < 0.9 else (1.0, 0.0, 0.0)
+        u = v_cross(ax, ref)
+        ul = math.sqrt(v_dot(u, u))
+        u = (u[0] / ul, u[1] / ul, u[2] / ul)
+        w = v_cross(ax, u)
+        ring = lambda c, r, i: tuple(c[k] + (u[k] * math.cos(2 * math.pi * i / seg) + w[k] * math.sin(2 * math.pi * i / seg)) * r for k in range(3))
+        for i in range(seg):
+            a, b = ring(p0, r0, i), ring(p0, r0, i + 1)
+            c, d = ring(p1, r1, i + 1), ring(p1, r1, i)
+            am = 2 * math.pi * (i + 0.5) / seg
+            nrm = tuple(u[k] * math.cos(am) + w[k] * math.sin(am) for k in range(3))
+            self.face(mat, [a, b, c, d], [(i / seg, 0), ((i + 1) / seg, 0), ((i + 1) / seg, ln), (i / seg, ln)], n=nrm)
+        if cap:
+            for i in range(seg):
+                self.face(mat, [p1, ring(p1, r1, i), ring(p1, r1, i + 1)], [(.5, .5), (0, 0), (1, 0)], n=ax)
+
+    def card(self, mat, c, right, up, hw, hh, uv):
+        """面向任意方向的方片（葉卡）。right、up 為單位向量，hw、hh 為半寬與半高。"""
+        pts = [tuple(c[k] + right[k] * sx * hw + up[k] * sy * hh for k in range(3)) for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
+        self.face(mat, pts, [(uv[0], uv[1]), (uv[2], uv[1]), (uv[2], uv[3]), (uv[0], uv[3])], n=v_cross(right, up))
+
     def blob(self, mat, cx, cy, cz, r, seg=7, rings=4):
         def pt(i, j):
             a = 2 * math.pi * i / seg
@@ -396,6 +427,11 @@ def _cell_uv_big(i):  # 2048x512，4 列
 
 
 def _cell_uv_cab(i):  # 1024x512：2x2
+    col, row = i % 2, i // 2
+    return (col / 2, 1 - (row + 1) / 2, (col + 1) / 2, 1 - row / 2)
+
+
+def _cell_uv_leaf(i):  # 512x512 葉片圖集：2x2
     col, row = i % 2, i // 2
     return (col / 2, 1 - (row + 1) / 2, (col + 1) / 2, 1 - row / 2)
 
@@ -571,7 +607,7 @@ def make_gate(sc, r, key):
     _light(sc, (cxp + fx * 4, 20, czp + fz * 4), SIGNS_BIG[GATE_CELL[key]][1], 3.0, 40)
     _glow(sc, cxp + fx * 6, czp + fz * 6, SIGNS_BIG[GATE_CELL[key]][1], 12, 0.5)
     # 閘門後的巨型看板牆
-    bb = {'N': 'bb_castle', 'E': 'bb_arcade', 'S': 'bb_casino', 'W': 'bb_castle'}[key]
+    bb = {'N': 'bb_w1', 'E': 'bb_w3', 'S': 'bb_w2', 'W': 'bb_w1'}[key]
     wall_c = (dx * (L + 10), dz * (L + 10))
     ww, wh = 68.0, 68.0 * 640 / 1536 * 1.0
     wh = max(wh, 30)
@@ -579,6 +615,104 @@ def make_gate(sc, r, key):
     g.vface(bb, (wall_c[0] + fx * 1.52, wall_c[1] + fz * 1.52), (fx, fz), 33, 12, 12 + 66 * 0 + 28.3, uv=(0, 0, 1, 1))
     _light(sc, (wall_c[0] + fx * 8, 20, wall_c[1] + fz * 8), '#ffffff', 1.6, 50)
     _obb(sc, wall_c[0], wall_c[1], ex, ww / 2, 1.5, 'wall')
+
+
+def make_tree(sc, rnd, x, z, h, leaf, density=1.0, planter=True):
+    """賽博街區的行道樹：混凝土花槽、扭曲的樹幹與樹枝（Poly Haven 樹皮），葉片是十字交錯的真葉卡。
+    leaf＝葉片材質名或 None（枯樹）。回傳樹梢位置清單。"""
+    g = sc.geo
+    g.use('static')
+    base_y = 0.0
+    if planter:
+        g.box('concrete', x, z, (1, 0), 1.0, 1.0, 0, 0.5, tile=(2, 2))
+        g.box('trim_dark', x, z, (1, 0), 1.06, 1.06, 0.5, 0.58, tile=None, skip=('+y',))
+        g.hface('roof', [(x - 0.92, z - 0.92), (x + 0.92, z - 0.92), (x + 0.92, z + 0.92), (x - 0.92, z + 0.92)], 0.46,
+                [(0, 0), (1, 0), (1, 1), (0, 1)])
+        base_y = 0.45
+    lean = (rnd.uniform(-0.6, 0.6), rnd.uniform(-0.6, 0.6))
+    pts = [(x, base_y, z)]
+    for k in range(1, 4):
+        t = k / 3
+        pts.append((x + lean[0] * t * t + rnd.uniform(-0.08, 0.08), base_y + h * t, z + lean[1] * t * t + rnd.uniform(-0.08, 0.08)))
+    radii = [0.30, 0.23, 0.16, 0.10]
+    for i in range(3):
+        g.limb('trunk', pts[i], pts[i + 1], radii[i], radii[i + 1], seg=7)
+    tips = [pts[-1]]
+
+    def norm(v):
+        n = math.sqrt(v_dot(v, v)) or 1.0
+        return (v[0] / n, v[1] / n, v[2] / n)
+
+    def branch(p0, d, ln, r, depth):
+        p1 = tuple(p0[k] + d[k] * ln for k in range(3))
+        g.limb('trunk', p0, p1, r, r * 0.55, seg=5)
+        if depth > 0:
+            for _ in range(rnd.randint(2, 3)):
+                nd = norm((d[0] + rnd.uniform(-0.8, 0.8), d[1] + rnd.uniform(-0.1, 0.7), d[2] + rnd.uniform(-0.8, 0.8)))
+                st = rnd.uniform(0.55, 1.0)
+                sp = tuple(p0[k] + d[k] * ln * st for k in range(3))
+                branch(sp, nd, ln * 0.62, r * 0.55, depth - 1)
+        else:
+            tips.append(p1)
+
+    for _ in range(rnd.randint(4, 6)):
+        t = rnd.uniform(0.45, 0.95)
+        seg_i = min(2, int(t * 3))
+        lt = t * 3 - seg_i
+        bp = tuple(pts[seg_i][k] * (1 - lt) + pts[seg_i + 1][k] * lt for k in range(3))
+        ang, elev = rnd.uniform(0, 2 * math.pi), rnd.uniform(0.3, 0.95)
+        d = (math.cos(ang) * math.cos(elev), math.sin(elev), math.sin(ang) * math.cos(elev))
+        branch(bp, d, rnd.uniform(1.3, 2.3) * (1.15 - 0.45 * t), 0.1, 1)
+    if leaf:
+        for tip in tips:
+            for _ in range(max(2, int(rnd.randint(8, 13) * density))):
+                c = (tip[0] + rnd.uniform(-0.7, 0.7), tip[1] + rnd.uniform(-0.45, 0.65), tip[2] + rnd.uniform(-0.7, 0.7))
+                a = rnd.uniform(0, 2 * math.pi)
+                tilt = rnd.uniform(-0.9, 0.9)
+                right = (math.cos(a), 0.0, math.sin(a))
+                up = norm((-math.sin(a) * math.sin(tilt) * 0.6, math.cos(tilt), math.cos(a) * math.sin(tilt) * 0.6))
+                sz = rnd.uniform(0.28, 0.46)
+                g.card(leaf, c, right, up, sz, sz * 1.0, _cell_uv_leaf(rnd.randrange(4)))
+    return tips
+
+
+def place_trees(sc):
+    """廣場一圈行道樹，加上四條大道人行道上稀疏幾棵。位置固定，避開既有碰撞體。"""
+    tr = random.Random(SEED + 13)
+    g = sc.geo
+    LEAVES = ['leaf_a', 'leaf_a', 'leaf_a', 'leaf_b', 'leaf_c', None]
+
+    def add(x, z, glow_col):
+        leaf = tr.choice(LEAVES)
+        h = tr.uniform(4.0, 5.8)
+        tips = make_tree(sc, tr, x, z, h, leaf, density=0.55 if leaf == 'leaf_b' else 1.0)
+        _circle(sc, x, z, 1.05, 'tree')
+        # 樹下一圈霓虹燈帶與地面光暈（賽博感；枯樹也有，像被機電改造過）
+        g.cyl(glow_col, x, z, 1.03, 0.58, 0.62, seg=16, cap=False)
+        _glow(sc, x, z, NEON[glow_col][0], 4.5, 0.3)
+        if tr.random() < 0.4:
+            _light(sc, (x, 2.2, z), NEON_LIGHT[glow_col], 1.3, 12)
+        return tips
+
+    for i in range(14):
+        a = 2 * math.pi * (i + 0.5) / 14
+        if min(math.degrees(a) % 90, 90 - math.degrees(a) % 90) < 12:
+            continue
+        add(20.5 * math.cos(a), 20.5 * math.sin(a), tr.choice(['neon_cyan', 'neon_green', 'neon_cyan', 'neon_pink']))
+    for key, a in AVENUES.items():
+        dx, dz = a['d']
+        nx, nz = -dz, dx
+        n = 0
+        for _ in range(60):
+            if n >= 5:
+                break
+            side = tr.choice((-1, 1))
+            t = tr.uniform(32, L - 10)
+            x, z = dx * t + nx * side * (ROAD + 1.55), dz * t + nz * side * (ROAD + 1.55)
+            if _blocked(sc, x, z, 1.6):
+                continue
+            add(x, z, tr.choice(THEME[key]['neon'][:2]))
+            n += 1
 
 
 def _blocked(sc, x, z, rad, ignore=('far',)):
@@ -887,29 +1021,35 @@ def build():
                 px, pz = dx * tt + nx * s * (ROAD + 0.4), dz * tt + nz * s * (ROAD + 0.4)
                 g.cyl('pole', px, pz, 0.09, 0, 7.2, seg=6, cap=False)
                 ax = (-nx * s, -nz * s)
-                g.box('pole', px + ax[0] * 0.7, pz + ax[1] * 0.7, (nx, nz), 0.05, 0.75, 7.0, 7.12, tile=None)
+                g.box('pole', px + ax[0] * 0.7, pz + ax[1] * 0.7, (nx, nz), 0.75, 0.05, 7.0, 7.12, tile=None)   # 橫臂朝馬路伸出（寬度沿大道橫向）
                 col = th['neon'][(k + (s > 0)) % len(th['neon'])]
                 g.box(col, px + ax[0] * 1.4, pz + ax[1] * 1.4, (nx, nz), 0.3, 0.18, 6.88, 6.98, tile=None)
                 _circle(sc, px, pz, 0.25, 'lamp')
                 _light(sc, (px + ax[0] * 1.4, 6.6, pz + ax[1] * 1.4), NEON_LIGHT[col], 1.6, 18)
                 _glow(sc, px + ax[0] * 1.4, pz + ax[1] * 1.4, NEON[col][0], 5.5, 0.4)
 
-    # ── 懸掛串燈 ──
+    # ── 懸掛串燈（兩端錨在牆上，中間下垂；電纜與燈罩連成一條，不再有懸空的燈）──
     for key, a in AVENUES.items():
         dx, dz = a['d']
         nx, nz = -dz, dx
         th = THEME[key]
         for t in (38.0, 54.0, 66.0, 82.0):
             nb = 14
+            pts = []
             for i in range(nb + 1):
                 u = i / nb
-                lat = -(W - 0.3) + 2 * (W - 0.3) * u
-                y = 9.5 - 2.2 * (1 - (2 * u - 1) ** 2) * 0.0 - 1.6 * (1 - (2 * u - 1) ** 2)
+                lat = -W + 2 * W * u
+                y = 9.6 - 1.7 * (1 - (2 * u - 1) ** 2)
+                pts.append((dx * t + nx * lat, y, dz * t + nz * lat))
+            for i in range(nb):
+                g.limb('cable', pts[i], pts[i + 1], 0.025, 0.025, seg=4)
+            for i in range(1, nb):
                 col = th['neon'][i % len(th['neon'])]
-                px, pz = dx * t + nx * lat, dz * t + nz * lat
-                g.box(col, px, pz, (dx, dz), 0.1, 0.1, y - 0.1, y + 0.1, tile=None)
+                px, y, pz = pts[i]
+                g.box('trim_dark', px, pz, (dx, dz), 0.07, 0.07, y - 0.2, y - 0.04, tile=None)   # 燈座
+                g.box(col, px, pz, (dx, dz), 0.1, 0.1, y - 0.38, y - 0.18, tile=None)
                 if i % 4 == 2:
-                    _light(sc, (px, y - .4, pz), NEON[col][0], 1.1, 12)
+                    _light(sc, (px, y - .6, pz), NEON[col][0], 1.1, 12)
 
     # ── 路邊物件：投幣機、販賣機、長椅、車 ──
     prop = random.Random(SEED + 3)
@@ -988,53 +1128,43 @@ def build():
     g.use('static')
     for rr, hh in ((9.0, 0.3), (7.6, 0.6), (6.4, 0.9)):
         g.cyl('monument', 0, 0, rr, 0, hh, seg=32)
-    g.cyl('neon_pink', 0, 0, 9.05, 0.0, 0.08, seg=48, cap=False)
+    g.cyl('neon_orange', 0, 0, 9.05, 0.0, 0.08, seg=48, cap=False)
     g.cyl('neon_cyan', 0, 0, 7.65, 0.3, 0.38, seg=48, cap=False)
     g.cyl('neon_yellow', 0, 0, 6.45, 0.6, 0.68, seg=48, cap=False)
     g.box('monument', 0, 0, (1, 0), 2.0, 2.0, 0.9, 3.0, tile=None)
-    ph = {'+b': ('bb_phoebe', (0, 0, 1, 1)), '-b': ('bb_phoebe', (0, 0, 1, 1)),
-          '+a': ('bb_phoebe', (0, 0, 1, 1)), '-a': ('bb_phoebe', (0, 0, 1, 1))}
-    g.box('monument', 0, 0, (1, 0), 1.9, 1.9, 3.0, 12.0, tile=None, over={k: ('bb_phoebe', (0, 0, 1, 1)) for k in ph})
+    g.box('monument', 0, 0, (1, 0), 1.9, 1.9, 3.0, 12.0, tile=None,
+          over={k: ('bb_sq', (0, 0, 1, 1)) for k in ('+b', '-b', '+a', '-a')})
     for sx, sz in ((-1, -1), (1, -1), (1, 1), (-1, 1)):
-        g.box('neon_pink', sx * 1.92, sz * 1.92, (1, 0), 0.07, 0.07, 3.0, 12.0, tile=None)
+        g.box('neon_cyan', sx * 1.92, sz * 1.92, (1, 0), 0.07, 0.07, 3.0, 12.0, tile=None)
     g.box('monument', 0, 0, (1, 0), 2.1, 2.1, 12.0, 12.4, tile=None)
     g.box('neon_cyan', 0, 0, (1, 0), 2.15, 2.15, 12.4, 12.55, tile=None, skip=('+y',))
     _obb(sc, 0, 0, (1, 0), 6.4, 6.4, 'mon')
     sc.colliders[-1] = dict(t='circle', cx=0, cz=0, r=9.0, tag='mon')
     # 轉動的星與環
+    # 塔頂的全像投影核心：四根支架把它接在塔頂上（不再懸空），六角稜柱緩慢旋轉
+    for sx, sz in ((-1, -1), (1, -1), (1, 1), (-1, 1)):
+        g.limb('metal', (sx * 1.9, 12.4, sz * 1.9), (sx * 0.5, 16.2, sz * 0.5), 0.09, 0.07, seg=5)
     g.use('spin_star', (0, 17.0, 0))
-    g.prism('star_gold', star_poly(4.2, 1.8), 16.45, 17.55, 0, 0, plane='xz')
+    g.prism('neon_cyan', [(math.cos(math.radians(60 * i)) * 3.4, math.sin(math.radians(60 * i)) * 3.4) for i in range(6)], 16.45, 17.55, 0, 0, plane='xz')
+    g.prism('neon_white', [(math.cos(math.radians(60 * i + 30)) * 1.5, math.sin(math.radians(60 * i + 30)) * 1.5) for i in range(6)], 17.55, 17.7, 0, 0, plane='xz')
     sc.parts.append(dict(name='spin_star', kind='spin', axis='y', speed=0.5))
     g.use('spin_ring_a', (0, 17.0, 0))
-    g.torus('neon_pink', 6.4, 0.16, seg=48, ring=5, tilt=math.radians(62), cy=17.0)
+    g.torus('neon_orange', 6.4, 0.16, seg=48, ring=5, tilt=math.radians(62), cy=17.0)
     sc.parts.append(dict(name='spin_ring_a', kind='spin', axis='y', speed=0.35))
     g.use('spin_ring_b', (0, 17.0, 0))
     g.torus('neon_cyan', 5.2, 0.14, seg=48, ring=5, tilt=math.radians(-58), cy=17.0)
     sc.parts.append(dict(name='spin_ring_b', kind='spin', axis='y', speed=-0.5))
     g.use('spin_ring_c', (0, 17.0, 0))
     g.torus('neon_yellow', 7.6, 0.12, seg=48, ring=5, tilt=math.radians(90), cy=17.0)
-    sc.parts.append(dict(name='spin_ring_c', kind='spin', axis='y', speed=0.2))
+    # 這個水平光環以輕微上下浮動取代純旋轉，讓廣場中央有不同節奏的動態層。
+    sc.parts.append(dict(name='spin_ring_c', kind='float', speed=0.55, amp=0.18, phase=1.2, spin=0.2))
     g.use('static')
-    _light(sc, (0, 14, 0), '#ff7ad9', 4.0, 50)
+    _light(sc, (0, 14, 0), '#5ae8ff', 4.0, 50)
     _light(sc, (6, 3, 6), '#29e6ff', 2.5, 30)
     _light(sc, (-6, 3, -6), '#ffd84a', 2.5, 30)
-    _glow(sc, 0, 0, '#ff3fb4', 12, 0.5)
+    _glow(sc, 0, 0, '#ff8a3d', 12, 0.5)
 
-    # ── 廣場的賽博櫻花與長椅 ──
-    for i in range(14):
-        a = 2 * math.pi * (i + 0.5) / 14
-        # 跳過大道出口
-        ang = (math.degrees(a)) % 90
-        if min(ang, 90 - ang) < 12:
-            continue
-        rr = 20.5
-        px, pz = rr * math.cos(a), rr * math.sin(a)
-        g.cyl('trunk', px, pz, 0.28, 0, 3.6, seg=6, cap=False)
-        for k, (ox, oy, oz, rad) in enumerate(((0, 4.4, 0, 2.2), (1.3, 3.8, 0.4, 1.6), (-1.1, 3.9, -0.6, 1.7), (0.2, 5.5, 0.4, 1.4))):
-            g.blob('leaf_pink', px + ox, oy, pz + oz, rad, seg=7, rings=4)
-        _circle(sc, px, pz, 0.45, 'tree')
-        if i % 2 == 0:
-            _light(sc, (px, 4.0, pz), '#ff7ad9', 1.5, 14)
+    # ── 廣場長椅（樹由 place_trees 負責）──
     for i in range(12):
         a = 2 * math.pi * (i + 0.25) / 12
         ang = (math.degrees(a)) % 90
@@ -1044,44 +1174,44 @@ def build():
         px, pz = rr * math.cos(a), rr * math.sin(a)
         ex_ = (-math.sin(a), math.cos(a))
         g.box('trim_dark', px, pz, ex_, 1.0, 0.28, 0.4, 0.5, tile=None)
-        g.box('neon_purple', px, pz, ex_, 1.0, 0.29, 0.36, 0.4, tile=None)
+        g.box('neon_cyan', px, pz, ex_, 1.0, 0.29, 0.36, 0.4, tile=None)
         _obb(sc, px, pz, ex_, 1.0, 0.3, 'bench')
 
-    # ── 漂浮的星星與愛心 ──
+    # ── 巡邏的無人機：繞著固定圓周飛，機身有四根支臂與四個旋翼，底部閃紅綠燈 ──
     fl = random.Random(SEED + 11)
-    n_float = 0
-    for i in range(26):
+    n_dr = 0
+    for i in range(14):
         key = 'NESW'[i % 4]
         dx, dz = AVENUES[key]['d']
         nx, nz = -dz, dx
-        t = fl.uniform(12, 80)
-        lat = fl.uniform(-6, 6)
-        x, z = dx * t + nx * lat, dz * t + nz * lat
-        if t < 26:
-            x, z = fl.uniform(-18, 18), fl.uniform(-18, 18)
-        y = fl.uniform(7, 14)
-        name = f'float_{n_float}'
-        n_float += 1
-        g.use(name, (x, y, z))
-        heart = (key == 'N' and fl.random() < 0.5) or fl.random() < 0.3
-        s = fl.uniform(0.8, 1.5)
-        if heart:
-            g.prism('heart_pink', heart_poly(s * 1.2), y - 0.12, y + 0.12, x, z, plane='xz')
-        else:
-            g.prism('star_gold', star_poly(s, s * 0.45), y - 0.12, y + 0.12, x, z, plane='xz')
-        sc.parts.append(dict(name=name, kind='float', speed=fl.uniform(0.4, 1.0), amp=fl.uniform(0.3, 0.8),
-                             spin=fl.uniform(0.3, 1.1), phase=fl.uniform(0, 6.28)))
-        _light(sc, (x, y, z), '#ffd0f0' if heart else '#ffe58a', 1.0, 10)
+        t = fl.uniform(34, 84) if i >= 4 else 0
+        lat = fl.uniform(-2.5, 2.5)
+        cx, cz = (dx * t + nx * lat, dz * t + nz * lat) if i >= 4 else (fl.uniform(-12, 12), fl.uniform(-12, 12))
+        y = fl.uniform(9.5, 15.0) if i >= 4 else fl.uniform(11, 16)
+        rad = fl.uniform(2.5, 4.5)
+        name = f'drone_{n_dr}'
+        n_dr += 1
+        g.use(name, (cx, y, cz))
+        g.box('drone', cx, cz, (1, 0), 0.32, 0.32, y - 0.1, y + 0.08, tile=None)
+        for sx, sz in ((-1, -1), (1, -1), (1, 1), (-1, 1)):
+            g.limb('drone', (cx, y, cz), (cx + sx * 0.62, y + 0.04, cz + sz * 0.62), 0.04, 0.04, seg=4)
+            g.cyl('trim_dark', cx + sx * 0.62, cz + sz * 0.62, 0.3, y + 0.04, y + 0.07, seg=10)
+        g.box('neon_red' if i % 2 else 'neon_green', cx, cz, (1, 0), 0.1, 0.1, y - 0.2, y - 0.1, tile=None)
+        g.box('neon_cyan', cx + 0.3, cz, (1, 0), 0.03, 0.12, y - 0.04, y + 0.02, tile=None)
+        sc.parts.append(dict(name=name, kind='patrol', cx=round(cx, 2), cz=round(cz, 2), r=round(rad, 2),
+                             speed=round(fl.uniform(0.18, 0.4) * fl.choice((-1, 1)), 3), phase=round(fl.uniform(0, 6.28), 2),
+                             bob=round(fl.uniform(0.15, 0.4), 2)))
     g.use('static')
 
     # ── 廣場地面光暈 ──
     for i in range(10):
         a = 2 * math.pi * i / 10
-        _glow(sc, 17 * math.cos(a), 17 * math.sin(a), ['#ff3fb4', '#29e6ff', '#a96bff'][i % 3], 5.5, 0.22)
+        _glow(sc, 17 * math.cos(a), 17 * math.sin(a), ['#ff8a3d', '#29e6ff', '#46ff9a'][i % 3], 5.5, 0.22)
 
+    place_trees(sc)
     place_props(sc)
     sc.zones = {k: dict(name=v['name'], en=v['en']) for k, v in AVENUES.items()}
-    sc.zones['P'] = dict(name='星光廣場', en='STAR PLAZA')
+    sc.zones['P'] = dict(name='中央廣場', en='CENTRAL HUB')
     sc.stats = dict(props=len(sc.props), buildings=len(sc.buildings), colliders=len(sc.colliders), lights=len(sc.lights),
                     objects=sum(len(o['mats']) for o in g.objs.values()),
                     faces=sum(len(f) for o in g.objs.values() for f in o['mats'].values()))

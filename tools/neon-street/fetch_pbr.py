@@ -34,6 +34,7 @@ SETS = {
     'wall_g': ('rough_concrete', 512),         # 粗混凝土（屋頂、基座）
     'metal': ('metal_plate_02', 512),           # 刮痕金屬板
     'paint': ('blue_metal_plate', 512),         # 烤漆金屬
+    'bark': ('bark_brown_02', 512),             # 樹皮
     'corr': ('corrugated_iron_03', 512),        # 瓦楞鐵（遮雨棚）
 }
 

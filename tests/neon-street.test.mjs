@@ -8,6 +8,18 @@ const world = { colliders: prepare(data.colliders), bounds: data.bounds };
 const fresh = (x, z, yaw = 0) => ({ x, z, y: 0, vx: 0, vz: 0, vy: 0, yaw, bob: 0 });
 const walk = (p, input, seconds) => { for (let t = 0; t < seconds; t += 1 / 60) step(p, input, 1 / 60, world); return p; };
 
+test('室內移動保留偏移座標，四側邊界不以街區原點裁切', () => {
+  const room = { colliders: [], bounds: { minX: -5.64, maxX: 5.64, minZ: -243.64, maxZ: -236.36 } };
+  const p = fresh(0, -237.3);
+  for (let i = 0; i < 60; i++) step(p, { fx: 0, fz: 1 }, 1 / 60, room);
+  assert.ok(p.z < -240 && p.z > -241, `z=${p.z}`);
+  for (const [fx, fz] of [[0, 1], [1, 0], [0, -1], [-1, 0]]) {
+    for (let i = 0; i < 240; i++) step(p, { fx, fz, run: true }, 1 / 60, room);
+    assert.ok(p.x >= room.bounds.minX && p.x <= room.bounds.maxX);
+    assert.ok(p.z >= room.bounds.minZ && p.z <= room.bounds.maxZ);
+  }
+});
+
 test('出生點在空地上，不會卡進任何碰撞體', () => {
   const p = { ...fresh(data.spawn.x, data.spawn.z) };
   const before = { x: p.x, z: p.z };
