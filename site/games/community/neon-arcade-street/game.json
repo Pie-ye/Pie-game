@@ -1,0 +1,10 @@
+{
+  "id": "neon-arcade-street",
+  "name": "星光電玩街",
+  "kind": "free",
+  "multiplayer": false,
+  "author": "Pie-ye",
+  "entry": "index.html",
+  "description": "賽博龐克、星光少女、電玩街。用 Blender 做出的環繞式 3D 街區，雨夜裡用 WASD 與滑鼠第一人稱漫步：圓形星光廣場連著四條霓虹大道。",
+  "tags": ["3D", "第一人稱", "賽博龐克", "探索", "單人"]
+}

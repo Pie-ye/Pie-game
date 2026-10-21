@@ -19,6 +19,7 @@ const KICKERS = {
   'pie-phoebe': 'STARLIGHT STAGE',
   'phoebe-egg': 'EGG DELIVERY',
   'phoebe-peak': 'PEAK CLIMB',
+  'neon-arcade-street': 'STAR ARCADE STREET',
   snake: 'SNAKE CABINET',
   'tic-tac-toe': 'X · O DUEL',
 };

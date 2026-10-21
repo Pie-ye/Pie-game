@@ -262,7 +262,9 @@
 /* 全畫面型的 3D 遊戲：iframe 剛好填滿標題列以外的視窗，底部操作提示不會被截掉 */
 .gx-pie-phoebe .community-frame-wrap,
 .gx-phoebe-egg .community-frame-wrap,
-.gx-phoebe-peak .community-frame-wrap { min-height: calc(100svh - 84px); }
+.gx-phoebe-peak .community-frame-wrap,
+.gx-neon-arcade-street .community-frame-wrap { min-height: calc(100svh - 84px); }
 .gx-pie-phoebe .community-frame,
 .gx-phoebe-egg .community-frame,
-.gx-phoebe-peak .community-frame { height: calc(100svh - 84px); min-height: 0; }
+.gx-phoebe-peak .community-frame,
+.gx-neon-arcade-street .community-frame { height: calc(100svh - 84px); min-height: 0; }

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#0b0618">
+  <title>星光電玩街 · STAR ARCADE STREET</title>
+  <script type="importmap">
+    { "imports": { "three": "../pie-phoebe/vendor/three.module.js", "three/addons/": "./vendor/jsm/" } }
+  </script>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body data-mode="loading">
+  <main id="app" tabindex="0">
+    <canvas id="world" aria-label="賽博龐克星光電玩街的第一人稱 3D 場景"></canvas>
+
+    <section id="hud" aria-label="街區資訊">
+      <div id="zone-banner"><span id="zone-name">星光廣場</span><span id="zone-en">STAR PLAZA</span></div>
+      <canvas id="compass" width="420" height="30" aria-label="羅盤"></canvas>
+      <aside id="minimap"><canvas id="map" width="176" height="176" aria-label="街區小地圖：青色箭頭是你，金點是廣場中心"></canvas></aside>
+      <div id="hint"><b>WASD</b> 移動　<b>滑鼠</b> 視角　<b>Shift</b> 奔跑　<b>Space</b> 跳　<b>Esc</b> 選單　<b>R</b> 雨　<b>B</b> 泛光　<b>M</b> 音效　<b>N</b> 配樂</div>
+      <div id="crosshair"></div>
+      <div id="fps"></div>
+      <div id="toast" role="status"></div>
+      <div id="joy"><i id="joy-knob"></i></div>
+      <button id="jump-btn" aria-label="跳">跳</button>
+    </section>
+
+    <section id="title" class="overlay" aria-label="標題">
+      <div class="card">
+        <span class="eyebrow">PIE GAME · 首頁環景原型</span>
+        <h1><em>星光</em>電玩街</h1>
+        <p class="en">STAR ARCADE STREET</p>
+        <p class="lead">賽博龐克 × 星光少女 × 電玩街。雨夜的圓形星光廣場連出四條霓虹大道，用第一人稱慢慢逛。</p>
+        <div class="load"><div id="load-bar"></div></div>
+        <button id="start" class="primary" disabled>載入中…</button>
+        <span id="load-pct" class="fine">0%</span>
+        <ul class="keys">
+          <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移動</li>
+          <li><kbd>滑鼠</kbd> 轉動視角</li>
+          <li><kbd>Shift</kbd> 奔跑　<kbd>Space</kbd> 跳躍</li>
+          <li><kbd>Esc</kbd> 釋放滑鼠／選單</li>
+        </ul>
+        <p class="fine">手機：左半邊拖曳移動，右半邊拖曳轉視角。</p>
+      </div>
+    </section>
+
+    <section id="pause" class="overlay" aria-label="暫停">
+      <div class="card compact">
+        <span class="eyebrow">PAUSED</span>
+        <h2>暫停中</h2>
+        <button id="resume" class="primary">回到街上 ▸</button>
+        <button id="menu-title">標題畫面</button>
+        <ul class="keys">
+          <li><kbd>R</kbd> 雨　<kbd>B</kbd> 泛光　<kbd>H</kbd> 隱藏介面</li>
+          <li><kbd>M</kbd> 音效　<kbd>N</kbd> 配樂</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
