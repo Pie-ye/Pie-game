@@ -1,0 +1,10 @@
+{
+  "id": "pie-island",
+  "name": "小島樂園",
+  "kind": "free",
+  "multiplayer": true,
+  "author": "Pie-ye",
+  "entry": "index.html",
+  "description": "陽光小島上的多人散步遊戲。先捏一個自己（臉、髮型、衣服、配件），登島後用第三人稱到處逛，看得到同時在島上的其他玩家，還能揮手、比愛心打招呼。",
+  "tags": ["3D", "多人", "捏臉", "休閒", "探索"]
+}

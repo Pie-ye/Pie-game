@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#7fd3f0">
+  <title>小島樂園 · PIE ISLAND</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body data-mode="loading">
+  <main id="app" tabindex="0">
+    <canvas id="world" aria-label="陽光小島的 3D 場景，可以看到其他玩家"></canvas>
+
+    <section id="hud" aria-label="島上資訊">
+      <div id="zone"><span id="zone-name">噴水池廣場</span></div>
+      <div id="corner">
+        <div id="online" data-mode="solo" role="status"></div>
+        <canvas id="map" width="176" height="176" aria-label="小島地圖：紅色箭頭是你，白點是其他玩家"></canvas>
+        <div id="me-tag">你：<b id="me-name">島民</b></div>
+      </div>
+      <div id="emotes" aria-label="表情"></div>
+      <div id="hint"><b>WASD</b> 走路　<b>Shift</b> 跑　<b>Space</b> 跳　<b>拖曳</b> 轉鏡頭　<b>Q/E</b> 轉向　<b>滾輪</b> 遠近　<b>1–5</b> 表情　<b>C</b> 捏臉　<b>Esc</b> 選單</div>
+      <div class="side-btns">
+        <button id="btn-creator" type="button" aria-label="捏臉">捏臉</button>
+        <button id="btn-pause" type="button" aria-label="選單">選單</button>
+      </div>
+      <div id="toast" role="status" aria-live="polite"></div>
+      <div id="joy"><i id="joy-knob"></i></div>
+      <button id="jump-btn" type="button" aria-label="跳">跳</button>
+      <button id="run-btn" type="button" aria-label="跑步切換">跑</button>
+    </section>
+
+    <section id="title" class="overlay" aria-label="標題">
+      <div class="card">
+        <span class="eyebrow">PIE GAME · 多人小島</span>
+        <h1>小島<em>樂園</em></h1>
+        <p class="en">PIE ISLAND</p>
+        <p class="lead">陽光、沙灘、椰子樹。捏一個自己，跟大家在同一座小島上散步、揮手打招呼。</p>
+        <div class="load"><div id="load-bar"></div></div>
+        <button id="start" class="primary" type="button" disabled>整理小島中…</button>
+        <span id="load-pct" class="fine">0%</span>
+        <ul class="keys">
+          <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 走路　<kbd>Shift</kbd> 跑　<kbd>Space</kbd> 跳</li>
+          <li><kbd>拖曳</kbd> 轉鏡頭　<kbd>1</kbd>–<kbd>5</kbd> 表情　<kbd>C</kbd> 捏臉</li>
+        </ul>
+        <p class="fine">手機：左半邊拖曳走路、右半邊拖曳轉鏡頭。登入後會看到同時在島上的其他玩家。</p>
+      </div>
+    </section>
+
+    <section id="pause" class="overlay" aria-label="選單">
+      <div class="card compact">
+        <span class="eyebrow">MENU</span>
+        <h2>休息一下</h2>
+        <button id="resume" class="primary" type="button">回到島上 ▸</button>
+        <button id="pause-creator" type="button">捏臉</button>
+        <button id="menu-title" type="button">標題畫面</button>
+        <ul class="keys">
+          <li><kbd>M</kbd> 音效　<kbd>N</kbd> 音樂　<kbd>H</kbd> 隱藏介面</li>
+        </ul>
+        <p class="fine">場景模型：Kenney（CC0）。詳見 README。</p>
+      </div>
+    </section>
+
+    <section id="creator" class="overlay" aria-labelledby="creator-title" hidden>
+      <div class="creator-card">
+        <div class="creator-preview">
+          <canvas id="creator-canvas" aria-label="角色預覽，可拖曳旋轉"></canvas>
+          <button id="creator-random" type="button">隨機一個</button>
+          <span class="turn-hint">← 拖曳轉圈 →</span>
+        </div>
+        <div class="creator-panel">
+          <h2 id="creator-title">捏臉</h2>
+          <nav id="creator-tabs" role="tablist"></nav>
+          <div id="creator-fields"></div>
+          <div class="creator-actions">
+            <button id="creator-cancel" type="button">取消</button>
+            <button id="creator-done" class="primary" type="button">完成！</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
