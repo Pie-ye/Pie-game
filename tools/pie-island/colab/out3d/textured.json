@@ -1,0 +1,43 @@
+{
+  "model": "tencent/Hunyuan3D-2mini shape + Hunyuan3D-2 paint-v2-0-turbo",
+  "seed": 2026,
+  "gpu": "NVIDIA L4",
+  "assets": {
+    "palm_a": {
+      "shape_seconds": 24.47220277999986,
+      "raw_faces": 345826,
+      "faces": 8000,
+      "paint_seconds": 25.771113825000157
+    },
+    "tree_a": {
+      "shape_seconds": 31.236831099000028,
+      "raw_faces": 627458,
+      "faces": 8000,
+      "paint_seconds": 23.856338095999945
+    },
+    "tree_b": {
+      "shape_seconds": 29.821287682000275,
+      "raw_faces": 545966,
+      "faces": 8000,
+      "paint_seconds": 25.038941875999626
+    },
+    "lotus": {
+      "shape_seconds": 31.336950730999888,
+      "raw_faces": 617090,
+      "faces": 8000,
+      "paint_seconds": 24.409518149999712
+    },
+    "flowers": {
+      "shape_seconds": 25.047754537999936,
+      "raw_faces": 336232,
+      "faces": 8000,
+      "paint_seconds": 25.32887367300009
+    },
+    "bush": {
+      "shape_seconds": 33.136495266999646,
+      "raw_faces": 651324,
+      "faces": 8000,
+      "paint_seconds": 24.217692318000445
+    }
+  }
+}

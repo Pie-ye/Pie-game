@@ -1,0 +1,692 @@
+{
+ "items": [
+  {
+   "name": "sky_day",
+   "w": 1536,
+   "h": 768,
+   "tile": "x",
+   "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108,
+    109,
+    110
+   ],
+   "loras": {
+    "shinkai": 0.22,
+    "pe": 0.4
+   },
+   "steps": 30,
+   "cfg": 7.0,
+   "neg": "person, boat, island, land, pink, magenta, sunset, sun, mirror, mountain",
+   "prompt": "PEAnimeBG, Background, Makoto Shinkai Style page, powder blue sky, few white clouds, high-key, open sky, horizon at middle, flat sea, no island, no people, gouache"
+  },
+  {
+   "name": "sky_eve",
+   "w": 1536,
+   "h": 768,
+   "tile": "x",
+   "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108
+   ],
+   "loras": {
+    "shinkai": 0.18,
+    "pe": 0.35
+   },
+   "steps": 30,
+   "cfg": 7.0,
+   "neg": "person, boat, island, land, magenta, purple, sun, mirror, mountain, night",
+   "prompt": "PEAnimeBG, Background, Makoto Shinkai Style page, powder blue zenith, peach horizon, few soft clouds, high-key, flat sea, no island, no people, gouache"
+  },
+  {
+   "name": "horizon",
+   "w": 1536,
+   "h": 640,
+   "tile": "x",
+   "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106
+   ],
+   "loras": {
+    "shinkai": 0.25,
+    "pe": 0.35
+   },
+   "steps": 30,
+   "cfg": 7.0,
+   "neg": "island, beach, person, close-up, mountain, pink, magenta, sun, mirror",
+   "prompt": "PEAnimeBG, Background, Makoto Shinkai Style page, low sea horizon, powder blue sky, few white clouds, turquoise sea, one tiny sail, no island, no beach, gouache"
+  },
+  {
+   "name": "tex_grass",
+   "w": 1024,
+   "h": 1024,
+   "tile": "xy",
+   "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108
+   ],
+   "loras": {
+    "pe": 0.5
+   },
+   "steps": 28,
+   "cfg": 5.5,
+   "neg": "flower, rock, path, sky, person, streak, rice, dirt",
+   "prompt": "PEAnimeBG, Background, seamless grass texture, top-down, short strokes, yellow green, even light, no flowers, no sky, no people"
+  },
+  {
+   "name": "tex_sand",
+   "w": 1024,
+   "h": 1024,
+   "tile": "xy",
+   "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108
+   ],
+   "loras": {
+    "pe": 0.45
+   },
+   "steps": 28,
+   "cfg": 5.5,
+   "neg": "footprint, shell, grass, water, sky, person, rock",
+   "prompt": "PEAnimeBG, Background, seamless sand texture, top-down, pale cream sand, fine grain, even light, no footprints, no objects"
+  },
+  {
+   "name": "tex_path",
+   "w": 1024,
+   "h": 1024,
+   "tile": "xy",
+   "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108
+   ],
+   "loras": {
+    "pe": 0.4
+   },
+   "steps": 28,
+   "cfg": 5.0,
+   "neg": "person, people, 1girl, 1boy, animal, bird, plank, grass, sky",
+   "prompt": "PEAnimeBG, Background, seamless dirt texture, top-down, empty beige dirt, even light, no people, no planks, no stones"
+  },
+  {
+   "name": "tex_plaza",
+   "w": 1024,
+   "h": 1024,
+   "tile": "xy",
+   "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108
+   ],
+   "loras": {
+    "pe": 0.45
+   },
+   "steps": 28,
+   "cfg": 5.5,
+   "neg": "pebble, mosaic, brick, herringbone, colorful, grass, sky, person",
+   "prompt": "PEAnimeBG, Background, seamless paving texture, top-down, large cream flagstones, rounded stones, soft gaps, even light, no pebbles"
+  },
+  {
+   "name": "tex_cliff",
+   "w": 1024,
+   "h": 1024,
+   "tile": "xy",
+   "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108
+   ],
+   "loras": {
+    "pe": 0.45
+   },
+   "steps": 28,
+   "cfg": 5.5,
+   "neg": "sky, grass, tree, water, landscape, isometric, person, clouds",
+   "prompt": "PEAnimeBG, Background, seamless rock texture, tan cliff rock filling the frame, vertical cracks, even light, no sky, no plants"
+  },
+  {
+   "name": "tex_wood",
+   "w": 1024,
+   "h": 1024,
+   "tile": "xy",
+   "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108
+   ],
+   "loras": {
+    "pe": 0.4
+   },
+   "steps": 28,
+   "cfg": 5.5,
+   "neg": "diagonal, perspective, isometric, boat, water, sky, person",
+   "prompt": "PEAnimeBG, Background, seamless wood texture, top-down, horizontal planks, parallel to the bottom edge, honey wood, even gaps"
+  },
+  {
+   "name": "tex_water",
+   "w": 1024,
+   "h": 1024,
+   "tile": "xy",
+   "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108
+   ],
+   "loras": {
+    "pe": 0.4
+   },
+   "steps": 28,
+   "cfg": 5.5,
+   "neg": "horizon, island, fish, boat, person, sky, building",
+   "prompt": "PEAnimeBG, Background, seamless water texture, top-down, turquoise water, soft white ripples, even light, no horizon, no boat"
+  },
+  {
+   "name": "tex_leaf",
+   "w": 1024,
+   "h": 1024,
+   "tile": "xy",
+   "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108
+   ],
+   "loras": {
+    "pe": 0.5
+   },
+   "steps": 28,
+   "cfg": 5.5,
+   "neg": "trunk, sky, flower, person, coconut, branch",
+   "prompt": "PEAnimeBG, Background, seamless foliage texture, dense leaves filling the frame, sage green, yellow green, even light, no trunk, no sky"
+  },
+  {
+   "name": "obj_palm",
+   "w": 1024,
+   "h": 1024,
+   "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108,
+    109,
+    110
+   ],
+   "steps": 32,
+   "cfg": 7.5,
+   "neg": "forest, panel, stripe, person, ground, scenery, street, vase, frame, monster, collage",
+   "prompt": "single object, three-quarter view, cream background, full frame, centered, one coconut palm, curved trunk, green fronds, gouache, even light, no ground, no people"
+  },
+  {
+   "name": "obj_tree",
+   "w": 1024,
+   "h": 1024,
+   "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108,
+    109,
+    110
+   ],
+   "steps": 32,
+   "cfg": 7.5,
+   "neg": "bonsai, pot, island, person, ground, scenery, street, vase, frame, monster, collage",
+   "prompt": "single object, three-quarter view, cream background, full frame, centered, one round leafy tree, plump round crown, short trunk, gouache, even light, no ground, no people"
+  },
+  {
+   "name": "obj_bush",
+   "w": 1024,
+   "h": 1024,
+   "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108
+   ],
+   "steps": 32,
+   "cfg": 7.5,
+   "neg": "tree, pot, vase, person, ground, scenery, street, vase, frame, monster, collage",
+   "prompt": "single object, three-quarter view, cream background, full frame, centered, one low round shrub, fluffy green mound, tiny white flowers, gouache, even light, no ground, no people"
+  },
+  {
+   "name": "obj_cottage",
+   "w": 1024,
+   "h": 1024,
+   "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108,
+    109,
+    110,
+    111,
+    112
+   ],
+   "steps": 32,
+   "cfg": 7.5,
+   "neg": "street, village, alley, signage, person, ground, scenery, street, vase, frame, monster, collage",
+   "prompt": "single object, three-quarter view, cream background, full frame, centered, one cottage, cream walls, brown roof, one door, two windows, gouache, even light, no ground, no people"
+  },
+  {
+   "name": "obj_pier",
+   "w": 1024,
+   "h": 1024,
+   "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108,
+    109,
+    110
+   ],
+   "steps": 32,
+   "cfg": 7.5,
+   "neg": "water, boat, beach, creature, person, ground, scenery, street, vase, frame, monster, collage",
+   "prompt": "single object, three-quarter view, cream background, full frame, centered, one wooden pier section, honey planks, four posts, gouache, even light, no ground, no people"
+  },
+  {
+   "name": "obj_fountain",
+   "w": 1024,
+   "h": 1024,
+   "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108,
+    109,
+    110
+   ],
+   "steps": 32,
+   "cfg": 7.5,
+   "neg": "statue, girl, bottle, person, ground, scenery, street, vase, frame, monster, collage",
+   "prompt": "single object, three-quarter view, cream background, full frame, centered, one low round fountain, two stone tiers, small water spray, gouache, even light, no ground, no people"
+  },
+  {
+   "name": "obj_lotus",
+   "w": 1024,
+   "h": 1024,
+   "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108
+   ],
+   "steps": 32,
+   "cfg": 7.5,
+   "neg": "pond, painting, many flowers, person, ground, scenery, street, vase, frame, monster, collage",
+   "prompt": "single object, three-quarter view, cream background, full frame, centered, one lotus, one round leaf, one pink flower, gouache, even light, no ground, no people"
+  },
+  {
+   "name": "obj_flowers",
+   "w": 1024,
+   "h": 1024,
+   "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108
+   ],
+   "steps": 32,
+   "cfg": 7.5,
+   "neg": "vase, pot, bouquet, person, ground, scenery, street, vase, frame, monster, collage",
+   "prompt": "single object, three-quarter view, cream background, full frame, centered, one clump of white and coral flowers, green leaves, gouache, even light, no ground, no people"
+  },
+  {
+   "name": "obj_tent",
+   "w": 1024,
+   "h": 1024,
+   "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108
+   ],
+   "steps": 32,
+   "cfg": 7.5,
+   "neg": "campfire, campsite, person, ground, scenery, street, vase, frame, monster, collage",
+   "prompt": "single object, three-quarter view, cream background, full frame, centered, one small tent, coral canvas, gouache, even light, no ground, no people"
+  },
+  {
+   "name": "obj_bench",
+   "w": 1024,
+   "h": 1024,
+   "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108
+   ],
+   "steps": 32,
+   "cfg": 7.5,
+   "neg": "park, person sitting, person, ground, scenery, street, vase, frame, monster, collage",
+   "prompt": "single object, three-quarter view, cream background, full frame, centered, one wooden bench, honey wood, gouache, even light, no ground, no people"
+  },
+  {
+   "name": "obj_rock",
+   "w": 1024,
+   "h": 1024,
+   "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108
+   ],
+   "steps": 32,
+   "cfg": 7.5,
+   "neg": "pile, cliff, gravel, person, ground, scenery, street, vase, frame, monster, collage",
+   "prompt": "single object, three-quarter view, cream background, full frame, centered, one smooth round boulder, warm tan stone, gouache, even light, no ground, no people"
+  },
+  {
+   "name": "obj_barrel",
+   "w": 1024,
+   "h": 1024,
+   "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108
+   ],
+   "steps": 32,
+   "cfg": 7.5,
+   "neg": "stack, crate, person, ground, scenery, street, vase, frame, monster, collage",
+   "prompt": "single object, three-quarter view, cream background, full frame, centered, one wooden barrel, metal hoops, gouache, even light, no ground, no people"
+  },
+  {
+   "name": "obj_crate",
+   "w": 1024,
+   "h": 1024,
+   "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108
+   ],
+   "steps": 32,
+   "cfg": 7.5,
+   "neg": "stack, barrel, pile, person, ground, scenery, street, vase, frame, monster, collage",
+   "prompt": "single object, three-quarter view, cream background, full frame, centered, one wooden crate, honey planks, gouache, even light, no ground, no people"
+  },
+  {
+   "name": "obj_mailbox",
+   "w": 1024,
+   "h": 1024,
+   "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108
+   ],
+   "steps": 32,
+   "cfg": 7.5,
+   "neg": "house, letters, street, person, ground, scenery, street, vase, frame, monster, collage",
+   "prompt": "single object, three-quarter view, cream background, full frame, centered, one mailbox, cream box, wooden post, gouache, even light, no ground, no people"
+  },
+  {
+   "name": "obj_flowerbed",
+   "w": 1024,
+   "h": 1024,
+   "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108
+   ],
+   "steps": 32,
+   "cfg": 7.5,
+   "neg": "garden, path, house, person, ground, scenery, street, vase, frame, monster, collage",
+   "prompt": "single object, three-quarter view, cream background, full frame, centered, one low flower bed, wooden border, white and coral flowers, gouache, even light, no ground, no people"
+  },
+  {
+   "name": "obj_parasol",
+   "w": 1024,
+   "h": 1024,
+   "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108
+   ],
+   "steps": 32,
+   "cfg": 7.5,
+   "neg": "chair, beach, person, person, ground, scenery, street, vase, frame, monster, collage",
+   "prompt": "single object, three-quarter view, cream background, full frame, centered, one parasol, coral and cream canopy, wooden pole, gouache, even light, no ground, no people"
+  },
+  {
+   "name": "obj_lounger",
+   "w": 1024,
+   "h": 1024,
+   "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108
+   ],
+   "steps": 32,
+   "cfg": 7.5,
+   "neg": "person, beach, parasol, person, ground, scenery, street, vase, frame, monster, collage",
+   "prompt": "single object, three-quarter view, cream background, full frame, centered, one wooden lounge chair, honey wood, cream cushion, gouache, even light, no ground, no people"
+  },
+  {
+   "name": "obj_stall",
+   "w": 1024,
+   "h": 1024,
+   "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108,
+    109,
+    110
+   ],
+   "steps": 32,
+   "cfg": 7.5,
+   "neg": "crowd, signage, street, person, ground, scenery, street, vase, frame, monster, collage",
+   "prompt": "single object, three-quarter view, cream background, full frame, centered, one wooden stall, coral and cream awning, empty counter, gouache, even light, no ground, no people"
+  },
+  {
+   "name": "obj_lamp",
+   "w": 1024,
+   "h": 1024,
+   "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108
+   ],
+   "steps": 32,
+   "cfg": 7.5,
+   "neg": "row of lamps, street, person, ground, scenery, street, vase, frame, monster, collage",
+   "prompt": "single object, three-quarter view, cream background, full frame, centered, one street lamp, green post, brass lantern, gouache, even light, no ground, no people"
+  },
+  {
+   "name": "obj_fence",
+   "w": 1024,
+   "h": 1024,
+   "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108
+   ],
+   "steps": 32,
+   "cfg": 7.5,
+   "neg": "yard, house, long fence, person, ground, scenery, street, vase, frame, monster, collage",
+   "prompt": "single object, three-quarter view, cream background, full frame, centered, one short fence section, three posts, two wooden rails, gouache, even light, no ground, no people"
+  },
+  {
+   "name": "obj_boat",
+   "w": 1024,
+   "h": 1024,
+   "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108
+   ],
+   "steps": 32,
+   "cfg": 7.5,
+   "neg": "water, dock, sail, person, person, ground, scenery, street, vase, frame, monster, collage",
+   "prompt": "single object, three-quarter view, cream background, full frame, centered, one wooden rowboat, cream hull, two oars, gouache, even light, no ground, no people"
+  },
+  {
+   "name": "obj_sail",
+   "w": 1024,
+   "h": 1024,
+   "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108
+   ],
+   "steps": 32,
+   "cfg": 7.5,
+   "neg": "fleet, horizon, island, person, person, ground, scenery, street, vase, frame, monster, collage",
+   "prompt": "single object, three-quarter view, cream background, full frame, centered, one small sailboat, white sail, wooden hull, gouache, even light, no ground, no people"
+  }
+ ]
+}

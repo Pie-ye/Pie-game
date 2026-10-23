@@ -1,0 +1,70 @@
+{
+ "items": [
+  {
+   "name": "skyB_day",
+   "w": 1536,
+   "h": 768,
+   "tile": "x",
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+   ],
+   "loras": {
+    "shinkai": 0.3,
+    "pe": 0.4
+   },
+   "neg": "pink clouds, purple, magenta, sunset, orange, dramatic, dark clouds, island, building, tree, boat, land, people, text",
+   "prompt": "Makoto Shinkai Style page, PEAnimeBG, anime background, sky panorama, clear powder blue sky, pale blue horizon, a few big soft white cumulus clouds, high-key, gouache, watercolor, calm sea at the bottom, straight horizon"
+  },
+  {
+   "name": "skyB_day2",
+   "w": 1536,
+   "h": 768,
+   "tile": "x",
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+   ],
+   "loras": {
+    "shinkai": 0.0,
+    "pe": 0.5
+   },
+   "neg": "pink clouds, purple, magenta, sunset, orange, dramatic, dark clouds, island, building, tree, boat, land, people, text",
+   "prompt": "PEAnimeBG, anime background, sky panorama, clear pale blue sky, white fluffy cumulus clouds, bright summer noon, high-key, gouache, watercolor, calm sea at the bottom, straight horizon"
+  },
+  {
+   "name": "skyB_soft",
+   "w": 1536,
+   "h": 768,
+   "tile": "x",
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+   ],
+   "loras": {
+    "shinkai": 0.2,
+    "pe": 0.3
+   },
+   "neg": "pink clouds, purple, magenta, sunset, orange, dramatic, dark clouds, island, building, tree, boat, land, people, text",
+   "prompt": "Makoto Shinkai Style page, PEAnimeBG, anime background, sky panorama, soft pastel blue sky, thin white clouds, airy, gentle haze near horizon, high-key, gouache, watercolor, calm sea at the bottom, straight horizon"
+  }
+ ]
+}

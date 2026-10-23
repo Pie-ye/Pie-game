@@ -1,11 +1,13 @@
 import * as THREE from '../../pie-phoebe/vendor/three.module.js';
-import { makeTerrain, makeWater, makeSky, makeClouds, loadModels, instanceProps, makeHouses, HOUSE_PARTS } from './island.js';
+import { makeTerrain, makeWater, makeSky, makeClouds, loadModels, instanceProps, makeHouses, applyAnimeModels, HOUSE_PARTS } from './island.js';
 import { buildWorld, step, groundAt, spawnPoint, zoneAt, rng, HOUSES, HOUSE_HALF, coastDist, groundColor, terrainHeight, DOCK } from './layout.js';
 import { createCharacter, EMOTES, EMOTE_TIME } from './character.js';
 import { loadLook, saveLook, randomLook, sanitize } from './look.js';
 import { createCreator } from './creator.js';
 import { createMultiplayer } from './multiplayer.js';
 import { createAudio } from './audio.js';
+import { createPost, toonify, loadSkyPanorama } from './style.js';
+import { makeDressing } from './dressing.js';
 
 const params = new URLSearchParams(location.search);
 const Q = {
@@ -28,15 +30,16 @@ renderer.shadowMap.type = THREE.PCFShadowMap;
 let pixelRatio = Q.pr || Math.min(2, window.devicePixelRatio || 1);
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog('#d3eefb', 80, 280);
+scene.fog = new THREE.FogExp2('#D7E7F2', 0.0065);   // 美術聖經：晴天霧色，遠方發白但帆船還在
 const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 900);
 
-const hemi = new THREE.HemisphereLight('#dbf2ff', '#8cc76c', 1.25);
+const hemi = new THREE.HemisphereLight('#FFF6EA', '#C3C7D3', 0.55);
 scene.add(hemi);
-const SUN_DIR = new THREE.Vector3(-0.45, 0.55, 0.7).normalize();
-const sun = new THREE.DirectionalLight('#fff0d4', 2.7);
+const SUN_DIR = new THREE.Vector3(-0.45, 1.05, 0.55).normalize();   // 西南、仰角約 55°
+const sun = new THREE.DirectionalLight('#FFF4E0', 1.15);
 sun.castShadow = Q.shadows;
 sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.radius = 6;
 Object.assign(sun.shadow.camera, { left: -28, right: 28, top: 28, bottom: -28, near: 1, far: 160 });
 sun.shadow.bias = -0.0004;
 sun.shadow.normalBias = 0.035;
@@ -52,6 +55,8 @@ const clouds = makeClouds(rng(7));
 scene.add(clouds);
 const world = buildWorld();
 
+const post = createPost(renderer);
+post.enabled = params.get('post') !== '0';
 function resize() {
   const w = canvas.clientWidth || window.innerWidth, h = canvas.clientHeight || window.innerHeight;
   renderer.setPixelRatio(pixelRatio);
@@ -59,6 +64,7 @@ function resize() {
   camera.aspect = w / h;
   camera.fov = w / h < 0.75 ? 55 : 42;          // 直式手機視野放寬
   camera.updateProjectionMatrix();
+  post.setSize();
 }
 window.addEventListener('resize', resize);
 resize();
@@ -154,13 +160,17 @@ function openCreator(first = false) {
 
 // ---------- 載入場景 ----------
 async function loadIsland() {
-  const names = [...new Set([...world.props.map((p) => p.model), ...HOUSE_PARTS])];
+  const props = await applyAnimeModels(world.props);
+  const names = [...new Set([...props.map((p) => p.model), ...HOUSE_PARTS])].filter((n) => !n.startsWith('dress/'));
   const models = await loadModels(names, (k) => {
     ui.bar.style.width = `${Math.round(k * 100)}%`;
     ui.pct.textContent = `${Math.round(k * 100)}%`;
   });
-  scene.add(instanceProps(models, world.props, { shadows: Q.shadows }));
+  scene.add(instanceProps(models, props, { shadows: Q.shadows }));
   scene.add(makeHouses(models, { shadows: Q.shadows }));
+  scene.add(makeDressing(props, { shadows: Q.shadows }));
+  toonify(scene);
+  loadSkyPanorama('./assets/sky/day.jpg', sky, clouds);
   renderer.compile(scene, camera);
   drawMapBase();
   await Promise.race([netReady, new Promise((r) => setTimeout(r, 1500))]);
@@ -417,7 +427,7 @@ function frame(now) {
   net.update(dt, camera.position);
   if (now - clock.mapAt > 120) { clock.mapAt = now; drawMap(); }
   adaptQuality(dt);
-  if (mode !== 'create') renderer.render(scene, camera);
+  if (mode !== 'create') post.render(scene, camera);
 }
 requestAnimationFrame(frame);
 

@@ -1,0 +1,1978 @@
+{
+  "name": "暖蘋果",
+  "version": 2,
+  "space": {
+    "units": "meters",
+    "up": "Y",
+    "forward": "+Z",
+    "right": "+X",
+    "origin": "sole contact, midway between the feet",
+    "headHeightM": 0.46,
+    "crownYM": 1.38,
+    "totalHeads": 3.0,
+    "notes": "Hair, hats, and ears may extend above the crown. Name tag stays near y=1.85."
+  },
+  "landmarksYM": {
+    "sole": 0.0,
+    "shoeTop": 0.13,
+    "ankle": 0.165,
+    "knee": 0.325,
+    "hip": 0.505,
+    "crotch": 0.47,
+    "waist": 0.66,
+    "chest": 0.82,
+    "shoulder": 0.93,
+    "neckBase": 0.9,
+    "neckTop": 0.98,
+    "chin": 0.92,
+    "skullCenter": 1.15,
+    "eyeLine": 1.144,
+    "crown": 1.38
+  },
+  "readabilityAt120px": {
+    "characterHeightPx": 120,
+    "metersToPx": 86.96,
+    "eyeMinPx": 7,
+    "handMinPx": 8,
+    "shoeHeightMinPx": 7
+  },
+  "head": {
+    "center": [
+      0,
+      1.15,
+      0
+    ],
+    "localAxes": "same as world; origin at skull center",
+    "base": "sphere radius 0.21 m, then non-uniform scale, then the deform below",
+    "shapes": [
+      {
+        "id": "apple",
+        "name": "蘋果臉",
+        "scale": [
+          1.0,
+          1.095,
+          0.86
+        ],
+        "cheekPush": 0.034,
+        "foreheadNarrow": 0.24,
+        "chinNarrow": 0.72,
+        "chinDrop": 0.025
+      },
+      {
+        "id": "round",
+        "name": "圓臉",
+        "scale": [
+          1.08,
+          1.02,
+          0.9
+        ],
+        "cheekPush": 0.04,
+        "foreheadNarrow": 0.1,
+        "chinNarrow": 0.88,
+        "chinDrop": 0.012
+      },
+      {
+        "id": "melon",
+        "name": "小瓜臉",
+        "scale": [
+          0.94,
+          1.16,
+          0.84
+        ],
+        "cheekPush": 0.02,
+        "foreheadNarrow": 0.3,
+        "chinNarrow": 0.62,
+        "chinDrop": 0.034
+      }
+    ],
+    "defaultShape": "apple",
+    "deform": {
+      "order": [
+        "scale",
+        "faceFlatten",
+        "forehead",
+        "foreheadNarrow",
+        "cheek",
+        "chin",
+        "occiput"
+      ],
+      "faceFlatten": "For every vertex with z>0: z = z * 0.62 + 0.05. Do this on the cheeks too. A threshold such as z>0.13 only flattens the nose tip and leaves a ball.",
+      "forehead": "If y>0.06 and z>0: z -= 0.025 * smoothstep(0.06, 0.16, y). The high camera then still sees the eyes.",
+      "cheek": {
+        "centers": [
+          [
+            0.12,
+            -0.02,
+            0.06
+          ],
+          [
+            -0.12,
+            -0.02,
+            0.06
+          ]
+        ],
+        "sigma": 0.07,
+        "push": "Move along +X or -X (away from the midline) by cheekPush * gaussian."
+      },
+      "chin": "If y< -0.10: narrow x toward 0 by chinNarrow, y -= chinDrop * smoothstep, z += 0.02 * smoothstep.",
+      "occiput": "If z<0 and y<0.06: z -= 0.035, y -= 0.02. Round bun base, not a second ball glued on.",
+      "foreheadNarrow": "If y>0.04: x *= 1 - foreheadNarrow * smoothstep(0.04, 0.20, y). Apple 0.24, round 0.10, melon 0.30. This is the difference between an apple and a sphere."
+    },
+    "silhouetteSideZY": [
+      [
+        0.0,
+        0.23
+      ],
+      [
+        0.06,
+        0.2
+      ],
+      [
+        0.11,
+        0.13
+      ],
+      [
+        0.145,
+        0.05
+      ],
+      [
+        0.15,
+        -0.03
+      ],
+      [
+        0.12,
+        -0.12
+      ],
+      [
+        0.06,
+        -0.19
+      ],
+      [
+        0.0,
+        -0.23
+      ],
+      [
+        -0.07,
+        -0.19
+      ],
+      [
+        -0.13,
+        -0.1
+      ],
+      [
+        -0.19,
+        0.0
+      ],
+      [
+        -0.17,
+        0.11
+      ],
+      [
+        -0.08,
+        0.2
+      ]
+    ],
+    "silhouetteFrontXY": [
+      [
+        0.05,
+        0.22
+      ],
+      [
+        0.11,
+        0.14
+      ],
+      [
+        0.17,
+        0.05
+      ],
+      [
+        0.22,
+        -0.02
+      ],
+      [
+        0.17,
+        -0.12
+      ],
+      [
+        0.1,
+        -0.19
+      ],
+      [
+        0.03,
+        -0.22
+      ]
+    ],
+    "silhouetteNotes": "Side points are [z, y] and front points are the +X half [x, y], in head-local meters, apple shape after deform. Match within 8 mm. Do not lathe the side profile; a lathe would turn the flat face into a beak.",
+    "faceKeepOut": {
+      "min": [
+        -0.11,
+        -0.06,
+        0.08
+      ],
+      "max": [
+        0.11,
+        0.04,
+        0.22
+      ],
+      "notes": "Eyes sit in this box. Bang bottoms stop at local y=0.062, just above the brows. Side hair may reach the jaw (y about -0.15) but when y<0.05 it stays at |x|>=0.15. Lenses stay out of this box."
+    }
+  },
+  "neck": {
+    "fromYM": 0.9,
+    "toYM": 0.98,
+    "radiusBottom": 0.055,
+    "radiusTop": 0.064,
+    "sinkIntoTorso": 0.02,
+    "sinkIntoHead": 0.045
+  },
+  "face": {
+    "mesh": "A 0.32 x 0.34 m patch, 2 mm in front of the flattened face, parented to the head. Curve the patch 10 mm back at the left and right edges so it meets the cheeks.",
+    "centerLocal": [
+      0,
+      -0.04,
+      0.155
+    ],
+    "widthM": 0.32,
+    "heightM": 0.34,
+    "texturePx": [
+      512,
+      544
+    ],
+    "background": "Fill the canvas with the exact skin hex, then feather alpha to 0 over the outer 6%. A transparent background lets the shaded ball show through the features.",
+    "material": {
+      "type": "MeshStandardMaterial",
+      "roughness": 0.92,
+      "metalness": 0,
+      "emissiveMap": "same face texture",
+      "emissiveIntensity": 0.4,
+      "notes": "Painted catchlights must survive the overhead sun. Do not use a fully lit Basic material or the face looks like a sticker floating in front of a shaded head."
+    },
+    "layoutPct": {
+      "origin": "top-left of the face box; x right, y down; values are percent of face width or face height",
+      "eyes": {
+        "centerX": [
+          31,
+          69
+        ],
+        "centerY": 40,
+        "width": 28,
+        "height": 28,
+        "innerGap": 10
+      },
+      "brows": {
+        "centerX": [
+          31,
+          69
+        ],
+        "centerY": 22,
+        "width": 20,
+        "thickness": 3.6
+      },
+      "nose": {
+        "centerX": 50,
+        "centerY": 60,
+        "width": 8,
+        "height": 6
+      },
+      "mouth": {
+        "centerX": 50,
+        "centerY": 74,
+        "width": 26,
+        "height": 11
+      },
+      "blush": {
+        "centerX": [
+          16,
+          84
+        ],
+        "centerY": 52,
+        "width": 14,
+        "height": 9
+      }
+    }
+  },
+  "palette": {
+    "skin": [
+      {
+        "name": "米杏",
+        "hex": "#F8E0D0"
+      },
+      {
+        "name": "蜜桃",
+        "hex": "#F3C6A8"
+      },
+      {
+        "name": "暖桃",
+        "hex": "#E8B08C"
+      },
+      {
+        "name": "小麥",
+        "hex": "#D09268"
+      },
+      {
+        "name": "蜂蜜",
+        "hex": "#C47B4E"
+      },
+      {
+        "name": "焦糖",
+        "hex": "#A5653E"
+      },
+      {
+        "name": "紅茶",
+        "hex": "#8A4E32"
+      },
+      {
+        "name": "深棕",
+        "hex": "#6B3C2A"
+      }
+    ],
+    "hair": [
+      {
+        "name": "墨棕",
+        "hex": "#2C2622"
+      },
+      {
+        "name": "深栗",
+        "hex": "#5A3A2A"
+      },
+      {
+        "name": "咖啡",
+        "hex": "#8D5A34"
+      },
+      {
+        "name": "焦糖",
+        "hex": "#C9843C"
+      },
+      {
+        "name": "奶油金",
+        "hex": "#E8C56B"
+      },
+      {
+        "name": "亞麻",
+        "hex": "#F4E6C4"
+      },
+      {
+        "name": "珊瑚",
+        "hex": "#E07A6A"
+      },
+      {
+        "name": "玫瑰",
+        "hex": "#F0A0B8"
+      },
+      {
+        "name": "霧藍",
+        "hex": "#7B8FD4"
+      },
+      {
+        "name": "晴空",
+        "hex": "#6AA8C8"
+      },
+      {
+        "name": "苔綠",
+        "hex": "#6E9A62"
+      },
+      {
+        "name": "石板",
+        "hex": "#3E4654"
+      }
+    ],
+    "iris": [
+      {
+        "name": "墨",
+        "hex": "#3A2C24"
+      },
+      {
+        "name": "琥珀",
+        "hex": "#6A4632"
+      },
+      {
+        "name": "湖水",
+        "hex": "#3E6A9A"
+      },
+      {
+        "name": "森林",
+        "hex": "#3E7A52"
+      },
+      {
+        "name": "葡萄",
+        "hex": "#7A5098"
+      },
+      {
+        "name": "莓紅",
+        "hex": "#C45A68"
+      }
+    ],
+    "cloth": [
+      {
+        "name": "米白",
+        "hex": "#FFF9F2"
+      },
+      {
+        "name": "奶油",
+        "hex": "#F4E2C4"
+      },
+      {
+        "name": "珊瑚",
+        "hex": "#F08A86"
+      },
+      {
+        "name": "玫粉",
+        "hex": "#F07AA0"
+      },
+      {
+        "name": "杏橘",
+        "hex": "#F0A45A"
+      },
+      {
+        "name": "蜂蜜",
+        "hex": "#F2D56A"
+      },
+      {
+        "name": "芽綠",
+        "hex": "#8FCB78"
+      },
+      {
+        "name": "薄荷",
+        "hex": "#5BB89A"
+      },
+      {
+        "name": "晴空",
+        "hex": "#7EC8E0"
+      },
+      {
+        "name": "靛藍",
+        "hex": "#6A94E0"
+      },
+      {
+        "name": "紫藤",
+        "hex": "#A894E0"
+      },
+      {
+        "name": "藕粉",
+        "hex": "#E0A8D4"
+      },
+      {
+        "name": "木棕",
+        "hex": "#8D6A48"
+      },
+      {
+        "name": "石板",
+        "hex": "#4A5568"
+      }
+    ],
+    "ink": {
+      "lid": "#4A372C",
+      "pupil": "#241C18",
+      "sclera": "#FFFEF8",
+      "catchlight": "#FFFFFF",
+      "mouthLightSkin": "#C45B66",
+      "mouthDarkSkin": "#8E3A48",
+      "tongue": "#E0898C",
+      "teeth": "#FFF8F2",
+      "blush": "#F2A3A0",
+      "freckle": "#C4846A",
+      "catEarInner": "#F2B8C0",
+      "bearEarInner": "#F3C9B0"
+    },
+    "mouthRule": "Use mouthLightSkin when the skin hex relative luminance is above 0.45, otherwise mouthDarkSkin. Nose color is skin mixed 35% toward #7A4A3A. Brows use the hair color mixed 15% toward #2C2622."
+  },
+  "features": {
+    "strokePctOfFaceHeight": {
+      "thin": 1.2,
+      "lid": 2.4,
+      "mouth": 2.0,
+      "lash": 1.4
+    },
+    "eyes": [
+      {
+        "id": "maru",
+        "name": "圓圓眼",
+        "sclera": "circle",
+        "iris": 0.85,
+        "pupil": 0.42,
+        "catchlight": 0.28,
+        "upperLid": 0.06,
+        "heightScale": 1,
+        "outerDrop": 0
+      },
+      {
+        "id": "spark",
+        "name": "閃亮眼",
+        "sclera": "circle",
+        "iris": 0.85,
+        "pupil": 0.42,
+        "catchlight": 0.28,
+        "sparkle": true,
+        "upperLid": 0.06,
+        "heightScale": 1,
+        "outerDrop": 0
+      },
+      {
+        "id": "soft",
+        "name": "瞇瞇眼",
+        "sclera": "circle",
+        "iris": 0.85,
+        "pupil": 0.4,
+        "catchlight": 0.22,
+        "upperLid": 0.42,
+        "heightScale": 0.72,
+        "outerDrop": 0
+      },
+      {
+        "id": "almond",
+        "name": "杏仁眼",
+        "sclera": "ellipse",
+        "iris": 0.74,
+        "pupil": 0.4,
+        "catchlight": 0.24,
+        "upperLid": 0.12,
+        "heightScale": 0.78,
+        "widthScale": 1.08,
+        "outerLift": 0.1
+      },
+      {
+        "id": "lash",
+        "name": "睫毛眼",
+        "sclera": "circle",
+        "iris": 0.85,
+        "pupil": 0.42,
+        "catchlight": 0.28,
+        "upperLid": 0.06,
+        "lashes": 3,
+        "lashLengthPctOfEye": 18,
+        "heightScale": 1,
+        "outerDrop": 0
+      },
+      {
+        "id": "star",
+        "name": "星星眼",
+        "sclera": "circle",
+        "pupilShape": "star4",
+        "iris": 0.88,
+        "catchlight": 0.22,
+        "upperLid": 0.08,
+        "heightScale": 1,
+        "outerDrop": 0
+      },
+      {
+        "id": "dot",
+        "name": "豆豆眼",
+        "sclera": "circle",
+        "iris": 0.38,
+        "pupil": 0.7,
+        "catchlight": 0.34,
+        "upperLid": 0.08,
+        "heightScale": 1,
+        "outerDrop": 0
+      },
+      {
+        "id": "droop",
+        "name": "下垂眼",
+        "sclera": "circle",
+        "iris": 0.8,
+        "pupil": 0.4,
+        "catchlight": 0.26,
+        "upperLid": 0.14,
+        "heightScale": 0.92,
+        "outerDrop": 0.14
+      }
+    ],
+    "brows": [
+      {
+        "id": "none",
+        "name": "無眉"
+      },
+      {
+        "id": "thin",
+        "name": "細弧眉",
+        "thicknessPct": 2.2,
+        "archPct": 4
+      },
+      {
+        "id": "thick",
+        "name": "粗平眉",
+        "thicknessPct": 4.6,
+        "archPct": 1.5,
+        "widthScale": 0.9
+      },
+      {
+        "id": "sad",
+        "name": "八字眉",
+        "thicknessPct": 2.6,
+        "innerLiftPct": 4
+      },
+      {
+        "id": "raise",
+        "name": "挑眉",
+        "thicknessPct": 2.6,
+        "outerLiftPct": 5
+      },
+      {
+        "id": "short",
+        "name": "短點眉",
+        "thicknessPct": 3.4,
+        "widthScale": 0.55,
+        "rounded": true
+      }
+    ],
+    "noses": [
+      {
+        "id": "none",
+        "name": "無鼻"
+      },
+      {
+        "id": "dot",
+        "name": "小點",
+        "shape": "circle",
+        "widthPct": 5
+      },
+      {
+        "id": "hook",
+        "name": "小勾",
+        "shape": "comma-curve"
+      },
+      {
+        "id": "round",
+        "name": "圓鼻",
+        "shape": "soft-ellipse",
+        "widthPct": 8,
+        "highlight": true
+      },
+      {
+        "id": "line",
+        "name": "橫線",
+        "shape": "short-curve",
+        "widthPct": 8
+      }
+    ],
+    "mouths": [
+      {
+        "id": "smile",
+        "name": "微笑",
+        "shape": "up-arc",
+        "widthPct": 26
+      },
+      {
+        "id": "open",
+        "name": "開笑",
+        "shape": "open-d",
+        "widthPct": 28,
+        "heightPct": 9
+      },
+      {
+        "id": "cat",
+        "name": "貓嘴",
+        "shape": "w",
+        "widthPct": 16
+      },
+      {
+        "id": "o",
+        "name": "小圓嘴",
+        "shape": "ellipse",
+        "widthPct": 7,
+        "heightPct": 8
+      },
+      {
+        "id": "pout",
+        "name": "嘟嘴",
+        "shape": "filled-ellipse",
+        "widthPct": 10,
+        "heightPct": 6,
+        "highlight": true
+      },
+      {
+        "id": "press",
+        "name": "抿嘴",
+        "shape": "shallow-arc",
+        "widthPct": 14
+      },
+      {
+        "id": "teeth",
+        "name": "齒笑",
+        "shape": "open-d-teeth",
+        "widthPct": 28
+      },
+      {
+        "id": "tongue",
+        "name": "吐舌",
+        "shape": "smile-plus-tongue",
+        "widthPct": 20
+      }
+    ],
+    "blush": [
+      {
+        "id": "none",
+        "name": "無腮紅"
+      },
+      {
+        "id": "oval",
+        "name": "圓暈",
+        "shape": "ellipse",
+        "alpha": 0.55
+      },
+      {
+        "id": "lines",
+        "name": "短線",
+        "shape": "three-strokes"
+      },
+      {
+        "id": "freckles",
+        "name": "雀斑",
+        "shape": "five-dots",
+        "spanPct": 28
+      }
+    ],
+    "irisNote": "iris is the iris DIAMETER as a fraction of the eye height. radius = iris * eyeHeight / 2. Do not also multiply by a 0.9-shrunk sclera radius. catch is the catchlight diameter as a fraction of eye height."
+  },
+  "expressions": [
+    {
+      "id": "neutral",
+      "name": "一般",
+      "eyes": "selected",
+      "mouth": "selected",
+      "brows": "selected"
+    },
+    {
+      "id": "blink",
+      "name": "眨眼",
+      "eyes": "both lids become arcs as thick as 18% of the eye height; keep the eye width",
+      "mouth": "selected"
+    },
+    {
+      "id": "happy",
+      "name": "開心",
+      "eyes": "upward closed arcs",
+      "mouth": "open"
+    },
+    {
+      "id": "wow",
+      "name": "驚訝",
+      "eyes": "maru scaled 1.12 with smaller pupils",
+      "mouth": "o",
+      "brows": "raise"
+    },
+    {
+      "id": "love",
+      "name": "喜歡",
+      "eyes": "heart pupils inside the selected sclera",
+      "mouth": "smile"
+    },
+    {
+      "id": "hmm",
+      "name": "疑問",
+      "eyes": "almond",
+      "mouth": "press",
+      "brows": "one brow uses raise, the other uses sad"
+    }
+  ],
+  "ears": [
+    {
+      "id": "human",
+      "name": "人耳",
+      "parts": [
+        {
+          "geo": "sphere",
+          "center": [
+            0.205,
+            -0.02,
+            0.0
+          ],
+          "scale": [
+            0.03,
+            0.055,
+            0.016
+          ],
+          "mirror": true
+        }
+      ],
+      "color": "skin"
+    },
+    {
+      "id": "cat",
+      "name": "貓耳",
+      "parts": [
+        {
+          "geo": "cone",
+          "center": [
+            0.12,
+            0.24,
+            0.02
+          ],
+          "radius": 0.045,
+          "height": 0.11,
+          "mirror": true
+        },
+        {
+          "geo": "cone",
+          "center": [
+            0.12,
+            0.23,
+            0.03
+          ],
+          "radius": 0.026,
+          "height": 0.07,
+          "mirror": true,
+          "color": "#F2B8C0"
+        }
+      ]
+    },
+    {
+      "id": "bear",
+      "name": "熊耳",
+      "parts": [
+        {
+          "geo": "sphere",
+          "center": [
+            0.16,
+            0.2,
+            0.0
+          ],
+          "scale": [
+            0.055,
+            0.055,
+            0.04
+          ],
+          "mirror": true
+        },
+        {
+          "geo": "sphere",
+          "center": [
+            0.16,
+            0.2,
+            0.02
+          ],
+          "scale": [
+            0.032,
+            0.032,
+            0.02
+          ],
+          "mirror": true,
+          "color": "#F3C9B0"
+        }
+      ]
+    },
+    {
+      "id": "bunny",
+      "name": "兔耳",
+      "parts": [
+        {
+          "geo": "capsule",
+          "center": [
+            0.1,
+            0.32,
+            0.0
+          ],
+          "radius": 0.028,
+          "length": 0.16,
+          "tiltOutDeg": 12,
+          "mirror": true
+        },
+        {
+          "geo": "capsule",
+          "center": [
+            0.1,
+            0.31,
+            0.012
+          ],
+          "radius": 0.014,
+          "length": 0.11,
+          "tiltOutDeg": 12,
+          "mirror": true,
+          "color": "#F2B8C0"
+        }
+      ]
+    }
+  ],
+  "hair": [
+    {
+      "id": "short-cap",
+      "name": "短圓蓋",
+      "ears": "hide",
+      "summary": "Fluffy jaw-length cap plus a thick brow-level bang and one cowlick. This is the turnaround hair.",
+      "parts": [
+        {
+          "geo": "headShell",
+          "outer": 0.048,
+          "inner": 0.01,
+          "keep": "y > -0.15 && !(z > 0.015 && y < 0.062 && Math.abs(x) < 0.15)",
+          "ears": "hide"
+        },
+        {
+          "geo": "headShell",
+          "outer": 0.056,
+          "inner": 0.014,
+          "keep": "z > 0.02 && y >= 0.062 && y < 0.17 && Math.abs(x) < 0.175",
+          "ears": "hide"
+        },
+        {
+          "geo": "sphere",
+          "center": [
+            0.195,
+            -0.03,
+            0.02
+          ],
+          "scale": [
+            0.052,
+            0.086,
+            0.062
+          ],
+          "mirror": true,
+          "role": "jaw puff, closes the gap between shell and cheek"
+        },
+        {
+          "geo": "sphere",
+          "center": [
+            0.02,
+            0.255,
+            0.02
+          ],
+          "scale": [
+            0.022,
+            0.04,
+            0.02
+          ],
+          "rotationZ": -0.55,
+          "role": "cowlick, tuck into a hat"
+        }
+      ]
+    },
+    {
+      "id": "side-part",
+      "name": "旁分",
+      "ears": "notch",
+      "summary": "Same fluffy cap, parted on +X, heavier mass on -X, sideburns outside the face.",
+      "parts": [
+        {
+          "geo": "headShell",
+          "outer": 0.044,
+          "inner": 0.01,
+          "keep": "y > -0.12 && !(z > 0.02 && y < 0.062 && x > -0.04 && x < 0.16) && !(Math.abs(x) > 0.165 && y < 0.045 && y > -0.09 && z > -0.05 && z < 0.07)",
+          "ears": "notch"
+        },
+        {
+          "geo": "sphere",
+          "center": [
+            -0.05,
+            0.095,
+            0.155
+          ],
+          "scale": [
+            0.115,
+            0.04,
+            0.048
+          ],
+          "rotationZ": 0.4,
+          "role": "swept bang, bottom at about y=0.055"
+        },
+        {
+          "geo": "sphere",
+          "center": [
+            -0.1,
+            0.13,
+            0.06
+          ],
+          "scale": [
+            0.07,
+            0.045,
+            0.05
+          ],
+          "role": "volume on the heavy side"
+        },
+        {
+          "geo": "capsule",
+          "center": [
+            0.205,
+            -0.03,
+            0.02
+          ],
+          "radius": 0.03,
+          "length": 0.07,
+          "role": "short sideburn on the parted side"
+        },
+        {
+          "geo": "capsule",
+          "center": [
+            -0.205,
+            -0.05,
+            0.0
+          ],
+          "radius": 0.038,
+          "length": 0.12,
+          "role": "longer sideburn on the heavy side"
+        }
+      ]
+    },
+    {
+      "id": "bob",
+      "name": "鮑伯",
+      "ears": "hide",
+      "summary": "Jaw-length bell that turns under, center part in the bangs.",
+      "parts": [
+        {
+          "geo": "headShell",
+          "outer": 0.05,
+          "inner": 0.012,
+          "keep": "y > -0.17 && !(z > 0.02 && y < 0.062 && Math.abs(x) < 0.12)",
+          "ears": "hide"
+        },
+        {
+          "geo": "sphere",
+          "center": [
+            -0.08,
+            0.092,
+            0.158
+          ],
+          "scale": [
+            0.062,
+            0.038,
+            0.046
+          ],
+          "role": "left bang, leaves a 3 cm part"
+        },
+        {
+          "geo": "sphere",
+          "center": [
+            0.08,
+            0.092,
+            0.158
+          ],
+          "scale": [
+            0.062,
+            0.038,
+            0.046
+          ],
+          "role": "right bang"
+        },
+        {
+          "geo": "torus",
+          "center": [
+            0,
+            -0.15,
+            -0.02
+          ],
+          "radius": 0.2,
+          "tube": 0.032,
+          "arcDeg": 220,
+          "arcThrough": "-Z",
+          "rotationX": 1.5708,
+          "role": "inward hem"
+        },
+        {
+          "geo": "sphere",
+          "center": [
+            0.185,
+            -0.12,
+            0.03
+          ],
+          "scale": [
+            0.048,
+            0.042,
+            0.055
+          ],
+          "mirror": true,
+          "role": "side curl at the jaw"
+        }
+      ]
+    },
+    {
+      "id": "buns",
+      "name": "雙丸子",
+      "ears": "notch",
+      "summary": "Short shell, thick bang, two buns that stay visible beside a straw hat.",
+      "parts": [
+        {
+          "geo": "headShell",
+          "outer": 0.04,
+          "inner": 0.01,
+          "keep": "y > -0.06 && !(z > 0.015 && y < 0.062 && Math.abs(x) < 0.15) && !(Math.abs(x) > 0.165 && y < 0.045 && y > -0.09 && z > -0.05 && z < 0.07)",
+          "ears": "notch"
+        },
+        {
+          "geo": "sphere",
+          "center": [
+            0,
+            0.095,
+            0.155
+          ],
+          "scale": [
+            0.15,
+            0.04,
+            0.048
+          ],
+          "role": "full bang"
+        },
+        {
+          "geo": "sphere",
+          "center": [
+            0.11,
+            0.2,
+            -0.02
+          ],
+          "radius": 0.072,
+          "mirror": true,
+          "role": "bun. With a straw hat, move to (±0.185, 0.11, -0.02), radius 0.060, so it sits outside the crown"
+        },
+        {
+          "geo": "torus",
+          "center": [
+            0.11,
+            0.145,
+            -0.02
+          ],
+          "radius": 0.034,
+          "tube": 0.012,
+          "mirror": true,
+          "color": "#F07AA0",
+          "rotationX": 1.5708,
+          "role": "hair tie under the bun"
+        }
+      ]
+    },
+    {
+      "id": "ponytail",
+      "name": "高馬尾",
+      "ears": "notch",
+      "summary": "Crown covered, ears out, tail starts on the occiput and ends at the shoulder blades.",
+      "parts": [
+        {
+          "geo": "headShell",
+          "outer": 0.04,
+          "inner": 0.01,
+          "keep": "y > -0.02 && !(z > 0.015 && y < 0.062 && Math.abs(x) < 0.15) && !(Math.abs(x) > 0.165 && y < 0.045 && y > -0.09 && z > -0.05 && z < 0.07)",
+          "ears": "notch"
+        },
+        {
+          "geo": "sphere",
+          "center": [
+            0,
+            0.095,
+            0.15
+          ],
+          "scale": [
+            0.145,
+            0.038,
+            0.046
+          ],
+          "role": "bang"
+        },
+        {
+          "geo": "sphere",
+          "center": [
+            0,
+            0.16,
+            -0.15
+          ],
+          "radius": 0.05,
+          "role": "tail root on the back of the skull"
+        },
+        {
+          "geo": "torus",
+          "center": [
+            0,
+            0.155,
+            -0.155
+          ],
+          "radius": 0.032,
+          "tube": 0.012,
+          "color": "#F2D56A",
+          "rotationX": 1.15,
+          "role": "tie"
+        },
+        {
+          "geo": "capsule",
+          "center": [
+            0,
+            0.02,
+            -0.21
+          ],
+          "radius": 0.046,
+          "length": 0.14,
+          "rotationX": 0.55,
+          "role": "upper tail, tilted down and back"
+        },
+        {
+          "geo": "capsule",
+          "center": [
+            0,
+            -0.12,
+            -0.23
+          ],
+          "radius": 0.036,
+          "length": 0.12,
+          "rotationX": 0.2,
+          "role": "tail tip, ends near local y=-0.19 (world y about 0.96)"
+        }
+      ]
+    },
+    {
+      "id": "twintails",
+      "name": "雙馬尾",
+      "ears": "notch",
+      "summary": "Tails start behind the ears. A side shell stops them reading as earmuffs.",
+      "parts": [
+        {
+          "geo": "headShell",
+          "outer": 0.04,
+          "inner": 0.01,
+          "keep": "y > -0.06 && z < 0.05 && !(z > 0.015 && y < 0.062 && Math.abs(x) < 0.15) && !(Math.abs(x) > 0.165 && y < 0.045 && y > -0.09 && z > -0.05 && z < 0.07)",
+          "ears": "notch"
+        },
+        {
+          "geo": "sphere",
+          "center": [
+            0,
+            0.095,
+            0.15
+          ],
+          "scale": [
+            0.14,
+            0.038,
+            0.044
+          ],
+          "role": "bang"
+        },
+        {
+          "geo": "sphere",
+          "center": [
+            0.155,
+            0.04,
+            -0.08
+          ],
+          "radius": 0.036,
+          "mirror": true,
+          "color": "#F07AA0",
+          "role": "tie behind the ear, not on the temple"
+        },
+        {
+          "geo": "capsule",
+          "center": [
+            0.2,
+            -0.1,
+            -0.08
+          ],
+          "radius": 0.048,
+          "length": 0.2,
+          "tiltOutDeg": 16,
+          "mirror": true,
+          "role": "tail. Bottom near local y=-0.25, beside the shoulder, behind z=-0.08"
+        },
+        {
+          "geo": "sphere",
+          "center": [
+            0.24,
+            -0.22,
+            -0.07
+          ],
+          "radius": 0.04,
+          "mirror": true,
+          "role": "rounded tip"
+        }
+      ]
+    },
+    {
+      "id": "long",
+      "name": "長髮",
+      "ears": "hide",
+      "summary": "Short center-part bang, a wide back mass to the mid-back, two side locks outside the cheeks.",
+      "parts": [
+        {
+          "geo": "headShell",
+          "outer": 0.042,
+          "inner": 0.01,
+          "keep": "y > 0.02 && !(z > 0.03 && Math.abs(x) < 0.11 && y < 0.062)",
+          "ears": "hide"
+        },
+        {
+          "geo": "sphere",
+          "center": [
+            -0.07,
+            0.095,
+            0.155
+          ],
+          "scale": [
+            0.058,
+            0.034,
+            0.042
+          ],
+          "role": "left short bang"
+        },
+        {
+          "geo": "sphere",
+          "center": [
+            0.07,
+            0.095,
+            0.155
+          ],
+          "scale": [
+            0.058,
+            0.034,
+            0.042
+          ],
+          "role": "right short bang"
+        },
+        {
+          "geo": "capsule",
+          "center": [
+            0,
+            -0.2,
+            -0.15
+          ],
+          "radius": 0.11,
+          "length": 0.3,
+          "scaleX": 1.2,
+          "role": "back mass. Bottom near local y=-0.46, world y about 0.69"
+        },
+        {
+          "geo": "capsule",
+          "center": [
+            0.205,
+            -0.16,
+            0.01
+          ],
+          "radius": 0.04,
+          "length": 0.28,
+          "tiltOutDeg": 6,
+          "mirror": true,
+          "role": "side lock, stays at |x|>=0.18"
+        }
+      ]
+    },
+    {
+      "id": "spikes",
+      "name": "刺刺頭",
+      "ears": "notch",
+      "summary": "Thin cap so the scalp is not bald between spikes. Seven cones, all based above the brows.",
+      "parts": [
+        {
+          "geo": "headShell",
+          "outer": 0.026,
+          "inner": 0.008,
+          "keep": "y > -0.02 && !(z > 0.05 && y < 0.07 && Math.abs(x) < 0.16) && !(Math.abs(x) > 0.165 && y < 0.045 && y > -0.09 && z > -0.05 && z < 0.07)",
+          "ears": "notch"
+        },
+        {
+          "geo": "cone",
+          "count": 7,
+          "radius": 0.038,
+          "heights": [
+            0.1,
+            0.08,
+            0.08,
+            0.07,
+            0.07,
+            0.065,
+            0.09
+          ],
+          "dirs": [
+            [
+              0,
+              1,
+              0.05
+            ],
+            [
+              0.55,
+              0.85,
+              0.2
+            ],
+            [
+              -0.55,
+              0.85,
+              0.2
+            ],
+            [
+              0.9,
+              0.45,
+              -0.1
+            ],
+            [
+              -0.9,
+              0.45,
+              -0.1
+            ],
+            [
+              0,
+              0.65,
+              -0.75
+            ],
+            [
+              0,
+              0.8,
+              0.55
+            ]
+          ],
+          "place": "Normalize dir, plant the base on head.surface(dir), then move the cone forward by 0.35*height along dir. The front cone (0, 0.8, 0.55) must sit with base y>0.10.",
+          "hat": "Under a beanie, delete cones whose base y>0.15. Keep the four side and front cones sticking out under the cuff."
+        },
+        {
+          "geo": "sphere",
+          "center": [
+            0.19,
+            0.02,
+            0.03
+          ],
+          "radius": 0.034,
+          "mirror": true,
+          "role": "temple puff"
+        }
+      ]
+    },
+    {
+      "id": "curls",
+      "name": "側捲",
+      "ears": "hide",
+      "summary": "Short shell and two stacked rings beside each cheek, plus a small ring at each forehead corner.",
+      "parts": [
+        {
+          "geo": "headShell",
+          "outer": 0.04,
+          "inner": 0.01,
+          "keep": "y > -0.05 && !(z > 0.015 && y < 0.062 && Math.abs(x) < 0.15)",
+          "ears": "hide"
+        },
+        {
+          "geo": "sphere",
+          "center": [
+            0,
+            0.1,
+            0.15
+          ],
+          "scale": [
+            0.13,
+            0.034,
+            0.04
+          ],
+          "role": "short bang, bottom near y=0.066"
+        },
+        {
+          "geo": "torus",
+          "center": [
+            0.2,
+            -0.01,
+            0.04
+          ],
+          "radius": 0.05,
+          "tube": 0.024,
+          "mirror": true,
+          "rotationY": 1.15,
+          "role": "upper cheek curl"
+        },
+        {
+          "geo": "torus",
+          "center": [
+            0.195,
+            -0.08,
+            0.03
+          ],
+          "radius": 0.038,
+          "tube": 0.02,
+          "mirror": true,
+          "rotationY": 1.15,
+          "role": "lower cheek curl"
+        },
+        {
+          "geo": "torus",
+          "center": [
+            0.12,
+            0.145,
+            0.09
+          ],
+          "radius": 0.032,
+          "tube": 0.016,
+          "mirror": true,
+          "rotationX": -0.5,
+          "role": "forehead-corner curl, above the brow"
+        }
+      ]
+    },
+    {
+      "id": "bald",
+      "name": "光頭",
+      "ears": "show",
+      "summary": "No hair mesh. Human ears use scale radius (0.030, 0.055, 0.016).",
+      "parts": []
+    }
+  ],
+  "body": {
+    "torso": {
+      "geo": "lathe around Y, then scale Z to 0.82",
+      "profileYR": [
+        [
+          0.5,
+          0.15
+        ],
+        [
+          0.58,
+          0.132
+        ],
+        [
+          0.66,
+          0.112
+        ],
+        [
+          0.74,
+          0.128
+        ],
+        [
+          0.84,
+          0.158
+        ],
+        [
+          0.93,
+          0.172
+        ],
+        [
+          0.97,
+          0.07
+        ]
+      ]
+    },
+    "pelvisPivot": [
+      0,
+      0.505,
+      0
+    ],
+    "legs": {
+      "hipX": 0.078,
+      "thighLength": 0.18,
+      "thighRadius": 0.064,
+      "kneeRadius": 0.058,
+      "shinLength": 0.16,
+      "shinRadius": 0.05,
+      "footPivotYM": 0.165
+    },
+    "arms": {
+      "shoulder": [
+        0.175,
+        0.93,
+        0
+      ],
+      "upperLength": 0.165,
+      "upperRadius": 0.05,
+      "foreLength": 0.14,
+      "foreRadius": 0.044,
+      "rest": {
+        "outDeg": 16,
+        "forwardDeg": 8,
+        "elbowBendDeg": 20
+      },
+      "meshAxis": "limb meshes are built along local -Y and rotated at the pivot"
+    },
+    "hand": {
+      "mittenScaleM": [
+        0.1,
+        0.086,
+        0.062
+      ],
+      "meshScaleOnUnitSphere": [
+        0.05,
+        0.043,
+        0.031
+      ],
+      "centerLocal": [
+        0,
+        -0.048,
+        0.008
+      ],
+      "thumbRadius": [
+        0.018,
+        0.016,
+        0.014
+      ],
+      "thumbSide": "0.012 m toward the midline, 0.020 m above the mitten center, 0.020 m forward. Bury a third of the thumb in the palm.",
+      "tint": "Mix the skin hex 20% toward #E07860 so the mitt reads against the forearm at 120 px.",
+      "notes": "X is the wide axis. A scale of (0.034, 0.050, 0.043) is a vertical egg and reads as a wrist."
+    },
+    "shoe": {
+      "length": 0.16,
+      "width": 0.104,
+      "height": 0.12,
+      "soleThickness": 0.02,
+      "center": [
+        0.078,
+        0.065,
+        0.03
+      ],
+      "geo": "Unit sphere scaled by (0.052, 0.048, 0.080), plus a sole box 0.108 x 0.020 x 0.155 in a color 72% as bright, plus a cuff torus radius 0.055 tube 0.016 at the opening.",
+      "mirror": true
+    }
+  },
+  "clothes": {
+    "shellInflate": 0.012,
+    "tops": [
+      {
+        "id": "tee",
+        "name": "T 恤",
+        "covers": "torso from y=0.50 to y=0.96",
+        "neckRadius": 0.07,
+        "sleeveLength": 0.08,
+        "sleeveRadius": 0.06
+      },
+      {
+        "id": "dress",
+        "name": "連身裙",
+        "covers": "bodice plus skirt",
+        "skirt": {
+          "fromY": 0.62,
+          "fromR": 0.15,
+          "toY": 0.18,
+          "toR": 0.22,
+          "scaleZ": 0.82
+        },
+        "hidesBottom": true,
+        "sleeves": "Same puff sleeve as the tee, in the dress color, buried 2 cm into the torso. Do not use the undershirt color."
+      },
+      {
+        "id": "hoodie",
+        "name": "帽 T",
+        "covers": "tee plus a hood resting on the back",
+        "hood": "A collar torus, radius 0.090, tube 0.028, at world y=0.90, z=0.02, visible from the front. Behind it a sphere radius 0.16, scale (1.1, 0.85, 0.80), center world (0, 0.98, -0.12), front hemisphere removed. Drawstrings stay.",
+        "sleeveLength": 0.12
+      },
+      {
+        "id": "vest",
+        "name": "背心",
+        "covers": "torso to the waist y=0.64",
+        "sleeves": false,
+        "armholeRadius": 0.07
+      }
+    ],
+    "bottoms": [
+      {
+        "id": "pants",
+        "name": "長褲",
+        "geo": "thigh capsule plus shin capsule, radius 0.072, split at the knee so the walk bend shows"
+      },
+      {
+        "id": "shorts",
+        "name": "短褲",
+        "geo": "Thigh shell from the hip to a hem at world y=0.36, cuff torus tube 0.014 radius 0.07."
+      },
+      {
+        "id": "skirt",
+        "name": "裙子",
+        "geo": "lathe waist r=0.12 at y=0.64 to hem r=0.20 at y=0.36",
+        "hiddenIfTop": "dress"
+      }
+    ],
+    "patterns": [
+      {
+        "id": "plain",
+        "name": "素色"
+      },
+      {
+        "id": "stripe",
+        "name": "寬條紋",
+        "worldSizeM": 0.16,
+        "countAcrossTorso": 2
+      },
+      {
+        "id": "dot",
+        "name": "大圓點",
+        "worldSizeM": 0.16,
+        "countAcrossTorso": 2
+      },
+      {
+        "id": "star",
+        "name": "大星星",
+        "worldSizeM": 0.18,
+        "countAcrossTorso": 2
+      },
+      {
+        "id": "flower",
+        "name": "大花",
+        "worldSizeM": 0.18,
+        "countAcrossTorso": 2
+      }
+    ],
+    "shoes": "one chunky shape; only the color changes",
+    "sleeve": {
+      "geo": "Lathe in shoulder-local space, parented to the shoulder so it swings with the arm.",
+      "profile": [
+        [
+          0.02,
+          0.086
+        ],
+        [
+          -0.02,
+          0.07
+        ],
+        [
+          -0.09,
+          0.056
+        ]
+      ],
+      "notes": "The y=0.02 ring is buried in the torso. A free cylinder of radius 0.066 leaves a skin seam."
+    }
+  },
+  "hats": [
+    {
+      "id": "none",
+      "name": "無"
+    },
+    {
+      "id": "straw",
+      "name": "草帽",
+      "crown": {
+        "geo": "cylinder",
+        "radius": 0.16,
+        "height": 0.1,
+        "centerY": 0.18
+      },
+      "brim": {
+        "geo": "cylinder",
+        "radius": 0.28,
+        "height": 0.012,
+        "centerY": 0.12,
+        "tiltUpDeg": 12
+      },
+      "band": {
+        "hex": "#C45B66"
+      },
+      "sitsOn": "Outer hair shell. Do not delete buns; move them outside the crown."
+    },
+    {
+      "id": "beanie",
+      "name": "毛帽",
+      "geo": "headShell outer 0.036 inner 0.008, keep y>0.10, in the hat color. Cuff torus tube 0.026 at local y=0.09. Pompon radius 0.045.",
+      "note": "Sits on hair. Spikes with base y>0.15 tuck in. Side cones, temple puffs and bangs stay visible under the cuff."
+    },
+    {
+      "id": "cap",
+      "name": "棒球帽",
+      "crownRadius": 0.2,
+      "brim": {
+        "size": [
+          0.18,
+          0.012,
+          0.09
+        ],
+        "center": [
+          0,
+          0.07,
+          0.16
+        ],
+        "tiltUpDeg": 18
+      },
+      "crown": "headShell outer 0.032, keep y>0.07 && z<0.10, so the forehead hair and the nape stay out."
+    },
+    {
+      "id": "flower",
+      "name": "花冠",
+      "torus": {
+        "radius": 0.2,
+        "tube": 0.025,
+        "centerY": 0.16
+      },
+      "blossoms": 5
+    },
+    {
+      "id": "sprout",
+      "name": "葉芽",
+      "geo": "flat cone",
+      "center": [
+        0.06,
+        0.23,
+        0.04
+      ],
+      "length": 0.08
+    }
+  ],
+  "glasses": [
+    {
+      "id": "none",
+      "name": "無"
+    },
+    {
+      "id": "round",
+      "name": "圓框",
+      "lensRadius": 0.048,
+      "tube": 0.006,
+      "lensOpacity": 0.08,
+      "bridge": [
+        0.02,
+        0.006,
+        0.006
+      ],
+      "frameHex": "#3A3330"
+    },
+    {
+      "id": "square",
+      "name": "方框",
+      "lensSize": [
+        0.09,
+        0.07
+      ],
+      "cornerRadius": 0.02,
+      "tube": 0.006,
+      "lensOpacity": 0.08,
+      "frameHex": "#3A3330"
+    },
+    {
+      "id": "sun",
+      "name": "淺墨鏡",
+      "lensRadius": 0.05,
+      "tube": 0.007,
+      "lensOpacity": 0.45,
+      "lensHex": "#3A3338",
+      "streak": true,
+      "frameHex": "#2C2622",
+      "notes": "Lenses stay the size of the eyes. A white streak keeps them from reading as two holes."
+    }
+  ],
+  "materials": {
+    "skin": {
+      "roughness": 0.68,
+      "metalness": 0
+    },
+    "hair": {
+      "roughness": 0.55,
+      "metalness": 0.02
+    },
+    "cloth": {
+      "roughness": 0.78,
+      "metalness": 0
+    },
+    "shoe": {
+      "roughness": 0.6,
+      "metalness": 0
+    },
+    "hatStraw": {
+      "roughness": 0.85,
+      "metalness": 0
+    },
+    "outline": "none",
+    "vertexAO": {
+      "underChin": 0.82,
+      "armpit": 0.78,
+      "inseam": 0.8,
+      "hairRoot": 0.75
+    }
+  },
+  "lighting": {
+    "key": {
+      "color": "#FFF4E4",
+      "intensity": 1.15,
+      "from": "upper front-left"
+    },
+    "hemisphere": {
+      "sky": "#FFF6EA",
+      "ground": "#B7C77A",
+      "intensity": 0.55
+    },
+    "shadow": {
+      "darkness": 0.35,
+      "color": "#8A7560"
+    },
+    "rim": "warm sky bounce only; no black contour"
+  },
+  "showcase": [
+    {
+      "name": "小麥芽",
+      "skin": "蜜桃",
+      "hair": "短圓蓋",
+      "hairColor": "焦糖",
+      "eyes": "圓圓眼",
+      "iris": "墨",
+      "top": "T 恤",
+      "topColor": "奶油",
+      "bottom": "短褲",
+      "bottomColor": "芽綠",
+      "shoes": "木棕",
+      "hat": "無",
+      "glasses": "無",
+      "ears": "人耳"
+    },
+    {
+      "name": "圓帽",
+      "skin": "深棕",
+      "hair": "雙丸子",
+      "hairColor": "墨棕",
+      "eyes": "瞇瞇眼",
+      "iris": "琥珀",
+      "top": "連身裙",
+      "topColor": "蜂蜜",
+      "bottom": "裙子",
+      "bottomColor": "蜂蜜",
+      "shoes": "木棕",
+      "hat": "草帽",
+      "glasses": "無",
+      "ears": "人耳"
+    },
+    {
+      "name": "粉結",
+      "skin": "小麥",
+      "hair": "雙馬尾",
+      "hairColor": "玫瑰",
+      "eyes": "睫毛眼",
+      "iris": "湖水",
+      "top": "T 恤",
+      "topColor": "晴空",
+      "bottom": "短褲",
+      "bottomColor": "米白",
+      "shoes": "米白",
+      "hat": "無",
+      "glasses": "圓框",
+      "ears": "人耳"
+    },
+    {
+      "name": "薄荷刺",
+      "skin": "紅茶",
+      "hair": "刺刺頭",
+      "hairColor": "深栗",
+      "eyes": "豆豆眼",
+      "iris": "森林",
+      "top": "背心",
+      "topColor": "薄荷",
+      "bottom": "短褲",
+      "bottomColor": "奶油",
+      "shoes": "石板",
+      "hat": "毛帽",
+      "glasses": "無",
+      "ears": "人耳"
+    },
+    {
+      "name": "條紋帽",
+      "skin": "米杏",
+      "hair": "旁分",
+      "hairColor": "奶油金",
+      "eyes": "杏仁眼",
+      "iris": "琥珀",
+      "top": "T 恤",
+      "topColor": "靛藍",
+      "pattern": "寬條紋",
+      "bottom": "長褲",
+      "bottomColor": "石板",
+      "shoes": "米白",
+      "hat": "棒球帽",
+      "glasses": "無",
+      "ears": "人耳"
+    },
+    {
+      "name": "花冠",
+      "skin": "蜂蜜",
+      "hair": "鮑伯",
+      "hairColor": "珊瑚",
+      "eyes": "閃亮眼",
+      "iris": "莓紅",
+      "top": "帽 T",
+      "topColor": "珊瑚",
+      "bottom": "裙子",
+      "bottomColor": "奶油",
+      "shoes": "杏橘",
+      "hat": "花冠",
+      "glasses": "無",
+      "ears": "人耳"
+    }
+  ],
+  "changelog": "v2（review1）：短髮改成包到下顎的厚殼加厚瀏海；額收窄；虹膜改為眼高的 0.85；連指手套與厚靴的軸向；帽子坐在頭髮上；連身裙下擺降低。",
+  "hairConvention": {
+    "axes": "Head local meters. +Y up, +Z forward, origin at the skull center (world y=1.15).",
+    "bangBottomY": 0.062,
+    "faceWindow": "z > 0.015 && y < 0.062 && Math.abs(x) < 0.15",
+    "earNotch": "Math.abs(x) > 0.165 && y < 0.045 && y > -0.09 && z > -0.05 && z < 0.07",
+    "scale": "Sphere scale values are radii in meters.",
+    "capsule": "CapsuleGeometry(radius, length): length is the cylinder only. Total reach is length + 2*radius.",
+    "hats": "Straw, beanie and cap sit on the outer shell. Keep bangs, side hair and back hair. Tuck only a cowlick and any cone whose base is above local y=0.15.",
+    "build": "Push a copy of the deformed head along its normals by outer meters and by inner meters. Keep a triangle only when all three vertices pass keep(x,y,z) on the unpushed vertex. Flip the inner copy and stitch the boundary. Sphere scale is the radius on each axis."
+  }
+}

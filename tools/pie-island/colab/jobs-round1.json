@@ -1,0 +1,423 @@
+{
+ "items": [
+  {
+   "name": "sky_day",
+   "w": 1536,
+   "h": 768,
+   "tile": "x",
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+   ],
+   "loras": {
+    "shinkai": 0.65,
+    "pe": 0.35
+   },
+   "neg": "island, building, tree, boat, sun disc, lens flare, text, land",
+   "prompt": "PEAnimeBG, Background, anime, scenery, equirectangular sky panorama, powder blue sky, soft gradient to pale horizon, a few large soft cumulus clouds, bright cloud highlights, lavender grey cloud undersides, gouache and watercolor, high-key daylight, straight horizon at the middle, distant calm sea, no island, no land, no people, Makoto Shinkai Style page"
+  },
+  {
+   "name": "sky_eve",
+   "w": 1536,
+   "h": 768,
+   "tile": "x",
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+   ],
+   "loras": {
+    "shinkai": 0.6,
+    "pe": 0.3
+   },
+   "neg": "island, building, tree, boat, sun disc, lens flare, text, land",
+   "prompt": "PEAnimeBG, Background, anime, scenery, equirectangular sky panorama, powder blue zenith, warm peach horizon band, large soft cumulus with warm lower edges, gouache, quiet late afternoon, straight horizon at the middle, distant calm sea, no island, no people, Makoto Shinkai Style page"
+  },
+  {
+   "name": "horizon",
+   "w": 1536,
+   "h": 640,
+   "tile": "x",
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "loras": {
+    "shinkai": 0.7,
+    "pe": 0.3
+   },
+   "neg": "island, beach, pier, close-up",
+   "prompt": "PEAnimeBG, anime scenery, a wide distant sea horizon, low horizon line, powder blue sky, large soft cumulus, pale turquoise sea becoming deep teal, one tiny white sail on the horizon, gouache, high-key, no island, no beach, no people, Makoto Shinkai Style page"
+  },
+  {
+   "name": "tex_grass",
+   "tile": "xy",
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "loras": {
+    "pe": 0.8
+   },
+   "neg": "flower, rock, path, sky, horizon, object",
+   "prompt": "PEAnimeBG, seamless pattern, tileable texture, surface only, anime gouache grass, yellow-green grass with lighter yellow highlights and soft olive shadow, short painted strokes, even lighting, no flowers, no path, no horizon, top-down"
+  },
+  {
+   "name": "tex_sand",
+   "tile": "xy",
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "loras": {
+    "pe": 0.75
+   },
+   "neg": "footprint, shell, grass, water, sky",
+   "prompt": "PEAnimeBG, seamless pattern, tileable texture, surface only, pale cream sand, soft warm shadows, fine painterly grain, even lighting, top-down, no footprints, no objects, no horizon"
+  },
+  {
+   "name": "tex_path",
+   "tile": "xy",
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "loras": {
+    "pe": 0.75
+   },
+   "neg": "wood planks, cobblestone, sky, grass",
+   "prompt": "PEAnimeBG, seamless pattern, tileable texture, surface only, packed dirt path, warm beige, soft gouache, even lighting, top-down, no planks, no horizon"
+  },
+  {
+   "name": "tex_plaza",
+   "tile": "xy",
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "loras": {
+    "pe": 0.7
+   },
+   "neg": "sky, grass, people, text",
+   "prompt": "PEAnimeBG, seamless pattern, tileable texture, surface only, pale cream stone paving, rounded flagstones, soft warm gaps, gouache, even lighting, top-down, no horizon"
+  },
+  {
+   "name": "tex_cliff",
+   "tile": "xy",
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "loras": {
+    "pe": 0.8
+   },
+   "neg": "grass, tree, sky, water",
+   "prompt": "PEAnimeBG, seamless pattern, tileable texture, anime painted cliff rock, warm tan rock with soft brown shadow, soft vertical cracks, gouache, even lighting, no plants, no sky, no horizon"
+  },
+  {
+   "name": "tex_wood",
+   "tile": "xy",
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "loras": {
+    "pe": 0.7
+   },
+   "neg": "boat, water, sky, people",
+   "prompt": "PEAnimeBG, seamless pattern, tileable texture, weathered honey wood planks, darker gaps, planks running horizontally, even gaps, gouache, even lighting, no horizon, no boat"
+  },
+  {
+   "name": "tex_water",
+   "tile": "xy",
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "loras": {
+    "pe": 0.65
+   },
+   "neg": "horizon, island, fish, boat",
+   "prompt": "PEAnimeBG, seamless pattern, tileable texture, shallow tropical water surface, turquoise, soft white ripple highlights, painterly, no horizon, no boat, even lighting, top-down"
+  },
+  {
+   "name": "tex_leaf",
+   "tile": "xy",
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "loras": {
+    "pe": 0.7
+   },
+   "neg": "trunk, sky, flower, text",
+   "prompt": "PEAnimeBG, seamless pattern, tileable texture, dense anime tree foliage, painterly leaf clusters, sage and deep green with yellow-green highlights, gouache strokes, even lighting, no trunk, no sky"
+  },
+  {
+   "name": "obj_palm",
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+   ],
+   "loras": {
+    "pe": 0.6
+   },
+   "neg": "ground, horizon, cast shadow, crowd, signage, multiple views, collage, grid, person, 1girl, 1boy",
+   "prompt": "PEAnimeBG, a single coconut palm tree, full tree in frame, slender curved trunk, radiating green fronds, sage green and deep green with yellow-green light, one tree only, three-quarter view, cream paper background #F0F0EE, full object in frame, single object, centered, even soft light, thin broken ink, gouache, no ground, no cast shadow, no people, no text"
+  },
+  {
+   "name": "obj_tree",
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+   ],
+   "loras": {
+    "pe": 0.6
+   },
+   "neg": "ground, horizon, cast shadow, crowd, signage, multiple views, collage, grid, person, 1girl, 1boy",
+   "prompt": "PEAnimeBG, a single round leafy deciduous tree, fluffy rounded crown, short brown trunk, sage green foliage with yellow-green light, one tree only, three-quarter view, cream paper background #F0F0EE, full object in frame, single object, centered, even soft light, thin broken ink, gouache, no ground, no cast shadow, no people, no text"
+  },
+  {
+   "name": "obj_bush",
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "loras": {
+    "pe": 0.6
+   },
+   "neg": "ground, horizon, cast shadow, crowd, signage, multiple views, collage, grid, person, 1girl, 1boy",
+   "prompt": "PEAnimeBG, a single round flowering shrub, fluffy green bush with small white and coral flowers, three-quarter view, cream paper background #F0F0EE, full object in frame, single object, centered, even soft light, thin broken ink, gouache, no ground, no cast shadow, no people, no text"
+  },
+  {
+   "name": "obj_cottage",
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10
+   ],
+   "loras": {
+    "pe": 0.55,
+    "village": 0.45
+   },
+   "neg": "ground, horizon, cast shadow, crowd, signage, multiple views, collage, grid, person, 1girl, 1boy",
+   "prompt": "PEAnimeBG, villagehmmb, a single small cottage, cream walls, warm brown tiled roof, one wooden door facing the camera, two small windows with green shutters, simple mailbox beside the door, flower box under window, three-quarter view, cream paper background #F0F0EE, full object in frame, single object, centered, even soft light, thin broken ink, gouache, no ground, no cast shadow, no people, no text"
+  },
+  {
+   "name": "obj_pier",
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "loras": {
+    "pe": 0.65
+   },
+   "neg": "ground, horizon, cast shadow, crowd, signage, multiple views, collage, grid, person, 1girl, 1boy",
+   "prompt": "PEAnimeBG, a single short wooden pier section, honey planks, simple wooden posts, no water, no boat, three-quarter view, cream paper background #F0F0EE, full object in frame, single object, centered, even soft light, thin broken ink, gouache, no ground, no cast shadow, no people, no text"
+  },
+  {
+   "name": "obj_fountain",
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+   ],
+   "loras": {
+    "pe": 0.6
+   },
+   "neg": "ground, horizon, cast shadow, crowd, signage, multiple views, collage, grid, person, 1girl, 1boy",
+   "prompt": "PEAnimeBG, a single low round stone fountain, two tiers, pale cream stone, a small spray of water, three-quarter view, cream paper background #F0F0EE, full object in frame, single object, centered, even soft light, thin broken ink, gouache, no ground, no cast shadow, no people, no text"
+  },
+  {
+   "name": "obj_lotus",
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "loras": {
+    "pe": 0.6
+   },
+   "neg": "ground, horizon, cast shadow, crowd, signage, multiple views, collage, grid, person, 1girl, 1boy",
+   "prompt": "PEAnimeBG, a single lotus plant, round green leaf and one pale pink flower, no pond, three-quarter view, cream paper background #F0F0EE, full object in frame, single object, centered, even soft light, thin broken ink, gouache, no ground, no cast shadow, no people, no text"
+  },
+  {
+   "name": "obj_flowers",
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "loras": {
+    "pe": 0.6
+   },
+   "neg": "ground, horizon, cast shadow, crowd, signage, multiple views, collage, grid, person, 1girl, 1boy",
+   "prompt": "PEAnimeBG, a small clump of simple white and coral wildflowers with green leaves, three-quarter view, cream paper background #F0F0EE, full object in frame, single object, centered, even soft light, thin broken ink, gouache, no ground, no cast shadow, no people, no text"
+  },
+  {
+   "name": "obj_tent",
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "loras": {
+    "pe": 0.6
+   },
+   "neg": "ground, horizon, cast shadow, crowd, signage, multiple views, collage, grid, person, 1girl, 1boy",
+   "prompt": "PEAnimeBG, a single small camping tent, coral pink canvas, no campfire, three-quarter view, cream paper background #F0F0EE, full object in frame, single object, centered, even soft light, thin broken ink, gouache, no ground, no cast shadow, no people, no text"
+  },
+  {
+   "name": "obj_bench",
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "loras": {
+    "pe": 0.6
+   },
+   "neg": "ground, horizon, cast shadow, crowd, signage, multiple views, collage, grid, person, 1girl, 1boy",
+   "prompt": "PEAnimeBG, a single simple wooden park bench, honey wood, three-quarter view, cream paper background #F0F0EE, full object in frame, single object, centered, even soft light, thin broken ink, gouache, no ground, no cast shadow, no people, no text"
+  },
+  {
+   "name": "obj_lamp",
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "loras": {
+    "pe": 0.6
+   },
+   "neg": "ground, horizon, cast shadow, crowd, signage, multiple views, collage, grid, person, 1girl, 1boy",
+   "prompt": "PEAnimeBG, a single old fashioned street lamp post, dark green iron, brass lantern top, three-quarter view, cream paper background #F0F0EE, full object in frame, single object, centered, even soft light, thin broken ink, gouache, no ground, no cast shadow, no people, no text"
+  },
+  {
+   "name": "obj_stall",
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "loras": {
+    "pe": 0.6
+   },
+   "neg": "ground, horizon, cast shadow, crowd, signage, multiple views, collage, grid, person, 1girl, 1boy",
+   "prompt": "PEAnimeBG, a single small wooden market stall, striped cream and coral awning, fruit baskets, three-quarter view, cream paper background #F0F0EE, full object in frame, single object, centered, even soft light, thin broken ink, gouache, no ground, no cast shadow, no people, no text"
+  },
+  {
+   "name": "obj_boat",
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "loras": {
+    "pe": 0.6
+   },
+   "neg": "ground, horizon, cast shadow, crowd, signage, multiple views, collage, grid, person, 1girl, 1boy",
+   "prompt": "PEAnimeBG, a single small wooden rowing boat, cream and coral paint, two oars, three-quarter view, cream paper background #F0F0EE, full object in frame, single object, centered, even soft light, thin broken ink, gouache, no ground, no cast shadow, no people, no text"
+  },
+  {
+   "name": "obj_rock",
+   "seeds": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "loras": {
+    "pe": 0.6
+   },
+   "neg": "ground, horizon, cast shadow, crowd, signage, multiple views, collage, grid, person, 1girl, 1boy",
+   "prompt": "PEAnimeBG, a single smooth rounded beach boulder, warm tan stone, three-quarter view, cream paper background #F0F0EE, full object in frame, single object, centered, even soft light, thin broken ink, gouache, no ground, no cast shadow, no people, no text"
+  }
+ ]
+}

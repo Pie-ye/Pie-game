@@ -1,0 +1,11 @@
+{
+  "note": "Hunyuan3D-2 由 Animagine XL 4.0 + PE_AnimeBG 設定圖轉出；height 是公尺，replaces 是被取代的 Kenney 模型",
+  "models": {
+    "palm_a": { "height": 5.4, "replaces": ["nature/tree_palmTall", "nature/tree_palmDetailedTall", "nature/tree_palmShort", "nature/tree_palmBend"] },
+    "palm_b": { "height": 5.0, "replaces": ["nature/tree_palmTall", "nature/tree_palmDetailedTall", "nature/tree_palmShort", "nature/tree_palmBend"] },
+    "tree_a": { "height": 5.2, "replaces": ["nature/tree_default", "nature/tree_oak", "nature/tree_fat", "nature/tree_detailed"] },
+    "tree_b": { "height": 4.6, "replaces": ["nature/tree_default", "nature/tree_oak", "nature/tree_fat", "nature/tree_detailed"] },
+    "bush": { "height": 1.1, "replaces": ["nature/plant_bush", "nature/plant_bushLarge", "nature/plant_bushDetailed", "nature/plant_bushSmall"] },
+    "lotus": { "height": 0.4, "replaces": ["nature/lily_large", "nature/lily_small"] }
+  }
+}

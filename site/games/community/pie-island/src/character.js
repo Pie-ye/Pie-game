@@ -1,15 +1,13 @@
 import * as THREE from '../../pie-phoebe/vendor/three.module.js';
+import { mergeVertices } from '../vendor/jsm/utils/BufferGeometryUtils.js';
 import { SKIN, HAIR_COLORS, CLOTH_COLORS, sanitize } from './look.js';
-import { drawFace, FACE_W, FACE_H } from './face.js';
+import { drawFace, drawFaceSkin, FACE_W, FACE_H } from './face.js';
+import { RAMP_CHAR as RAMP, applyShadow, addInkShell } from './style.js';
 
-// 動物森友會式的 Q 版人物：大頭（約身高四成）、短身短腿、圓手圓腳。
-// 模型面向 +Z，root.rotation.y = 朝向角（世界前方 = (sin h, 0, cos h)）。
-// 整個人約 1.35 m 高（不含頭髮），站在 root 原點上。
-
-export const HEAD_R = 0.34;
-const HIP_Y = 0.3;
-const HEAD_Y = 0.62;               // 頭心相對髖部
-const FACE_PATCH = { phiStart: Math.PI / 2 - 0.7, phiLength: 1.4, thetaStart: 0.85, thetaLength: 1.1 };
+// 「暖蘋果」角色：照美術總監（grok）的規格 tools/pie-island/art/design/spec.json 建模。
+// 不含頭髮身高 1.38 m（3 個頭高），蘋果形的頭（頰最寬、臉是平面、後腦圓），
+// 短粗的脖子、旋轉體軀幹、有手肘膝蓋的四肢、連指手套、厚圓頭鞋。
+// 模型面向 +Z，root.rotation.y = 朝向角；原點在兩腳中間的地面。
 
 export const EMOTES = [
   { id: 'wave', label: '揮手', key: '1', glyph: 'Hi!', color: '#4aa3df' },
@@ -20,46 +18,231 @@ export const EMOTES = [
 ];
 export const EMOTE_IDS = EMOTES.map((e) => e.id);
 export const EMOTE_TIME = 2.4;
-const BUBBLE_Y = 2.42;          // 表情泡泡在名牌（1.9 m）上方
+const BUBBLE_Y = 2.42;                       // 表情泡泡在名牌（1.9 m）上方
+const EMOTE_FACE = { happy: 'happy', love: 'love', wow: 'wow', hmm: 'hmm' };   // 揮手不改臉
+
+// ---------- 規格數字 ----------
+const PELVIS_Y = 0.505;
+const HEAD_Y = 1.15 - PELVIS_Y;              // 頭心（骨盆座標）
+const HIP_X = 0.078, THIGH = 0.18, SHIN = 0.16;
+const SHOULDER = [0.175, 0.93 - PELVIS_Y];
+const UPPER = 0.165, FORE = 0.14;
+const SHAPES = [   // spec v2：額收窄 narrow、頰外推 cheek
+  { scale: [1.0, 1.095, 0.86], cheek: 0.034, chin: 0.72, drop: 0.025, narrow: 0.12 },   // 蘋果臉
+  { scale: [1.08, 1.02, 0.9], cheek: 0.042, chin: 0.88, drop: 0.012, narrow: 0.05 },    // 圓臉
+  { scale: [0.94, 1.16, 0.84], cheek: 0.024, chin: 0.62, drop: 0.034, narrow: 0.15 },   // 小瓜臉
+];
+const FACE = { w: 0.32, h: 0.34, cy: -0.04 };
+const TORSO_PROFILE = [[0.455, 0.0], [0.47, 0.12], [0.5, 0.15], [0.58, 0.132], [0.66, 0.112], [0.74, 0.128], [0.84, 0.158], [0.93, 0.172], [0.955, 0.13], [0.97, 0.07]];
+const MAT = { skin: 0.68, hair: 0.55, cloth: 0.78, shoe: 0.6, straw: 0.85 };
+
+const smooth = (a, b, v) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
+
+// ---------- 頭型：球 → 縮放 → 打平臉 → 額後收 → 推頰 → 收下巴 → 圓後腦 ----------
+const headCache = new Map();
+function headShape(idx) {
+  if (headCache.has(idx)) return headCache.get(idx);
+  const s = SHAPES[idx] || SHAPES[0];
+  let geo = new THREE.SphereGeometry(0.21, 128, 96);
+  geo.deleteAttribute('uv'); geo.deleteAttribute('normal');
+  geo = mergeVertices(geo);
+  const p = geo.attributes.position;
+  const colors = new Float32Array(p.count * 3);
+  for (let i = 0; i < p.count; i++) {
+    let x = p.getX(i) * s.scale[0], y = p.getY(i) * s.scale[1], z = p.getZ(i) * s.scale[2];
+    // 臉打平：規格 z = z*0.62 + 0.05；+0.05 在 z 0→0.06 間漸入，頭側 z=0 處才不會斷出台階
+    if (z > 0) z = z * 0.62 + 0.05 * smooth(0, 0.06, z);
+    if (y > 0.06 && z > 0) z -= 0.025 * smooth(0.06, 0.16, y) * smooth(0, 0.06, z);
+    if (y > 0.04) x *= 1 - s.narrow * smooth(0.04, 0.2, y) * (1 - smooth(0.16, 0.22, y));   // 只收額帶，頭頂不變尖
+    for (const cx of [0.12, -0.12]) {
+      const d2 = (x - cx) ** 2 + (y + 0.02) ** 2 + (z - 0.06) ** 2;
+      x += Math.sign(cx) * s.cheek * Math.exp(-d2 / (2 * 0.07 * 0.07));
+    }
+    if (y < -0.1) {
+      const t = smooth(-0.1, -0.235, y);
+      x *= 1 + (s.chin - 1) * t; y -= s.drop * t; z += 0.02 * t;
+    }
+    const w = smooth(0, -0.08, z) * smooth(0.06, -0.04, y);
+    z -= 0.035 * w; y -= 0.02 * w;
+    p.setXYZ(i, x, y, z);
+    // 頂點遮蔽：下巴底較暗
+    const ao = 1 - 0.06 * smooth(-0.12, -0.22, y) * smooth(0.12, -0.02, z);
+    colors[i * 3] = colors[i * 3 + 1] = colors[i * 3 + 2] = ao;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geo.computeVertexNormals();
+  geo.computeBoundingSphere();
+  const probe = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
+  const ray = new THREE.Raycaster();
+  const hit = (o, d) => { ray.set(o, d); const h = ray.intersectObject(probe, false); return h.length ? h[0].point : null; };
+  // 臉片：0.32×0.34 的格面，每個點往後投到臉上，再往前 2 mm
+  const face = new THREE.PlaneGeometry(FACE.w, FACE.h, 28, 28);
+  face.translate(0, FACE.cy, 0);
+  const fp = face.attributes.position;
+  const back = new THREE.Vector3(0, 0, -1);
+  // 法線跟著頭走（0.65 頭法線＋0.35 正前方），明暗才會切過頰，臉不會整片落在同一階
+  const fn = new Float32Array(fp.count * 3);
+  for (let i = 0; i < fp.count; i++) {
+    const h = hit(new THREE.Vector3(fp.getX(i), fp.getY(i), 0.5), back);
+    fp.setZ(i, h && h.z > 0.02 ? h.z + 0.002 : 0);
+    const nn = h && h.face ? h.face.normal : new THREE.Vector3(0, 0, 1);
+    fn.set([nn.x * 0.65, nn.y * 0.65, nn.z * 0.65 + 0.35], i * 3);
+  }
+  face.setAttribute('normal', new THREE.BufferAttribute(fn, 3));
+  face.normalizeNormals();
+  const top = hit(new THREE.Vector3(0, 0.5, 0), new THREE.Vector3(0, -1, 0)).y;
+  const entry = {
+    geo, face, top,
+    /** 從頭心沿方向打到頭皮的點 */
+    surface(dir) { return hit(new THREE.Vector3(), dir.clone().normalize()) || dir.clone().setLength(0.2); },
+    hitFrom: (o, d) => hit(o, d),
+    /** 頭皮正前方某 (x, y) 的 z */
+    frontZ(x, y) { const h = hit(new THREE.Vector3(x, y, 0.5), back); return h ? h.z : 0.15; },
+  };
+  headCache.set(idx, entry);
+  return entry;
+}
+
+/**
+ * 貼著頭型往外長的厚殼（頭髮、毛帽、帽冠）：外層沿法線外推 outer、內層外推 inner 並反面，
+ * 開口邊緣縫起來。keep(x,y,z) 看的是還沒外推的頭皮點，三個頂點都通過才留那個三角形。
+ */
+const shellCache = new Map();
+function headShell(idx, outer, inner, keepKey, keep) {
+  const key = `${idx}|${outer}|${inner}|${keepKey}`;
+  if (shellCache.has(key)) return shellCache.get(key);
+  const { geo } = headShape(idx);
+  const p = geo.attributes.position, n = geo.attributes.normal, index = geo.index;
+  const N = p.count;
+  const pos = new Float32Array(N * 6);
+  const ok = new Uint8Array(N);
+  for (let i = 0; i < N; i++) {
+    for (const [layer, off] of [[0, outer], [1, inner]]) {
+      const o = (layer * N + i) * 3;
+      pos[o] = p.getX(i) + n.getX(i) * off;
+      pos[o + 1] = p.getY(i) + n.getY(i) * off;
+      pos[o + 2] = p.getZ(i) + n.getZ(i) * off;
+    }
+    ok[i] = keep(p.getX(i), p.getY(i), p.getZ(i)) ? 1 : 0;
+  }
+  const idxOut = [];
+  const edges = new Map();
+  const edge = (u, v) => { const k = u < v ? `${u},${v}` : `${v},${u}`; const e = edges.get(k); if (e) e.n++; else edges.set(k, { u, v, n: 1 }); };
+  for (let t = 0; t < index.count; t += 3) {
+    const a = index.getX(t), b = index.getX(t + 1), c = index.getX(t + 2);
+    if (!(ok[a] && ok[b] && ok[c])) continue;
+    idxOut.push(a, b, c, c + N, b + N, a + N);
+    edge(a, b); edge(b, c); edge(c, a);
+  }
+  // 開口邊緣：外層收回 6 mm、往下 4 mm，內層推出 4 mm，切口變成約 8 mm 的圓口
+  const rim = new Set();
+  for (const { u, v, n: cnt } of edges.values()) if (cnt === 1) { idxOut.push(u, v + N, v, u, u + N, v + N); rim.add(u); rim.add(v); }
+  for (const i of rim) {
+    const o = i * 3, q = (N + i) * 3;
+    pos[o] -= n.getX(i) * 0.006; pos[o + 1] -= n.getY(i) * 0.006 + 0.004; pos[o + 2] -= n.getZ(i) * 0.006;
+    pos[q] += n.getX(i) * 0.004; pos[q + 1] += n.getY(i) * 0.004; pos[q + 2] += n.getZ(i) * 0.004;
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  out.setIndex(idxOut);
+  out.computeVertexNormals();
+  shellCache.set(key, out);
+  return out;
+}
 
 // ---------- 共用幾何與材質 ----------
+const lathe = (pts, scaleZ = 0.82, phiStart = 0, phiLength = Math.PI * 2, seg = 32) => {
+  // 旋轉體的面朝外要求剖面由下往上
+  if (pts[0][0] > pts[pts.length - 1][0]) pts = [...pts].reverse();
+  const g = new THREE.LatheGeometry(pts.map(([y, r]) => new THREE.Vector2(r, y)), seg, phiStart, phiLength);
+  g.scale(1, 1, scaleZ);
+  return g;
+};
+const inflate = (pts, d) => pts.map(([y, r]) => [y, r > 0.001 ? r + d : r]);
+const toPelvis = (pts) => pts.map(([y, r]) => [y - PELVIS_Y, r]);
 const G = {
-  head: new THREE.SphereGeometry(HEAD_R, 40, 28),
-  face: new THREE.SphereGeometry(HEAD_R * 1.006, 32, 20, FACE_PATCH.phiStart, FACE_PATCH.phiLength, FACE_PATCH.thetaStart, FACE_PATCH.thetaLength),
-  torso: new THREE.CylinderGeometry(0.16, 0.2, 0.34, 24),
-  shoulders: new THREE.SphereGeometry(0.163, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2),
-  dress: new THREE.CylinderGeometry(0.155, 0.31, 0.46, 24),
-  skirt: new THREE.CylinderGeometry(0.19, 0.29, 0.2, 24),
-  pelvis: new THREE.CylinderGeometry(0.2, 0.19, 0.1, 24),
-  leg: new THREE.CapsuleGeometry(0.075, 0.1, 6, 12),
-  shortsLeg: new THREE.CylinderGeometry(0.088, 0.092, 0.12, 14),
-  shoe: new THREE.SphereGeometry(1, 16, 12),
-  arm: new THREE.CapsuleGeometry(0.056, 0.13, 6, 12),
-  sleeve: new THREE.CapsuleGeometry(0.068, 0.04, 6, 12),
-  hand: new THREE.SphereGeometry(0.066, 14, 10),
+  torso: lathe(toPelvis(TORSO_PROFILE)),
+  bottomShell: lathe(toPelvis(inflate([[0.45, 0.0], [0.47, 0.13], [0.5, 0.15], [0.58, 0.132], [0.635, 0.118]], 0.012))),
+  skirt: lathe(toPelvis([[0.645, 0.118], [0.6, 0.135], [0.48, 0.17], [0.36, 0.205], [0.355, 0.0]])),
+  dressSkirt: lathe(toPelvis([[0.635, 0.124], [0.62, 0.15], [0.5, 0.18], [0.32, 0.21], [0.18, 0.22], [0.175, 0.0]])),
+  // 背心：整圈的殼，刪掉兩個袖窿與領口（旋轉體自己做不出袖窿）
+  vest: (() => {
+    const g = lathe(toPelvis(inflate([[0.63, 0.112], [0.66, 0.112], [0.74, 0.128], [0.84, 0.158], [0.93, 0.172], [0.955, 0.13]], 0.014)), 0.82, 0, Math.PI * 2, 40);
+    const p = g.attributes.position, idx = g.index, keep = [];
+    const cut = (i) => { const x = p.getX(i), y = p.getY(i) + PELVIS_Y, z = p.getZ(i); return (Math.abs(x) > 0.11 && y > 0.8) || (y > 0.9 && Math.abs(x) < 0.07 && z > 0) || (z > 0.05 && Math.abs(x) < 0.035); };
+    for (let t = 0; t < idx.count; t += 3) { const a = idx.getX(t), b = idx.getX(t + 1), c = idx.getX(t + 2); if (!(cut(a) || cut(b) || cut(c))) keep.push(a, b, c); }
+    g.setIndex(keep);
+    return g;
+  })(),
+  collar: new THREE.TorusGeometry(0.068, 0.013, 8, 24),
+  neck: new THREE.CylinderGeometry(0.064, 0.055, 0.145, 20),
+  thigh: new THREE.CapsuleGeometry(0.064, THIGH - 0.06, 6, 14),
+  pantsThigh: new THREE.CapsuleGeometry(0.073, THIGH - 0.06, 6, 14),
+  shortsLeg: new THREE.CylinderGeometry(0.078, 0.076, 0.1, 16),
+  cuff: new THREE.TorusGeometry(0.07, 0.012, 6, 18),
+  knee: new THREE.SphereGeometry(0.058, 14, 10),
+  pantsKnee: new THREE.SphereGeometry(0.068, 14, 10),
+  shin: new THREE.CapsuleGeometry(0.05, SHIN - 0.05, 6, 14),
+  pantsShin: new THREE.CapsuleGeometry(0.062, SHIN - 0.06, 6, 14),
+  sole: new THREE.BoxGeometry(0.116, 0.024, 0.17),
+  bootRim: new THREE.TorusGeometry(0.064, 0.014, 8, 20),
+  // 上臂、前臂各一段旋轉體，關節重疊 1.5 cm，不用肘球去填（審稿三）
+  upper: lathe([[0.02, 0.0], [0.02, 0.056], [-0.02, 0.05], [-0.1, 0.046], [-0.155, 0.044], [-0.17, 0.0]], 0.92),
+  fore: lathe([[0.02, 0.0], [0.02, 0.044], [-0.03, 0.04], [-0.09, 0.034], [-0.132, 0.03], [-0.145, 0.0]], 0.9),
+  mitten: (() => {
+    const sh = new THREE.Shape();
+    sh.moveTo(-0.028, -0.006); sh.lineTo(-0.03, -0.055);
+    sh.quadraticCurveTo(-0.02, -0.086, 0.01, -0.082); sh.quadraticCurveTo(0.048, -0.074, 0.05, -0.04);
+    sh.lineTo(0.042, -0.006); sh.quadraticCurveTo(0.006, 0.01, -0.028, -0.006);
+    const g = new THREE.ExtrudeGeometry(sh, { depth: 0.036, bevelEnabled: true, bevelThickness: 0.006, bevelSize: 0.006, bevelSegments: 2, curveSegments: 8 });
+    g.translate(0, 0, -0.018);
+    return g;
+  })(),
+  // 袖子掛在肩關節：(y, r) 剖面，y=0.02 那圈埋進軀幹
+  sleeve: lathe([[0.015, 0.0], [0.012, 0.054], [-0.01, 0.052], [-0.045, 0.048], [-0.072, 0.046], [-0.08, 0.0]], 0.92),
+  longSleeve: lathe([[0.015, 0.0], [0.012, 0.054], [-0.01, 0.052], [-0.08, 0.046], [-0.118, 0.044], [-0.126, 0.0]], 0.92),
+  // 靴子：一隻旋轉體，Z 拉長，鞋底用頂點色（審稿三）
+  boot: (() => {
+    const g = lathe([[-0.165, 0.0], [-0.165, 0.046], [-0.15, 0.058], [-0.13, 0.05], [-0.04, 0.048], [0.02, 0.054], [0.045, 0.06], [0.052, 0.0]], 1, 0, Math.PI * 2, 28);
+    g.scale(1, 1, 1.28); g.translate(0, 0, 0.012);
+    const p = g.attributes.position, col = new Float32Array(p.count * 3);
+    for (let i = 0; i < p.count; i++) col.fill(p.getY(i) < -0.148 ? 0.72 : 1, i * 3, i * 3 + 3);
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    return g;
+  })(),
   ball: new THREE.SphereGeometry(1, 24, 16),
   cone: new THREE.ConeGeometry(1, 1, 16),
-  ring: new THREE.TorusGeometry(0.07, 0.012, 8, 24),
-  blob: new THREE.CircleGeometry(0.42, 24),
-  hood: new THREE.TorusGeometry(0.15, 0.06, 10, 24, Math.PI * 1.2),
+  blob: new THREE.CircleGeometry(0.36, 24),
 };
-const capCache = new Map();
-function shell(r, t0, t1, p0 = 0, pl = Math.PI * 2) {
-  const k = [r, t0, t1, p0, pl].map((v) => v.toFixed(3)).join();
-  if (!capCache.has(k)) capCache.set(k, new THREE.SphereGeometry(r, 32, 20, p0, pl, t0, t1 - t0));
-  return capCache.get(k);
-}
 
 const matCache = new Map();
-export function mat(color, extra = {}) {
-  const k = color + JSON.stringify(extra);
-  if (!matCache.has(k)) matCache.set(k, new THREE.MeshStandardMaterial({ color, roughness: 0.72, metalness: 0, ...extra }));
+// 全部用三階卡通材質（美術聖經）；rough 參數保留給將來的寫實模式，卡通材質不用
+// 影色（審稿三）：依零件種類決定影階往哪個顏色混
+const HOT = new Set(['#F08A86', '#E25B45']);
+const lumaOf = (hex) => { const c = new THREE.Color(hex); return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b; };
+function shadowFor(kind, color) {
+  switch (kind) {
+    case 'skin': return { color: '#D7C2B8', t: 0.16 };
+    case 'hair': return lumaOf(color) < 0.06 ? { darkMul: 0.75, rim: 0.12 } : { color: '#C3C7D3', t: 0.22, rim: 0.12 };
+    case 'shoe': return { color: '#9D836A', t: 0.24 };
+    case 'straw': return { color: '#C4A574', t: 0.2 };
+    default: return { color: '#C3C7D3', t: HOT.has(String(color).toUpperCase()) ? 0.16 : 0.28 };
+  }
+}
+const KIND = { [MAT.skin]: 'skin', [MAT.hair]: 'hair', [MAT.shoe]: 'shoe', [MAT.straw]: 'straw' };
+export function mat(color, rough = MAT.cloth, extra = {}) {
+  const { metalness, roughness, kind: kindIn, ...rest } = extra;
+  const kind = kindIn || KIND[rough] || 'cloth';
+  const k = `${color}|${kind}|${JSON.stringify(rest)}`;
+  if (!matCache.has(k)) matCache.set(k, applyShadow(new THREE.MeshToonMaterial({ color, gradientMap: RAMP, ...rest }), shadowFor(kind, color)));
   return matCache.get(k);
 }
-const blobMat = new THREE.MeshBasicMaterial({ color: 0x1d4a3a, transparent: true, opacity: 0.22, depthWrite: false });
+const darker = (hex, k) => `#${new THREE.Color(hex).multiplyScalar(k).getHexString()}`;
+const blobMat = new THREE.MeshBasicMaterial({ color: 0x5a4a32, transparent: true, opacity: 0.22, depthWrite: false });
 
+// 大花紋：一個花紋約 0.16–0.18 m，胸前最多兩顆
 const patternCache = new Map();
-function patternMat(color, pattern) {
+function clothMat(color, pattern) {
   if (!pattern) return mat(color);
   const k = `${color}|${pattern}`;
   if (patternCache.has(k)) return patternCache.get(k);
@@ -67,18 +250,18 @@ function patternMat(color, pattern) {
   cv.width = cv.height = 128;
   const g = cv.getContext('2d');
   g.fillStyle = color; g.fillRect(0, 0, 128, 128);
-  const light = new THREE.Color(color).getHSL({}).l;
-  const ink = light > 0.72 ? 'rgba(90,120,200,.55)' : 'rgba(255,255,255,.75)';
-  g.fillStyle = ink;
-  if (pattern === 1) for (let y = 0; y < 128; y += 32) g.fillRect(0, y, 128, 14);
-  if (pattern === 2) for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) { g.beginPath(); g.arc(x * 32 + (y % 2) * 16 + 8, y * 32 + 16, 7, 0, Math.PI * 2); g.fill(); }
-  if (pattern === 3) for (let y = 0; y < 2; y++) for (let x = 0; x < 2; x++) starPath(g, x * 64 + (y % 2) * 32 + 22, y * 64 + 32, 16, 7);
-  if (pattern === 4) for (let y = 0; y < 2; y++) for (let x = 0; x < 2; x++) flower(g, x * 64 + (y % 2) * 32 + 24, y * 64 + 32);
+  const l = new THREE.Color(color).getHSL({}).l;
+  g.fillStyle = l > 0.7 ? 'rgba(106,148,224,.8)' : 'rgba(255,249,242,.9)';
+  if (pattern === 1) g.fillRect(0, 0, 128, 54);
+  if (pattern === 2) { g.beginPath(); g.arc(64, 64, 34, 0, Math.PI * 2); g.fill(); }
+  if (pattern === 3) starPath(g, 64, 66, 46, 19);
+  if (pattern === 4) flower(g, 64, 64);
   const t = new THREE.CanvasTexture(cv);
   t.colorSpace = THREE.SRGBColorSpace;
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.repeat.set(3, 1.4);
-  const m = new THREE.MeshStandardMaterial({ map: t, roughness: 0.75 });
+  t.repeat.set(pattern === 1 ? 1 : 5, pattern === 1 ? 3 : 2.6);
+  t.anisotropy = 4;
+  const m = applyShadow(new THREE.MeshToonMaterial({ map: t, gradientMap: RAMP }), shadowFor('cloth', color));
   patternCache.set(k, m);
   return m;
 }
@@ -89,8 +272,8 @@ function starPath(g, x, y, r1, r2) {
 }
 function flower(g, x, y) {
   const ink = g.fillStyle;
-  for (let i = 0; i < 5; i++) { const a = i * Math.PI * 2 / 5; g.beginPath(); g.arc(x + Math.cos(a) * 9, y + Math.sin(a) * 9, 7, 0, Math.PI * 2); g.fill(); }
-  g.fillStyle = 'rgba(255,214,90,.95)'; g.beginPath(); g.arc(x, y, 6, 0, Math.PI * 2); g.fill();
+  for (let i = 0; i < 5; i++) { const a = i * Math.PI * 2 / 5 - Math.PI / 2; g.beginPath(); g.arc(x + Math.cos(a) * 22, y + Math.sin(a) * 22, 17, 0, Math.PI * 2); g.fill(); }
+  g.fillStyle = '#F2D56A'; g.beginPath(); g.arc(x, y, 13, 0, Math.PI * 2); g.fill();
   g.fillStyle = ink;
 }
 
@@ -122,259 +305,468 @@ function mesh(geo, material, x = 0, y = 0, z = 0, sx = 1, sy = sx, sz = sx) {
   m.castShadow = true;
   return m;
 }
+/** 放一個零件，mirror 時左右各一（s = ±1） */
+function pair(parent, make, mirror = true) {
+  for (const s of mirror ? [1, -1] : [1]) { const o = make(s); if (o) parent.add(o); }
+}
+/** 沿著 Y 軸建的零件轉到指定方向 */
+function aim(obj, dir) {
+  obj.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+  return obj;
+}
 
-// ---------- 頭髮、耳朵、帽子、眼鏡 ----------
-// 臉部開口：正前方 ±0.8 rad 的範圍不能被頭髮蓋住
-const SIDE_P0 = Math.PI / 2 + 0.82, SIDE_PL = Math.PI * 2 - 1.64;
+// ---------- 頭髮（審稿一重新定義的 10 種，spec v2） ----------
+const stripCache = new Map();
+function bangStrip(H, which, shapeIdx) {
+  const key = `${shapeIdx}|${which}`;
+  if (stripCache.has(key)) return stripCache.get(key);
+  // 每一團是一段，段內再細分 4 份；下緣 y=0.06、上緣 0.112（中間那團矮 1.2 cm），前後兩層夾出厚度
+  const xs = [-0.112, -0.056, 0, 0.056, 0.112];
+  const cols = [];
+  const groups = [];
+  for (const i of which) groups.push(i);
+  // 把選到的團按連續區段串起來
+  const runs = [];
+  for (const i of groups) { const last = runs[runs.length - 1]; if (last && last[last.length - 1] === i - 1) last.push(i); else runs.push([i]); }
+  const pos = [], nrm = [], idx = [];
+  const fwd = new THREE.Vector3(0, -0.18, 1).normalize();
+  for (const run of runs) {
+    const x0 = xs[run[0]] - 0.042, x1 = xs[run[run.length - 1]] + 0.042;
+    const n = run.length * 6;
+    const base = pos.length / 3;
+    for (let k = 0; k <= n; k++) {
+      const x = x0 + (x1 - x0) * k / n;
+      const near0 = Math.min(...run.map((i) => Math.abs(x - xs[i])));
+      const centre = run.includes(2) && Math.abs(x) < 0.03 ? 0.012 * (1 - Math.abs(x) / 0.03) : 0;
+      const y0 = 0.06 + 0.006 * Math.cos(Math.min(1, near0 / 0.028) * Math.PI) * -1 + centre;   // 每團中間略低，像一撮一撮
+      const y1 = 0.115;
+      const z0 = H.frontZ(Math.max(-0.15, Math.min(0.15, x)), 0.09) + 0.008;
+      const edge = Math.min(k, n - k) / n;
+      const taper = Math.min(1, edge * 6);
+      pos.push(x, y0 + (1 - taper) * 0.02, z0, x, y1, z0 - 0.01, x, y0 + (1 - taper) * 0.02, z0 - 0.018 * taper - 0.002, x, y1, z0 - 0.026);
+      for (let q = 0; q < 2; q++) nrm.push(fwd.x, fwd.y, fwd.z);
+      for (let q = 0; q < 2; q++) nrm.push(0, 0.2, -1);
+      if (k) {
+        const p = base + (k - 1) * 4, c = base + k * 4;
+        idx.push(p, c, p + 1, p + 1, c, c + 1);              // 前面
+        idx.push(p + 2, p + 3, c + 2, c + 2, p + 3, c + 3);  // 背面
+        idx.push(p, p + 2, c, c, p + 2, c + 2);              // 下緣
+      }
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
+  g.setIndex(idx);
+  stripCache.set(key, g);
+  return g;
+}
+// 共同的臉窗與耳洞（頭皮本地座標，頭心為原點）
+const FACE_WIN = (x, y, z) => z > 0.015 && y < 0.062 && Math.abs(x) < 0.15;
+const NOTCH = (x, y, z) => Math.abs(x) > 0.165 && y < 0.045 && y > -0.09 && z > -0.05 && z < 0.07;
+// ears：hide 人耳藏在頭髮裡、notch 從耳洞露出、show 光頭
+export const HAIR_STYLES = [
+  { id: 'short-cap', outer: 0.048, ears: 'hide' },
+  { id: 'side-part', outer: 0.044, ears: 'notch' },
+  { id: 'bob', outer: 0.05, ears: 'hide' },
+  { id: 'buns', outer: 0.04, ears: 'notch' },
+  { id: 'ponytail', outer: 0.04, ears: 'notch' },
+  { id: 'twintails', outer: 0.04, ears: 'notch' },
+  { id: 'long', outer: 0.042, ears: 'hide' },
+  { id: 'spikes', outer: 0.026, ears: 'notch' },
+  { id: 'curls', outer: 0.04, ears: 'hide' },
+  { id: 'bald', outer: 0, ears: 'show' },
+];
 
-function addHair(head, look, hm) {
-  const R = HEAD_R;
+function addHair(head, look, H, hm, shapeIdx) {
+  const hat = look.hat;
+  const hatted = hat >= 1 && hat <= 3;
   const add = (o) => { head.add(o); return o; };
-  // 戴草帽／毛帽／棒球帽時，頭頂的髮飾（翹毛、丸子、刺）收進帽子裡
-  const hatted = look.hat >= 1 && look.hat <= 3;
-  const top = (o) => (hatted ? o : add(o));
-  const cap = (r = 1.07, t1 = 1.22) => add(mesh(shell(R * r, 0, t1), hm));
-  const around = (r = 1.06, t1 = 1.95) => add(mesh(shell(R * r, 0.9, t1, SIDE_P0, SIDE_PL), hm));
+  const shell = (outer, inner, key, keep) => add(mesh(headShell(shapeIdx, outer, inner, key, keep), hm));
+  const ell = (x, y, z, sx, sy, sz) => add(mesh(G.ball, hm, x, y, z, sx, sy, sz));
+  const capsule = (r, len, x, y, z) => add(mesh(new THREE.CapsuleGeometry(r, len, 6, 14), hm, x, y, z));
+  const ring = (R, tube, x, y, z, color) => add(mesh(new THREE.TorusGeometry(R, tube, 10, 24), color ? mat(color) : hm, x, y, z));
+  const deg = THREE.MathUtils.degToRad;
+  // 瀏海：一整片網格、法線朝臉的前方（審稿三：分開的球各有高光，會變成一排豆）
+  const bangs5 = (which = [0, 1, 2, 3, 4]) => add(mesh(bangStrip(H, which, shapeIdx), hm));
+  const cowlick = (outer) => { if (!hatted) ell(0.03, H.top + outer + 0.022, 0.03, 0.016, 0.028, 0.014).rotation.z = -0.6; };
   switch (look.hair) {
-    case 0: // 短髮：頭頂＋後腦，前面一撮翹起
-      cap(); around(1.06, 1.85);
-      top(mesh(G.ball, hm, 0.08, R * 0.92, R * 0.42, 0.16, 0.09, 0.12)).rotation.z = -0.4;
+    case 0: // 短圓蓋：包到下顎的蓬鬆短髮＋厚瀏海
+      shell(0.048, 0.01, 'short', (x, y, z) => y > -0.15 && !FACE_WIN(x, y, z));
+      bangs5();
+      for (const s of [-1, 1]) ell(s * 0.195, -0.03, 0.02, 0.052, 0.086, 0.062);
+      cowlick(0.048);
       break;
-    case 1: // 鮑伯頭
-      cap(1.12, 1.28); around(1.13, 2.3);
-      add(mesh(G.ball, hm, 0, R * 0.72, R * 0.62, 0.3, 0.1, 0.14));
+    case 1: // 旁分
+      shell(0.044, 0.01, 'side', (x, y, z) => y > -0.12 && !(z > 0.02 && y < 0.062 && x > -0.04 && x < 0.16) && !NOTCH(x, y, z));
+      bangs5([0, 1, 2]);
+      ell(-0.05, 0.095, H.frontZ(-0.05, 0.095) + 0.03, 0.115, 0.04, 0.048).rotation.z = 0.4;
+      ell(-0.1, 0.13, 0.06 + 0.04, 0.07, 0.045, 0.05);
+      capsule(0.03, 0.07, 0.205, -0.03, 0.02);
+      capsule(0.038, 0.12, -0.205, -0.05, 0);
       break;
-    case 2: // 雙馬尾
-      cap(); around(1.06, 1.9);
-      for (const s of [-1, 1]) {
-        const tail = add(mesh(G.ball, hm, s * R * 1.12, -0.04, -0.05, 0.11, 0.22, 0.11));
-        tail.rotation.z = s * 0.35;
-        add(mesh(G.ball, mat('#ff6f91'), s * R * 1.0, 0.1, -0.03, 0.05));
-      }
-      break;
-    case 3: // 丸子頭
-      cap(); around(1.06, 1.85);
-      top(mesh(G.ball, hm, 0, R * 1.18, -0.06, 0.14));
-      add(mesh(G.ball, hm, 0, R * 0.78, R * 0.6, 0.26, 0.08, 0.13));
-      break;
-    case 4: // 刺刺頭
-      cap(1.06, 1.18); around(1.05, 1.8);
-      for (let i = 0; i < 9; i++) {
-        const a = (i / 9) * Math.PI * 2, tilt = 0.6;
-        const spike = top(mesh(G.cone, hm, Math.sin(a) * R * 0.55, R * 0.88, Math.cos(a) * R * 0.55, 0.1, 0.22, 0.1));
-        spike.rotation.set(Math.cos(a) * tilt, 0, -Math.sin(a) * tilt);
-      }
-      top(mesh(G.cone, hm, 0, R * 1.1, 0, 0.1, 0.24, 0.1));
-      break;
-    case 5: // 長直髮
-      cap(1.1, 1.26); around(1.11, 2.45);
-      add(mesh(G.ball, hm, 0, -R * 0.62, -R * 0.42, 0.31, 0.36, 0.14));
-      add(mesh(G.ball, hm, 0, R * 0.74, R * 0.6, 0.29, 0.09, 0.14));
-      break;
-    case 6: { // 馬尾
-      cap(); around(1.06, 1.9);
-      const tail = add(mesh(G.ball, hm, 0, -0.02, -R * 1.18, 0.11, 0.25, 0.11));
-      tail.rotation.x = 0.5;
-      add(mesh(G.ball, mat('#ffd84a'), 0, 0.12, -R * 1.0, 0.055));
+    case 2: { // 鮑伯：收到下巴、底緣內捲、中分
+      shell(0.05, 0.012, 'bob', (x, y, z) => y > -0.17 && !(z > 0.02 && y < 0.062 && Math.abs(x) < 0.12));
+      bangs5([0, 1, 3, 4]);
+      const r = ring(0.2, 0.032, 0, -0.15, -0.02);
+      r.geometry = new THREE.TorusGeometry(0.2, 0.032, 10, 36, deg(220)); r.rotation.set(Math.PI / 2, 0, deg(-20) + Math.PI);
+      for (const s of [-1, 1]) ell(s * 0.185, -0.12, 0.03, 0.048, 0.042, 0.055);
       break;
     }
-    case 7: // 爆炸頭
-      add(mesh(shell(R * 1.36, 0, 1.0), hm, 0, 0.05, -0.04));
-      add(mesh(shell(R * 1.34, 0.9, 2.05, SIDE_P0 + 0.1, SIDE_PL - 0.2), hm, 0, 0.05, -0.05));
+    case 3: { // 雙丸子：戴草帽時丸子移到帽簷兩側
+      shell(0.04, 0.01, 'buns', (x, y, z) => y > -0.06 && !FACE_WIN(x, y, z) && !NOTCH(x, y, z));
+      bangs5();
+      const straw = hat === 1, top = H.top + 0.04;
+      if (hat !== 2 && hat !== 3) {
+        for (const s of [-1, 1]) {
+          if (straw) add(mesh(G.ball, hm, s * 0.198, top - 0.02, 0.01, 0.056));
+          else add(mesh(G.ball, hm, s * 0.11, 0.2, -0.02, 0.072));
+          const t = straw ? ring(0.034, 0.012, s * 0.18, top - 0.07, 0, '#F07AA0') : ring(0.034, 0.012, s * 0.11, 0.145, -0.02, '#F07AA0');
+          t.rotation.x = Math.PI / 2;
+        }
+      }
+      break;
+    }
+    case 4: { // 高馬尾
+      shell(0.04, 0.01, 'pony', (x, y, z) => y > -0.02 && !FACE_WIN(x, y, z) && !NOTCH(x, y, z));
+      bangs5();
+      add(mesh(G.ball, hm, 0, 0.16, -0.15, 0.05));
+      ring(0.032, 0.012, 0, 0.155, -0.155, '#F2D56A').rotation.x = 1.15;
+      capsule(0.046, 0.14, 0, 0.02, -0.21).rotation.x = 0.55;
+      capsule(0.036, 0.12, 0, -0.12, -0.23).rotation.x = 0.2;
+      break;
+    }
+    case 5: // 雙馬尾：從耳後長出，向外傾 16°
+      shell(0.04, 0.01, 'twin3', (x, y, z) => y > -0.04 && !FACE_WIN(x, y, z) && !NOTCH(x, y, z) && !(z > 0.02 && Math.abs(x) > 0.1 && y < 0.08));
+      for (const s of [-1, 1]) capsule(0.026, 0.05, s * 0.17, 0.02, -0.04);
+      bangs5();
+      for (const s of [-1, 1]) {
+        const tie = ring(0.026, 0.007, s * 0.16, 0.05, -0.05, '#F07AA0'); tie.rotation.set(1.2, s * 0.6, 0);
+        capsule(0.034, 0.14, s * 0.18, -0.05, -0.09).rotation.set(0.25, 0, s * deg(12));
+        add(mesh(G.ball, hm, s * 0.21, -0.15, -0.1, 0.032));
+      }
+      break;
+    case 6: // 長髮
+      shell(0.042, 0.01, 'long', (x, y, z) => y > 0.02 && !(z > 0.03 && Math.abs(x) < 0.11 && y < 0.062));
+      bangs5([0, 1, 3, 4]);
+      capsule(0.11, 0.3, 0, -0.2, -0.15).scale.set(1.2, 1, 1);
+      for (const s of [-1, 1]) capsule(0.04, 0.28, s * 0.205, -0.16, 0.01).rotation.z = s * deg(6);
+      break;
+    case 7: { // 刺刺頭：薄殼＋七根錐，戴毛帽時底高過 0.15 的錐收進去
+      shell(0.026, 0.008, 'spikes', (x, y, z) => y > -0.02 && !(z > 0.05 && y < 0.07 && Math.abs(x) < 0.16) && !NOTCH(x, y, z));
+      const spikes = [[[0, 1, 0.05], 0.1], [[0.55, 0.85, 0.2], 0.08], [[-0.55, 0.85, 0.2], 0.08], [[0.9, 0.45, -0.1], 0.07], [[-0.9, 0.45, -0.1], 0.07], [[0, 0.65, -0.75], 0.065], [[0, 0.8, 0.55], 0.09]];
+      for (const [[x, y, z], h] of spikes) {
+        const d = new THREE.Vector3(x, y, z).normalize();
+        const at = H.surface(d);
+        if (hatted && at.y > 0.18) continue;
+        const c = mesh(G.cone, hm, 0, 0, 0, 0.038, h, 0.038);
+        aim(c, d); c.position.copy(at).addScaledVector(d, h * 0.35);
+        add(c);
+      }
+      for (const s of [-1, 1]) add(mesh(G.ball, hm, s * 0.19, 0.02, 0.03, 0.034));
+      break;
+    }
+    case 8: // 側捲
+      shell(0.04, 0.01, 'curls', (x, y, z) => y > -0.05 && !FACE_WIN(x, y, z));
+      bangs5();
+      for (const s of [-1, 1]) {
+        ring(0.05, 0.024, s * 0.2, -0.01, 0.04).rotation.y = s * 1.15;
+        ring(0.038, 0.02, s * 0.195, -0.08, 0.03).rotation.y = s * 1.15;
+        ring(0.032, 0.016, s * 0.12, 0.145, 0.09).rotation.x = -0.5;
+      }
       break;
     default: break; // 光頭
   }
 }
 
-function addEars(head, look, skinM, hm) {
-  const R = HEAD_R;
+// ---------- 耳朵 ----------
+function addEars(head, look, H, skinM, hm) {
+  const style = HAIR_STYLES[look.hair] || HAIR_STYLES[0];
+  const topY = H.top + style.outer;
   switch (look.ears) {
     case 1: // 貓耳
       for (const s of [-1, 1]) {
-        const e = mesh(G.cone, hm, s * R * 0.55, R * 0.98, 0, 0.12, 0.2, 0.07);
-        e.rotation.z = -s * 0.42; head.add(e);
-        const inner = mesh(G.cone, mat('#ffb6c8'), s * R * 0.55, R * 0.97, 0.03, 0.07, 0.13, 0.03);
-        inner.rotation.z = -s * 0.42; head.add(inner);
+        const g = new THREE.Group();
+        g.add(mesh(G.cone, hm, 0, 0, 0, 0.045, 0.11, 0.03));
+        g.add(mesh(G.cone, mat('#F2B8C0', MAT.skin), 0, -0.006, 0.014, 0.027, 0.075, 0.02));
+        g.position.set(s * 0.13, topY - 0.03, 0.0); g.rotation.z = -s * 0.35;
+        head.add(g);
       }
       break;
     case 2: // 熊耳
       for (const s of [-1, 1]) {
-        head.add(mesh(G.ball, hm, s * R * 0.68, R * 0.82, -0.02, 0.1, 0.1, 0.07));
-        head.add(mesh(G.ball, mat('#f6c9a8'), s * R * 0.68, R * 0.82, 0.03, 0.055, 0.055, 0.04));
+        const g = new THREE.Group();
+        g.add(mesh(G.ball, hm, 0, 0, 0, 0.055, 0.055, 0.04));
+        g.add(mesh(G.ball, mat('#F3C9B0', MAT.skin), 0, 0, 0.02, 0.032, 0.032, 0.022));
+        g.position.set(s * 0.165, topY - 0.06, 0.0);
+        head.add(g);
       }
       break;
-    case 3: // 兔耳
+    case 3: // 兔耳：向外傾 12°，不准向前蓋住臉
       for (const s of [-1, 1]) {
-        const e = mesh(G.ball, mat('#fbf6ee'), s * R * 0.32, R * 1.38, -0.04, 0.07, 0.22, 0.05);
-        e.rotation.z = -s * 0.15; head.add(e);
-        const inner = mesh(G.ball, mat('#ffb6c8'), s * R * 0.32, R * 1.38, -0.01, 0.04, 0.17, 0.03);
-        inner.rotation.z = -s * 0.15; head.add(inner);
+        const g = new THREE.Group();
+        g.add(mesh(new THREE.CapsuleGeometry(0.028, 0.16, 6, 12), mat('#FFF9F2', MAT.skin), 0, 0.09, 0));
+        g.add(mesh(new THREE.CapsuleGeometry(0.014, 0.11, 6, 12), mat('#F2B8C0', MAT.skin), 0, 0.09, 0.014));
+        g.position.set(s * 0.09, topY - 0.04, -0.01); g.rotation.set(-0.12, 0, -s * THREE.MathUtils.degToRad(12));
+        head.add(g);
       }
       break;
-    default: // 人耳
-      for (const s of [-1, 1]) head.add(mesh(G.ball, skinM, s * R * 0.99, -0.02, 0, 0.05, 0.075, 0.045));
+    default: // 人耳：被頭髮蓋住的髮型不畫
+      if (style.ears === 'hide') break;
+      for (const s of [-1, 1]) head.add(mesh(G.ball, skinM, s * (H.surface(new THREE.Vector3(s, -0.1, 0)).x - 0.006), -0.02, 0.0, 0.03, 0.055, 0.016));
   }
 }
 
-function addHat(head, look) {
-  const R = HEAD_R;
+/** 頭皮在高度 y 的前（which=0）、側（1）、後（2）距離 */
+function sideAt(H, y, which) {
+  const dirs = [new THREE.Vector3(0, 0, 1), new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, -1)];
+  const d = dirs[which];
+  const hit = H.hitFrom(new THREE.Vector3(d.x * 0.5, y, d.z * 0.5), d.clone().negate());
+  return hit ? Math.abs(which === 1 ? hit.x : hit.z) : 0.15;
+}
+
+// ---------- 帽子：坐在頭髮外殼上，不刪髮型 ----------
+function addHat(head, look, H, shapeIdx) {
+  const style = HAIR_STYLES[look.hair] || HAIR_STYLES[0];
+  const hairTop = H.top + style.outer;
+  const deg = THREE.MathUtils.degToRad;
   switch (look.hat) {
-    case 1: { // 草帽
-      const straw = mat('#efd48a'), band = mat('#e2545b');
-      head.add(mesh(new THREE.CylinderGeometry(0.56, 0.58, 0.025, 32), straw, 0, R * 0.62, -0.02));
-      head.add(mesh(new THREE.CylinderGeometry(0.24, 0.29, 0.2, 28), straw, 0, R * 0.62 + 0.1, -0.02));
-      head.add(mesh(new THREE.CylinderGeometry(0.292, 0.292, 0.05, 28), band, 0, R * 0.62 + 0.03, -0.02));
+    case 1: { // 草帽：帽簷半徑 0.26、上掀 8°
+      const straw = mat('#E9CE8A', MAT.straw), band = mat('#C45B66');
+      const hat = new THREE.Group();
+      hat.add(mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.012, 40), straw, 0, 0, 0));
+      hat.add(mesh(new THREE.CylinderGeometry(0.16, 0.18, 0.12, 32), straw, 0, 0.06, 0));
+      hat.add(mesh(new THREE.SphereGeometry(0.16, 24, 8, 0, Math.PI * 2, 0, Math.PI / 2), straw, 0, 0.12, 0, 1, 0.35, 1));
+      hat.add(mesh(new THREE.CylinderGeometry(0.182, 0.182, 0.032, 32), band, 0, 0.02, 0));
+      hat.position.set(0, hairTop - 0.06, -0.015); hat.rotation.x = -deg(8);
+      head.add(hat);
       break;
     }
-    case 2: { // 毛帽
-      const knit = mat('#5b8def'), trim = mat('#fffaf0');
-      head.add(mesh(shell(R * 1.13, 0, 1.2), knit));
-      const band = mesh(new THREE.TorusGeometry(R * 1.04, 0.045, 10, 36), trim, 0, R * 0.36, 0);
-      band.rotation.x = Math.PI / 2; head.add(band);
-      head.add(mesh(G.ball, trim, 0, R * 1.2, 0, 0.09));
+    case 2: { // 毛帽：頭頂一截（y>0.13），帽沿下看得到瀏海與側髮
+      const knit = mat('#8FCB78', 0.9), trim = mat(darker('#8FCB78', 0.85), 0.9);
+      head.add(mesh(headShell(shapeIdx, style.outer + 0.016, style.outer + 0.006, 'beanie2', (x, y, z) => y > 0.13 && z < 0.06), knit));
+      // 帽沿：照頭在這個高度的實際寬、深（頭不是圓的），貼著髮殼外面
+      const yC = 0.13, hx = sideAt(H, yC, 1) + style.outer + 0.012, hz = (sideAt(H, yC, 0) + sideAt(H, yC, 2)) / 2 + style.outer + 0.012;
+      const cuff = mesh(new THREE.TorusGeometry(1, 0.02, 10, 48), trim, 0, yC, (sideAt(H, yC, 0) - sideAt(H, yC, 2)) / 2, 1, 1, 1);
+      cuff.geometry = new THREE.TorusGeometry(1, 0.02 / Math.max(hx, hz), 10, 48);
+      cuff.scale.set(hx, hz, hx); cuff.rotation.x = Math.PI / 2; head.add(cuff);
+      head.add(mesh(G.ball, mat('#FFF9F2', 0.95), 0, H.top + style.outer + 0.04, -0.01, 0.045));
       break;
     }
-    case 3: { // 棒球帽
-      const c = mat('#e2545b');
-      head.add(mesh(shell(R * 1.12, 0, 1.15), c));
-      const visor = mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.02, 24, 1, false, -Math.PI / 2, Math.PI), c, 0, R * 0.42, R * 0.86);
-      visor.scale.set(1, 1, 0.9); visor.rotation.x = 0.12; head.add(visor);
-      head.add(mesh(G.ball, mat('#fffaf0'), 0, R * 1.12, 0, 0.03));
+    case 3: { // 棒球帽：冠用圓柱＋半球（不用頭殼），帽簷是盒子（審稿三）
+      const c = mat('#E8DCC4', 0.8);
+      const crown = new THREE.Group();
+      crown.add(mesh(new THREE.CylinderGeometry(0.15, 0.172, 0.07, 28), c, 0, hairTop - 0.02, -0.01));
+      crown.add(mesh(new THREE.SphereGeometry(0.15, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), c, 0, hairTop + 0.012, -0.01, 1, 0.55, 1));
+      crown.add(mesh(G.ball, c, 0, hairTop + 0.09, -0.01, 0.016));
+      head.add(crown);
+      const brim = mesh(new THREE.BoxGeometry(0.17, 0.01, 0.07), c, 0, hairTop - 0.05, 0.12);
+      brim.rotation.x = -deg(15); head.add(brim);
       break;
     }
-    case 4: { // 花冠
-      const ring = mesh(new THREE.TorusGeometry(R * 0.9, 0.025, 8, 36), mat('#5cc48a'), 0, R * 0.55, -0.02);
-      ring.rotation.x = Math.PI / 2 - 0.15; head.add(ring);
-      const cols = ['#ff8eb0', '#fff3a0', '#ffffff', '#b6a6ff'];
-      for (let i = 0; i < 10; i++) {
-        const a = i / 10 * Math.PI * 2;
-        head.add(mesh(G.ball, mat(cols[i % cols.length]), Math.sin(a) * R * 0.9, R * 0.55 + Math.cos(a) * 0.04, Math.cos(a) * R * 0.9 - 0.02, 0.055, 0.04, 0.055));
+    case 4: { // 花冠：環在 y=0.19，五朵只排前半圈
+      const yR = 0.17, rx = sideAt(H, yR, 1) + style.outer + 0.006, rz = (sideAt(H, yR, 0) + sideAt(H, yR, 2)) / 2 + style.outer + 0.006;
+      const ring = mesh(new THREE.TorusGeometry(1, 0.012 / rx, 8, 48), mat('#6E9A62'), 0, yR, (sideAt(H, yR, 0) - sideAt(H, yR, 2)) / 2);
+      ring.scale.set(rx, rz, rx); ring.rotation.x = Math.PI / 2; head.add(ring);
+      const cols = ['#F0A0B8', '#FFF9F2', '#A894E0', '#F2D56A', '#F08A86'];
+      for (let i = 0; i < 5; i++) {
+        const a = -1.0 + i * 0.5;
+        const fl = new THREE.Group();
+        for (let k = 0; k < 5; k++) { const b = k / 5 * Math.PI * 2; fl.add(mesh(G.ball, mat(cols[i]), Math.cos(b) * 0.026, Math.sin(b) * 0.026, 0, 0.024, 0.024, 0.012)); }
+        fl.add(mesh(G.ball, mat('#F2D56A'), 0, 0, 0.008, 0.014));
+        fl.position.set(Math.sin(a) * 0.16, 0.205, H.frontZ(Math.sin(a) * 0.12, 0.18) + style.outer + 0.02 - (1 - Math.cos(a)) * 0.12);
+        fl.rotation.set(-0.5, a, 0);
+        head.add(fl);
       }
       break;
     }
-    case 5: { // 小葉子（像島上居民頭上那片）
-      const leaf = mesh(G.ball, mat('#6cc35a'), 0.03, R * 1.1, 0.02, 0.1, 0.025, 0.06);
-      leaf.rotation.z = 0.5; head.add(leaf);
-      const stem = mesh(G.cone, mat('#5a9a3c'), -0.02, R * 1.02, 0.02, 0.012, 0.08, 0.012);
-      stem.rotation.z = 0.3; head.add(stem);
+    case 5: { // 葉芽：頭頂一片扁葉
+      const leaf = mesh(G.ball, mat('#8FCB78', 0.7), 0.05, hairTop + 0.035, 0.03, 0.045, 0.012, 0.025);
+      leaf.rotation.set(0.2, 0.5, 0.55); head.add(leaf);
+      const stem = mesh(G.cone, mat('#6E9A62'), 0.015, hairTop + 0.008, 0.03, 0.007, 0.05, 0.007);
+      stem.rotation.z = -0.35; head.add(stem);
       break;
     }
     default: break;
   }
 }
 
-function addGlasses(head, look) {
+// ---------- 眼鏡（鏡片對準眼睛、大小跟眼睛差不多） ----------
+function addGlasses(head, look, H) {
   if (!look.glasses) return;
-  // 眼睛約在臉部貼圖 (256±104, 222)：換算成球面角度
-  const theta = FACE_PATCH.thetaStart + (222 / FACE_H) * FACE_PATCH.thetaLength;
-  const dphi = (104 / FACE_W) * FACE_PATCH.phiLength;
-  const r = HEAD_R * 1.04;
-  const frame = mat(look.glasses === 2 ? '#24242c' : '#7a5a3a');
+  const frame = mat(look.glasses === 3 ? '#2C2622' : '#3A3330', 0.5);
+  const lensMat = new THREE.MeshBasicMaterial({
+    color: look.glasses === 3 ? '#3A3338' : '#EAF4FF', transparent: true,
+    opacity: look.glasses === 3 ? 0.45 : 0.08, depthWrite: false,
+  });
+  const ey = FACE.cy + (0.5 - 0.40) * FACE.h, ex = (0.69 - 0.5) * FACE.w;
+  const z = H.frontZ(ex, ey) + 0.016;
   for (const s of [-1, 1]) {
-    const phi = Math.PI / 2 + s * dphi;
-    const x = -r * Math.cos(phi) * Math.sin(theta), y = r * Math.cos(theta), z = r * Math.sin(phi) * Math.sin(theta);
-    const ring = mesh(G.ring, frame, x, y, z, 1.05);
-    ring.rotation.y = s * dphi;
-    head.add(ring);
+    const g = new THREE.Group();
     if (look.glasses === 2) {
-      const lens = mesh(new THREE.CircleGeometry(0.068, 20), mat('#30343c', { roughness: 0.2 }), x, y, z + 0.002);
-      lens.rotation.y = s * dphi; head.add(lens);
+      const w = 0.09, h = 0.07, r = 0.02;
+      const rr = (k) => {
+        const sh = new THREE.Shape();
+        const W = w * k, Hh = h * k, R = r * k;
+        sh.moveTo(-W / 2 + R, -Hh / 2); sh.lineTo(W / 2 - R, -Hh / 2); sh.quadraticCurveTo(W / 2, -Hh / 2, W / 2, -Hh / 2 + R);
+        sh.lineTo(W / 2, Hh / 2 - R); sh.quadraticCurveTo(W / 2, Hh / 2, W / 2 - R, Hh / 2); sh.lineTo(-W / 2 + R, Hh / 2);
+        sh.quadraticCurveTo(-W / 2, Hh / 2, -W / 2, Hh / 2 - R); sh.lineTo(-W / 2, -Hh / 2 + R); sh.quadraticCurveTo(-W / 2, -Hh / 2, -W / 2 + R, -Hh / 2);
+        return sh;
+      };
+      const ring = rr(1); ring.holes.push(new THREE.Path(rr(0.84).getPoints(8)));
+      g.add(mesh(new THREE.ExtrudeGeometry(ring, { depth: 0.006, bevelEnabled: false }), frame));
+      g.add(new THREE.Mesh(new THREE.ShapeGeometry(rr(1)), lensMat));
+    } else {
+      const R = look.glasses === 3 ? 0.05 : 0.048;
+      g.add(mesh(new THREE.TorusGeometry(R, look.glasses === 3 ? 0.007 : 0.006, 8, 32), frame));
+      g.add(new THREE.Mesh(new THREE.CircleGeometry(R, 28), lensMat));
+      if (look.glasses === 3) {
+        const streak = new THREE.Mesh(new THREE.PlaneGeometry(0.012, 0.05), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.7 }));
+        streak.position.set(-0.016, 0.008, 0.002); streak.rotation.z = -0.6; g.add(streak);
+      }
     }
+    g.position.set(s * ex, ey, z); g.rotation.y = s * 0.12;
+    head.add(g);
+    // 鏡腳：從鏡框外側往後到耳朵
+    const ear = H.surface(new THREE.Vector3(s, -0.05, 0));
+    const from = new THREE.Vector3(s * (ex + 0.05), ey, z - 0.006), to = new THREE.Vector3(ear.x + s * 0.004, ey, -0.02);
+    const arm = mesh(new THREE.CylinderGeometry(0.004, 0.004, from.distanceTo(to), 6), frame);
+    arm.position.copy(from).add(to).multiplyScalar(0.5);
+    aim(arm, to.clone().sub(from));
+    head.add(arm);
   }
-  head.add(mesh(new THREE.BoxGeometry(0.06, 0.012, 0.012), frame, 0, r * Math.cos(theta), r * Math.sin(theta) + 0.012));
+  head.add(mesh(new THREE.BoxGeometry(0.03, 0.006, 0.006), frame, 0, ey + 0.012, z));
 }
 
 // ---------- 組裝 ----------
-function faceTextures(look) {
-  const hair = HAIR_COLORS[look.hairColor];
-  return ['open', 'blink', 'joy'].map((mode) => {
-    const cv = document.createElement('canvas');
-    cv.width = FACE_W; cv.height = FACE_H;
-    drawFace(cv.getContext('2d'), look, mode, hair);
-    const t = new THREE.CanvasTexture(cv);
-    t.colorSpace = THREE.SRGBColorSpace;
-    t.anisotropy = 4;
-    return t;
-  });
-}
-
-function build(look) {
-  const skinM = mat(SKIN[look.skin]);
-  const hairM = mat(HAIR_COLORS[look.hairColor], { roughness: 0.55 });
-  const topM = patternMat(CLOTH_COLORS[look.topColor], look.pattern);
-  const plainTop = mat(CLOTH_COLORS[look.topColor]);
+function build(look, faceTex, emTex) {
+  const skinHex = SKIN[look.skin];
+  const skinM = mat(skinHex, MAT.skin);
+  const neckM = mat(darker(skinHex, 0.86), MAT.skin);
+  const mittenM = mat(`#${new THREE.Color(skinHex).lerp(new THREE.Color('#E07860'), 0.2).getHexString()}`, MAT.skin);
+  const headM = applyShadow(new THREE.MeshToonMaterial({ color: skinHex, vertexColors: true, gradientMap: RAMP }), shadowFor('skin'));
+  const hairM = mat(HAIR_COLORS[look.hairColor], MAT.hair, { metalness: 0.02, side: THREE.DoubleSide });
+  const topHex = CLOTH_COLORS[look.topColor];
+  const topM = clothMat(topHex, look.pattern);
+  const plainTop = mat(topHex);
+  const plainTop2 = mat(topHex, MAT.cloth, { side: THREE.DoubleSide });
+  const underM = mat(look.topColor <= 1 ? '#FFFFFF' : CLOTH_COLORS[1]);    // 背心、連身裙裡面那件
   const botM = mat(CLOTH_COLORS[look.bottomColor]);
-  const shoeM = mat(CLOTH_COLORS[look.shoes], { roughness: 0.5 });
-  const dress = look.top === 1;
+  const shoeHex = CLOTH_COLORS[look.shoes];
+  const shoeM = mat(shoeHex, MAT.shoe, { vertexColors: true });
+  const soleM = mat(darker(shoeHex, 0.7), MAT.shoe);
+  const dress = look.top === 1, vest = look.top === 3, hoodie = look.top === 2;
+  const bottom = dress ? -1 : look.bottom;      // 連身裙不畫下身
 
   const body = new THREE.Group();
-  const hips = new THREE.Group(); hips.position.y = HIP_Y; body.add(hips);
+  const pelvis = new THREE.Group(); pelvis.position.y = PELVIS_Y; body.add(pelvis);
 
+  // 腿：髖 → 大腿 → 膝 → 小腿 → 腳踝 → 鞋
+  const pants = bottom === 0;
   const legs = [-1, 1].map((s) => {
-    const pivot = new THREE.Group(); pivot.position.set(s * 0.088, 0, 0); hips.add(pivot);
-    const legM = dress || look.bottom !== 0 ? skinM : botM;
-    pivot.add(mesh(G.leg, legM, 0, -0.12, 0));
-    if (!dress && look.bottom === 1) pivot.add(mesh(G.shortsLeg, botM, 0, -0.035, 0));
-    pivot.add(mesh(G.shoe, shoeM, 0, -0.245, 0.03, 0.085, 0.065, 0.12));
-    return pivot;
+    const hip = new THREE.Group(); hip.position.set(s * HIP_X, 0, 0); pelvis.add(hip);
+    hip.add(mesh(pants ? G.pantsThigh : G.thigh, pants ? botM : skinM, 0, -THIGH / 2, 0));
+    if (bottom === 1) {                         // 短褲收在世界 y=0.36
+      hip.add(mesh(G.shortsLeg, botM, 0, -0.025, 0));
+      const cuff = mesh(G.cuff, botM, 0, -0.075, 0); cuff.rotation.x = Math.PI / 2; hip.add(cuff);
+    }
+    const knee = new THREE.Group(); knee.position.y = -THIGH; hip.add(knee);
+    knee.add(mesh(pants ? G.pantsKnee : G.knee, pants ? botM : skinM));
+    knee.add(mesh(pants ? G.pantsShin : G.shin, pants ? botM : skinM, 0, -SHIN / 2, 0));
+    const ankle = new THREE.Group(); ankle.position.y = -SHIN; knee.add(ankle);
+    // 靴子：寬 0.104、高 0.12、長 0.16，加鞋底與靴口
+    // 靴子（審稿二）：寬 0.112、高 0.18、長 0.164，靴口在小腿中段 y=0.205
+    ankle.add(mesh(G.boot, shoeM));
+    return { hip, knee, ankle };
   });
 
-  const torso = new THREE.Group(); hips.add(torso);
-  if (dress) {
-    torso.add(mesh(G.dress, topM, 0, 0.11, 0));
-  } else {
-    torso.add(mesh(G.torso, topM, 0, 0.17, 0));
-    if (look.bottom === 2) torso.add(mesh(G.skirt, botM, 0, 0.0, 0));
-    else torso.add(mesh(G.pelvis, botM, 0, 0.0, 0));
-  }
-  torso.add(mesh(G.shoulders, look.top === 3 ? plainTop : topM, 0, 0.335, 0, 1, 0.42, 1));
-  if (look.top === 2) {
-    const hood = mesh(G.hood, plainTop, 0, 0.36, -0.07);
-    hood.rotation.set(-0.3, 0, Math.PI * 0.9);
-    torso.add(hood);
-  }
+  // 軀幹與衣服
+  const torso = new THREE.Group(); pelvis.add(torso);
+  torso.add(mesh(G.torso, vest ? underM : topM));
+  if (bottom === 0 || bottom === 1) torso.add(mesh(G.bottomShell, botM));
+  if (bottom === 2) torso.add(mesh(G.skirt, botM));
+  if (dress) torso.add(mesh(G.dressSkirt, topM));
+  if (vest) torso.add(mesh(G.vest, plainTop2));
 
+  if (hoodie) {                                  // 帽兜放在肩後（朝前的半球切掉），正面看得到領圈
+    const hood = mesh(new THREE.SphereGeometry(0.16, 24, 14, Math.PI / 2, Math.PI, 0, Math.PI * 0.75), plainTop2, 0, 0.98 - PELVIS_Y, -0.12, 1.1, 0.85, 0.8);
+    hood.rotation.y = Math.PI; torso.add(hood);
+    const neckRing = mesh(new THREE.TorusGeometry(0.09, 0.028, 10, 28), plainTop, 0, 0.9 - PELVIS_Y, 0.02, 1, 1, 0.85);
+    neckRing.rotation.x = Math.PI / 2; torso.add(neckRing);
+    for (const s of [-1, 1]) torso.add(mesh(new THREE.CapsuleGeometry(0.007, 0.07, 4, 6), mat('#FFF9F2'), s * 0.035, 0.86 - PELVIS_Y, 0.135));
+  }
+  torso.add(mesh(G.neck, neckM, 0, 0.9525 - PELVIS_Y, 0));
+
+  // 手臂：肩 → 上臂 → 肘 → 前臂 → 連指手套
   const arms = [-1, 1].map((s) => {
-    const pivot = new THREE.Group(); pivot.position.set(s * 0.19, 0.31, 0); pivot.rotation.z = s * 0.32; torso.add(pivot);
-    pivot.add(mesh(G.arm, look.top === 2 ? plainTop : skinM, 0, -0.12, 0));
-    if (look.top === 0 || look.top === 1) pivot.add(mesh(G.sleeve, plainTop, 0, -0.04, 0));
-    pivot.add(mesh(G.hand, skinM, 0, -0.245, 0));
-    return pivot;
+    const shoulder = new THREE.Group(); shoulder.position.set(s * SHOULDER[0], SHOULDER[1], 0); torso.add(shoulder);
+    shoulder.add(mesh(G.upper, skinM));
+    shoulder.add(mesh(hoodie ? G.longSleeve : G.sleeve, vest ? underM : plainTop));
+    const elbow = new THREE.Group(); elbow.position.y = -UPPER; shoulder.add(elbow);
+    elbow.add(mesh(G.fore, skinM));
+    const hand = new THREE.Group(); hand.position.y = -FORE; elbow.add(hand);
+    // 連指手套：寬 0.10、高 0.086、深 0.062，拇指往中線、往前，三分之一埋進掌心
+    const mit = mesh(G.mitten, mittenM, 0, 0.006, 0); mit.scale.x = -s; hand.add(mit);   // 拇指朝身體中線
+    return { shoulder, elbow, hand, s };
   });
 
-  const headPivot = new THREE.Group(); headPivot.position.y = HEAD_Y; hips.add(headPivot);
-  const head = new THREE.Group(); head.scale.set(1, 0.94, 0.96); headPivot.add(head);
-  head.add(mesh(G.head, skinM));
-  const faces = faceTextures(look);
-  const faceMat = new THREE.MeshStandardMaterial({ map: faces[0], transparent: true, roughness: 0.75, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
-  const face = new THREE.Mesh(G.face, faceMat);
+  // 頭
+  const H = headShape(look.faceShape);
+  const headPivot = new THREE.Group(); headPivot.position.y = HEAD_Y; torso.add(headPivot);
+  const head = new THREE.Group(); headPivot.add(head);
+  head.add(mesh(H.geo, headM));
+  const faceMat = applyShadow(new THREE.MeshToonMaterial({
+    map: faceTex, emissiveMap: emTex, emissive: '#ffffff', emissiveIntensity: 0.22, gradientMap: RAMP,
+    transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+  }), shadowFor('skin'));
+  const face = new THREE.Mesh(H.face, faceMat);
   face.renderOrder = 1;
   head.add(face);
-  addHair(head, look, hairM);
-  addEars(head, look, skinM, hairM);
-  addHat(head, look);
-  addGlasses(head, look);
+  addHair(head, look, H, hairM, look.faceShape);
+  addEars(head, look, H, skinM, hairM);
+  addHat(head, look, H, look.faceShape);
+  addGlasses(head, look, H);
 
   const blob = new THREE.Mesh(G.blob, blobMat);
-  blob.rotation.x = -Math.PI / 2; blob.position.y = 0.02;
+  blob.rotation.x = -Math.PI / 2; blob.position.y = 0.015;
   body.add(blob);
-  return { body, hips, torso, legs, arms, headPivot, faces, faceMat, blob };
+  return { body, pelvis, torso, legs, arms, headPivot, faceMat, headM, blob };
 }
+
+const REST = { out: THREE.MathUtils.degToRad(16), fwd: THREE.MathUtils.degToRad(8), elbow: THREE.MathUtils.degToRad(20) };
 
 export function createCharacter(lookIn) {
   const root = new THREE.Group();
   let look = sanitize(lookIn);
-  let rig = build(look);
+  // 兩張臉貼圖：map＝膚色底＋五官；emissive＝只有五官（自發光只讓五官更清楚，不讓整張臉變亮）
+  const mk = () => { const c = document.createElement('canvas'); c.width = FACE_W; c.height = FACE_H; return c; };
+  const cvMap = mk(), cvEm = mk();
+  const tex = (c) => { const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; };
+  const faceTex = tex(cvMap), emTex = tex(cvEm);
+  let faceMode = '';
+  const paintFace = (mode) => {
+    if (mode === faceMode) return;
+    faceMode = mode;
+    drawFace(cvEm.getContext('2d'), look, mode, HAIR_COLORS[look.hairColor]);
+    const g = cvMap.getContext('2d');
+    drawFaceSkin(g, look);
+    g.drawImage(cvEm, 0, 0);
+    faceTex.needsUpdate = true; emTex.needsUpdate = true;
+  };
+  let rig = build(look, faceTex, emTex);
+  paintFace('neutral');
   root.add(rig.body);
+  const ink = (body) => body.traverse((o) => { if (o.isMesh) addInkShell(o); });
+  ink(rig.body);
   const bubble = new THREE.Sprite(bubbleMaterial('wave'));
   bubble.scale.set(0.62, 0.62, 1); bubble.position.y = BUBBLE_Y; bubble.visible = false;
   root.add(bubble);
-  let phase = 0, t = 0, blinkAt = 2 + Math.random() * 3, blinkUntil = 0, faceMode = 0;
+  let phase = 0, t = 0, blinkAt = 2 + Math.random() * 3, blinkUntil = 0;
 
   function disposeRig() {
     root.remove(rig.body);
-    rig.faces.forEach((f) => f.dispose());
     rig.faceMat.dispose();
+    rig.headM.dispose();
   }
 
   return {
@@ -383,59 +775,74 @@ export function createCharacter(lookIn) {
     setLook(next) {
       look = sanitize(next);
       disposeRig();
-      rig = build(look);
+      rig = build(look, faceTex, emTex);
       root.add(rig.body);
+      ink(rig.body);
+      faceMode = ''; paintFace('neutral');
     },
     /** s: { speed（m/s）, air（是否在空中）, emote（id 或 null）, emoteT（表情開始後秒數） } */
     animate(dt, s = {}) {
       t += dt;
       const speed = s.speed || 0;
-      phase += speed * dt * 2.8;
-      const sw = Math.min(1, speed / 3.4) * 0.95;
-      const sn = Math.sin(phase);
-      const [legL, legR] = rig.legs, [armL, armR] = rig.arms;
-      legL.rotation.x = sn * sw; legR.rotation.x = -sn * sw;
-      armL.rotation.x = -sn * sw * 0.9; armR.rotation.x = sn * sw * 0.9;
-      armL.rotation.z = -0.32; armR.rotation.z = 0.32;
-      rig.hips.position.y = HIP_Y + Math.abs(Math.cos(phase)) * 0.045 * Math.min(1, speed / 2);
-      rig.hips.rotation.y = sn * 0.08 * sw;
-      rig.torso.scale.y = 1 + Math.sin(t * 2.2) * 0.012 * (speed < 0.2 ? 1 : 0);
-      rig.headPivot.rotation.set(0, 0, 0);
-      rig.hips.rotation.x = Math.min(1, speed / 6) * 0.12;
+      phase += speed * dt * 2.9;
+      const sw = Math.min(1, speed / 3.4);
+      const sn = Math.sin(phase), cs = Math.cos(phase);
+      const [L, R] = rig.legs, [AL, AR] = rig.arms;
+      // 走路：髖前後擺、往前擺的那隻腳膝蓋彎
+      L.hip.rotation.set(sn * 0.62 * sw, 0, 0); R.hip.rotation.set(-sn * 0.62 * sw, 0, 0);
+      L.knee.rotation.x = Math.max(0, cs) * 0.85 * sw; R.knee.rotation.x = Math.max(0, -cs) * 0.85 * sw;
+      L.ankle.rotation.x = -L.hip.rotation.x * 0.4; R.ankle.rotation.x = -R.hip.rotation.x * 0.4;
+      for (const A of rig.arms) {
+        A.shoulder.rotation.set(-REST.fwd + (A.s < 0 ? -sn : sn) * 0.75 * sw, 0, A.s * REST.out);
+        A.elbow.rotation.set(-REST.elbow - 0.35 * sw, 0, 0);
+      }
+      rig.pelvis.position.y = PELVIS_Y + Math.abs(cs) * 0.035 * Math.min(1, speed / 2);
+      rig.torso.rotation.set(Math.min(1, speed / 6) * 0.1, sn * 0.07 * sw, 0);
+      rig.torso.scale.y = 1 + Math.sin(t * 2.2) * 0.008 * (speed < 0.2 ? 1 : 0);
+      rig.headPivot.rotation.set(-rig.torso.rotation.x * 0.6, -rig.torso.rotation.y, 0);
       if (s.air) {
-        legL.rotation.x = 0.55; legR.rotation.x = -0.35;
-        armL.rotation.z = -1.1; armR.rotation.z = 1.1;
+        L.hip.rotation.x = -0.7; L.knee.rotation.x = 1.1; R.hip.rotation.x = -0.2; R.knee.rotation.x = 0.5;
+        AL.shoulder.rotation.z = -1.1; AR.shoulder.rotation.z = 1.1;
       }
 
       // 表情動作
       const e = s.emote, et = s.emoteT || 0;
       bubble.visible = Boolean(e) && et < EMOTE_TIME;
+      let mode = 'neutral';
       if (bubble.visible) {
         bubble.material = bubbleMaterial(e);
-        const pop = Math.min(1, et * 6);
-        bubble.scale.setScalar(0.62 * (0.6 + 0.4 * pop));
+        bubble.scale.setScalar(0.62 * (0.6 + 0.4 * Math.min(1, et * 6)));
         bubble.position.y = BUBBLE_Y + Math.sin(et * 5) * 0.03;
-        if (e === 'wave') { armR.rotation.z = 2.5 + Math.sin(et * 14) * 0.35; armR.rotation.x = 0; }
+        mode = EMOTE_FACE[e] || 'neutral';
+        if (e === 'wave') {
+          AR.shoulder.rotation.set(0, 0, 2.55 + Math.sin(et * 13) * 0.3);
+          AR.elbow.rotation.x = -0.35;
+        }
         if (e === 'happy') {
-          rig.hips.position.y += Math.abs(Math.sin(et * 7)) * 0.16;
-          armL.rotation.z = -2.4; armR.rotation.z = 2.4; armL.rotation.x = armR.rotation.x = 0;
+          rig.pelvis.position.y += Math.abs(Math.sin(et * 7)) * 0.13;
+          AL.shoulder.rotation.set(0, 0, -2.4); AR.shoulder.rotation.set(0, 0, 2.4);
+          AL.elbow.rotation.x = AR.elbow.rotation.x = -0.2;
         }
-        if (e === 'love') { armL.rotation.set(-0.9, 0, 0.5); armR.rotation.set(-0.9, 0, -0.5); rig.headPivot.rotation.z = Math.sin(et * 4) * 0.15; }
+        if (e === 'love') {                         // 兩隻手套在胸前靠攏
+          for (const A of rig.arms) { A.shoulder.rotation.set(-0.95, 0, -A.s * 0.42); A.elbow.rotation.x = -1.35; }
+          rig.headPivot.rotation.z = Math.sin(et * 4) * 0.12;
+        }
         if (e === 'wow') {
-          if (et < 0.35) rig.hips.position.y += Math.sin(et / 0.35 * Math.PI) * 0.14;
-          armL.rotation.z = -1.4; armR.rotation.z = 1.4;
+          if (et < 0.35) rig.pelvis.position.y += Math.sin(et / 0.35 * Math.PI) * 0.12;
+          AL.shoulder.rotation.set(0, 0, -1.25); AR.shoulder.rotation.set(0, 0, 1.25);
+          AL.elbow.rotation.x = AR.elbow.rotation.x = -0.6;
         }
-        if (e === 'hmm') { rig.headPivot.rotation.z = 0.28; armR.rotation.set(-2.2, 0, -0.2); }
+        if (e === 'hmm') {                          // 手托下巴、歪頭
+          AR.shoulder.rotation.set(-0.75, 0, -0.25); AR.elbow.rotation.x = -2.1;
+          rig.headPivot.rotation.z = 0.22;
+        }
       }
-
-      // 眨眼與開心臉
-      let want = 0;
+      // 眨眼（兩眼一起閉成弧）
       if (t > blinkAt) { blinkUntil = t + 0.13; blinkAt = t + 2.2 + Math.random() * 3.5; }
-      if (t < blinkUntil) want = 1;
-      if (bubble.visible && (e === 'happy' || e === 'love' || e === 'wave')) want = 2;
-      if (want !== faceMode) { faceMode = want; rig.faceMat.map = rig.faces[want]; rig.faceMat.needsUpdate = true; }
+      if (mode === 'neutral' && t < blinkUntil) mode = 'blink';
+      paintFace(mode);
     },
     setShadowBlob(on) { rig.blob.visible = on; },
-    dispose() { disposeRig(); },
+    dispose() { disposeRig(); faceTex.dispose(); emTex.dispose(); },
   };
 }

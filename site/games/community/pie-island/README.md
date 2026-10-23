@@ -49,7 +49,7 @@
 
 ## 素材
 
-場景模型全部是 Kenney 的 CC0 素材包（Nature Kit、Pirate Kit、Fantasy Town Kit），清單與授權見 `assets/CREDITS.md`。地形、海水、天空、小屋屋頂、角色與音樂是程式產生的，沒有外部資源。整款遊戲約 1.6 MB。
+樹、灌木、棕櫚與荷花是生成的 glb（`assets/models/anime/`，替換表在 `manifest.json`）。小屋牆片仍用 Kenney 的 CC0 木牆，上色成奶油色，清單與授權見 `assets/CREDITS.md`。噴水池、路燈、攤位、碼頭、船、帳棚、營火、石頭、花、草叢與農作物是 `src/dressing.js` 的程式模型。地形、海水、天空、小屋屋頂、角色與音樂也是程式產生的。
 
 ## 網址參數
 
@@ -61,6 +61,7 @@
 src/main.js         渲染、輸入、鏡頭、介面、主迴圈
 src/layout.js       地形高度、步道、擺設、碰撞與移動（純函式，node 可測）
 src/island.js       地形網格、海水著色器、天空與雲、模型實例化、小屋
+src/dressing.js     噴水池、碼頭、帳棚、石頭、花等程式擺設
 src/look.js         捏臉資料：選項、預設、隨機、驗證、存檔
 src/face.js         五官繪製（貼圖與選單小圖示共用）
 src/character.js    Q 版角色模型、動作、表情泡泡

@@ -107,46 +107,45 @@ export const CAMP = { x: 44, z: 24 };
 export function fixedProps() {
   const P = [];
   const add = (model, x, z, o = {}) => P.push({ model, x, z, y: o.y, s: o.s ?? 1, r: o.r ?? 0, c: o.c ?? 0 });
-  add('town/fountain-round-detail', 0, 0, { s: 2.3, c: 2.3 });
+  add('dress/fountain', 0, 0, { c: 2.3 });
   for (let i = 0; i < 8; i++) {                           // 廣場燈
     const a = i / 8 * Math.PI * 2 + Math.PI / 8;
-    add('town/lantern', Math.cos(a) * (PLAZA_R - 0.6), Math.sin(a) * (PLAZA_R - 0.6), { s: 1.3, c: 0.18 });
+    add('dress/lantern', Math.cos(a) * (PLAZA_R - 0.6), Math.sin(a) * (PLAZA_R - 0.6), { c: 0.18 });
   }
-  add('town/stall-red', -5.5, -5.2, { s: 2, r: Math.PI * 0.25, c: 1.1 });
-  add('town/stall-green', 5.5, -5.2, { s: 2, r: -Math.PI * 0.25, c: 1.1 });
-  add('town/stall-bench', -6.2, 3.8, { s: 2.2, r: -Math.PI * 0.2, c: 0.45 });
-  add('town/stall-bench', 6.2, 3.8, { s: 2.2, r: Math.PI * 0.2, c: 0.45 });
-  add('town/cart', 7.4, -1.2, { s: 1.6, r: Math.PI * 0.5, c: 0.9 });
-  // 碼頭與海邊
-  for (let z = DOCK.z0 + 1.6; z < DOCK.z1; z += 3.25) add('pirate/structure-platform-dock', 0, z, { s: 1.3, y: DOCK_TOP - 1.31, c: 0 });
-  add('pirate/boat-row-small', 3.6, DOCK.z1 - 3, { s: 1.1, y: -0.18, r: 0.1, c: 0 });
-  add('pirate/ship-small', 26, SHORE_S + 30, { s: 1.4, y: -0.7, r: 0.7, c: 0 });
-  add('pirate/barrel', -2.6, SHORE_S - 3.2, { s: 0.55, c: 0.4 });
-  add('pirate/barrel', -3.4, SHORE_S - 2.4, { s: 0.55, c: 0.4 });
-  add('pirate/crate', 2.8, SHORE_S - 3.6, { s: 0.75, r: 0.4, c: 0.5 });
-  add('pirate/chest', -38, 30, { s: 0.45, r: -0.6, c: 0.4 });
-  add('pirate/flag-pennant', -1.9, DOCK.z1 - 0.4, { s: 1.1, y: DOCK_TOP, c: 0 });
-  add('pirate/rocks-sand-a', -46, -24, { s: 1.0, c: 2.2 });
-  add('pirate/rocks-sand-b', 47, -22, { s: 0.9, r: 1.2, c: 2.0 });
-  add('pirate/rocks-sand-a', 30, 44, { s: 0.7, r: 2, c: 1.6 });
-  // 營地
-  add('nature/tent_detailedOpen', CAMP.x, CAMP.z - 3.5, { s: 4, r: Math.PI, c: 1.7 });
-  add('nature/tent_smallOpen', CAMP.x + 4.5, CAMP.z + 1, { s: 4, r: -Math.PI * 0.6, c: 1.2 });
-  add('nature/campfire_stones', CAMP.x, CAMP.z + 1.2, { s: 3, c: 0.8 });
-  add('nature/log_large', CAMP.x - 3, CAMP.z + 1.5, { s: 2, r: Math.PI * 0.45, c: 0.7 });
-  add('nature/log_large', CAMP.x + 0.4, CAMP.z + 4.2, { s: 2, r: 0, c: 0.7 });
-  add('nature/canoe', CAMP.x + 6, CAMP.z + 9, { s: 3.2, r: 0.6, c: 1.2 });
+  add('dress/stall', -5.5, -5.2, { r: Math.PI * 0.25, c: 1.1 });
+  add('dress/stall', 5.5, -5.2, { r: -Math.PI * 0.25, c: 1.1 });
+  add('dress/bench', -6.2, 3.8, { r: -Math.PI * 0.2, c: 0.45 });
+  add('dress/bench', 6.2, 3.8, { r: Math.PI * 0.2, c: 0.45 });
+  add('dress/cart', 7.4, -1.2, { r: Math.PI * 0.5, c: 0.9 });
+  // 碼頭與海邊。甲板本地頂在 y=0.16，所以擺到 DOCK_TOP。
+  for (let z = DOCK.z0 + 1.6; z < DOCK.z1; z += 3.25) add('dress/dock', 0, z, { y: DOCK_TOP - 0.16, c: 0 });
+  add('dress/boat', 3.6, DOCK.z1 - 3, { y: -0.12, r: 0.1, c: 0 });
+  add('dress/ship', 26, SHORE_S + 30, { y: -0.2, r: 0.7, c: 0 });
+  add('dress/barrel', -2.6, SHORE_S - 3.2, { c: 0.4 });
+  add('dress/barrel', -3.4, SHORE_S - 2.4, { c: 0.4 });
+  add('dress/crate', 2.8, SHORE_S - 3.6, { r: 0.4, c: 0.5 });
+  add('dress/chest', -38, 30, { r: -0.6, c: 0.4 });
+  add('dress/flag', -1.9, DOCK.z1 - 0.4, { y: DOCK_TOP, c: 0 });
+  add('dress/rock', -46, -24, { s: 1.7, c: 2.2 });
+  add('dress/rock', 47, -22, { s: 1.55, r: 1.2, c: 2.0 });
+  add('dress/rock-tall', 30, 44, { s: 1.15, r: 2, c: 1.6 });
+  // 營地。珊瑚帳只留一座當焦點。
+  add('dress/tent', CAMP.x, CAMP.z - 3.5, { r: Math.PI, c: 1.7 });
+  add('dress/fire', CAMP.x, CAMP.z + 1.2, { c: 0.8 });
+  add('dress/log', CAMP.x - 3, CAMP.z + 1.5, { r: Math.PI * 0.45, c: 0.7 });
+  add('dress/log', CAMP.x + 0.4, CAMP.z + 4.2, { c: 0.7 });
+  add('dress/canoe', CAMP.x + 6, CAMP.z + 9, { r: 0.6, c: 1.2 });
   // 高台：瞭望點
-  add('town/tree-high-round', PLATEAU.x - 3, PLATEAU.z - 3, { s: 2.6, c: 0.6 });
-  add('town/stall-bench', PLATEAU.x + 2, PLATEAU.z + 2, { s: 2.2, r: 0.6, c: 0.45 });
-  add('nature/sign', RAMP.x1 + 1, RAMP.zBottom + 0.8, { s: 3, r: 0, c: 0.3 });
-  add('nature/sign', 1.6, SHORE_S - 6, { s: 3, r: 0, c: 0.3 });
+  add('nature/tree_oak', PLATEAU.x - 3, PLATEAU.z - 3, { s: 3.2, c: 0.6 });
+  add('dress/bench', PLATEAU.x + 2, PLATEAU.z + 2, { r: 0.6, c: 0.45 });
+  add('dress/sign', RAMP.x1 + 1, RAMP.zBottom + 0.8, { c: 0.3 });
+  add('dress/sign', 1.6, SHORE_S - 6, { c: 0.3 });
   // 農田
-  const crops = ['nature/crop_pumpkin', 'nature/crop_melon', 'nature/crop_carrot'];
-  for (let i = 0; i < 4; i++) for (let j = 0; j < 9; j++) add(crops[i % 3], FARM.x0 + 1.3 + j * 1.25, FARM.z0 + 1.4 + i * 1.8, { s: 2.2, r: j * 0.7, c: 0 });
+  const crops = ['dress/pumpkin', 'dress/melon', 'dress/carrot'];
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 9; j++) add(crops[i % 3], FARM.x0 + 1.3 + j * 1.25, FARM.z0 + 1.4 + i * 1.8, { r: j * 0.7, c: 0 });
   for (let x = FARM.x0; x < FARM.x1 - 0.1; x += 2) {
-    add('nature/fence_simple', x + 1, FARM.z0, { s: 2, c: 0 });
-    if (Math.abs(x + 1 - 9) > 1.5) add('nature/fence_simple', x + 1, FARM.z1 + 2, { s: 2, r: Math.PI, c: 0 });
+    add('dress/fence', x + 1, FARM.z0, { c: 0 });
+    if (Math.abs(x + 1 - 9) > 1.5) add('dress/fence', x + 1, FARM.z1 + 2, { r: Math.PI, c: 0 });
   }
   // 池塘
   const lilies = [[1.5, 1], [-2, 2.4], [2.6, -2.1], [-1, -2.8], [-3.4, -0.4]];
@@ -210,7 +209,8 @@ export function scatterProps(seed = 20261022) {
   // 闊葉樹：草地與高台上
   const broad = ['town/tree', 'town/tree-high-round', 'nature/tree_default', 'nature/tree_oak', 'nature/tree_fat', 'nature/tree_detailed'];
   tryPlace(78, (x, z) => coastDist(x, z) > 11 && !reserved(x, z, 1.2) && spaced(x, z, 4.2), (x, z) => {
-    const model = broad[Math.floor(R() * broad.length)];
+    let model = broad[Math.floor(R() * broad.length)];
+    if (model.startsWith('town/')) model = 'nature/tree_oak';
     const s = model.startsWith('town') ? 2.1 + R() * 0.5 : 3.0 + R() * 0.7;
     trees.push({ x, z }); out.push({ model, x, z, s, r: R() * 6.28, c: 0.45 });
   });
@@ -232,23 +232,31 @@ export function scatterProps(seed = 20261022) {
     for (let i = 0; i < n; i++) {
       const fx = x + (R() - 0.5) * 2.2, fz = z + (R() - 0.5) * 2.2;
       if (reserved(fx, fz, -0.8)) continue;
-      out.push({ model: kind[i % 2], x: fx, z: fz, s: 2.4 + R() * 0.6, r: R() * 6.28, c: 0 });
+      const kenneyS = 2.4 + R() * 0.6;
+      out.push({ model: 'dress/flower', x: fx, z: fz, s: 0.9 + (kenneyS - 2.4) * 0.35, r: R() * 6.28, tint: i % 3, c: 0 });
     }
   });
   // 草叢、蘑菇
-  const grass = ['nature/grass', 'nature/grass_large', 'nature/grass_leafs'];
   tryPlace(260, (x, z) => coastDist(x, z) > 8.6 && !reserved(x, z, -0.9), (x, z) => {
-    out.push({ model: grass[Math.floor(R() * grass.length)], x, z, s: 1.5 + R() * 0.7, r: R() * 6.28, c: 0 });
+    const kenneyS = 1.5 + R() * 0.7;
+    out.push({ model: 'dress/tuft', x, z, s: 0.85 + (kenneyS - 1.5) * 0.45, r: R() * 6.28, c: 0 });
   }, 8);
   tryPlace(14, (x, z) => coastDist(x, z) > 12 && !reserved(x, z, 0) && !spaced(x, z, 3), (x, z) => {
-    out.push({ model: R() < 0.5 ? 'nature/mushroom_red' : 'nature/mushroom_tanGroup', x, z, s: 2.4, r: R() * 6.28, c: 0 });
+    R(); // 舊的紅褐選擇，讓後面的石頭座標維持同一組亂數
+    out.push({ model: 'dress/mushroom', x, z, s: 1, r: R() * 6.28, c: 0 });
   });
   // 石頭：沙灘與草地
   const rocks = ['nature/rock_largeA', 'nature/rock_largeB', 'nature/rock_smallA', 'nature/rock_smallC', 'nature/rock_tallA', 'nature/stone_largeA'];
   tryPlace(24, (x, z) => coastDist(x, z) > 0.5 && !reserved(x, z, 0.5) && spaced(x, z, 2.5), (x, z) => {
-    const model = rocks[Math.floor(R() * rocks.length)];
-    const s = 2.2 + R() * 1.4;
-    out.push({ model, x, z, s, r: R() * 6.28, c: model.includes('small') ? 0 : 0.42 * s * (model.includes('tall') ? 1 : 0.9) });
+    const picked = rocks[Math.floor(R() * rocks.length)];
+    const kenneyS = 2.2 + R() * 1.4;
+    const small = picked.includes('small');
+    const tall = picked.includes('tall');
+    const s = (small ? 0.38 : 0.62) + (kenneyS - 2.2) * (tall ? 0.42 : 0.32);
+    out.push({
+      model: tall ? 'dress/rock-tall' : 'dress/rock', x, z, s, r: R() * 6.28,
+      c: small ? 0 : 0.42 * kenneyS * (tall ? 1 : 0.9),
+    });
   });
   return out;
 }
@@ -384,3 +392,27 @@ export function groundColor(x, z) {
   return c;
 }
 const mix = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
+
+/**
+ * 地面貼圖混合權重（動漫畫風地形用）：sand／path／plaza／cliff 四個權重，其餘是草；
+ * tint 是乘上去的明暗（濕沙、農田條紋、草地起伏）。池岸留草。
+ */
+export function groundSplat(x, z) {
+  const d = coastDist(x, z);
+  const h = terrainHeight(x, z);
+  const n = noise(x * 2.3, z * 2.3);
+  let sand = 1 - smooth(6.6, 8.2, d), path = 0, plaza = 0, cliff = 0;
+  let tint = 1 + n * 0.05;
+  tint *= 1 - 0.16 * smooth(1.2, -0.6, d);                         // 濕沙
+  const p = plateauFactor(x, z);
+  if (p > 0.04 && p < 0.96 && !inRamp(x, z)) cliff = 1;
+  if (h < 0.3 && d > 7.4) { path = Math.max(path, 0.7); tint *= 0.85; }
+  const pd = pathDist(x, z);
+  path = Math.max(path, smooth(0.5, -0.25, pd));
+  const r = Math.hypot(x, z);
+  plaza = smooth(PLAZA_R + 0.4, PLAZA_R - 0.4, r);
+  if (x > FARM.x0 - 0.5 && x < FARM.x1 + 0.5 && z > FARM.z0 - 0.5 && z < FARM.z1 + 1) {
+    path = 1; tint *= (Math.floor((z - FARM.z0) / 0.9) & 1) ? 0.72 : 0.82;
+  }
+  return { sand, path, plaza, cliff, tint };
+}
