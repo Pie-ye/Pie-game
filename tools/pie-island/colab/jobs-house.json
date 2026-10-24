@@ -1,0 +1,44 @@
+{
+  "items": [
+    {
+      "name": "house_roof",
+      "w": 1024,
+      "h": 1024,
+      "seeds": [201, 202, 203, 204],
+      "steps": 32,
+      "cfg": 7.5,
+      "neg": "walls, door, chimney, house body, street, village, person, ground, scenery, vase, frame, monster, collage, text",
+      "prompt": "single object, three-quarter view, cream background, full frame, centered, one cottage roof only, two terracotta orange slopes, wooden ridge beam, cream gable triangle on each end, one small round pale window on the near gable, gouache, even light, no walls, no ground, no people"
+    },
+    {
+      "name": "house_gable",
+      "w": 1024,
+      "h": 1024,
+      "seeds": [201, 202, 203, 204],
+      "steps": 32,
+      "cfg": 7.5,
+      "neg": "full house, door, street, village, person, ground, scenery, vase, frame, monster, collage, text",
+      "prompt": "single object, three-quarter view, cream background, full frame, centered, one house gable wall, cream triangle, small round pale green window, terracotta tiles along the two sloping edges, visible thickness, gouache, even light, no ground, no people"
+    },
+    {
+      "name": "house_floor",
+      "w": 1024,
+      "h": 1024,
+      "seeds": [201, 202, 203, 204],
+      "steps": 32,
+      "cfg": 7.5,
+      "neg": "walls, roof, furniture, rug, street, room, person, scenery, vase, frame, monster, collage, text",
+      "prompt": "single object, three-quarter view, cream background, full frame, centered, one square wooden floor platform, honey oak planks, thick edge, gouache, even light, no walls, no ground, no people"
+    },
+    {
+      "name": "house_mailbox",
+      "w": 1024,
+      "h": 1024,
+      "seeds": [201, 202, 203, 204],
+      "steps": 32,
+      "cfg": 7.5,
+      "neg": "house, letters, street, row, person, ground, scenery, vase, frame, monster, collage, text",
+      "prompt": "single object, three-quarter view, cream background, full frame, centered, one mailbox, honey wood box, wooden post, small mail slot, gouache, even light, no ground, no people"
+    }
+  ]
+}

@@ -336,9 +336,156 @@ export function instanceProps(models, props, { shadows = true } = {}) {
   return group;
 }
 
-// ---------- 小屋：Kenney 木牆片（3×3 格）＋程式做的屋頂與信箱 ----------
-export const HOUSE_PARTS = ['town/wall-wood', 'town/wall-wood-door', 'town/wall-wood-window-shutters'];
+// ---------- 小屋：Kenney 木牆與煙囪，屋頂、山牆、地板、信箱是生成的 glb ----------
+export const HOUSE_PARTS = ['town/wall-wood', 'town/wall-wood-door', 'town/wall-wood-window-shutters', 'town/chimney', 'house/roof', 'house/gable', 'house/floor', 'house/mailbox'];
 const CELL = HOUSE_HALF * 2 / 3;
+
+function invert3(m) {
+  const [a, b, c, d, e, f, g, h, i] = m;
+  const A = e * i - f * h, B = f * g - d * i, C = d * h - e * g;
+  const D = c * h - b * i, E = a * i - c * g, F = b * g - a * h;
+  const G = b * f - c * e, H = c * d - a * f, I = a * e - b * d;
+  const det = a * A + b * B + c * C;
+  if (Math.abs(det) < 1e-8) return null;
+  return [A / det, D / det, G / det, B / det, E / det, H / det, C / det, F / det, I / det];
+}
+
+/** 地板這類薄片在生成時是斜的。把最薄的軸轉成向上。 */
+function layFlat(group) {
+  group.updateMatrixWorld(true);
+  const samples = [];
+  const v = new THREE.Vector3();
+  for (const mesh of group.children) {
+    if (!mesh.isMesh) continue;
+    const pos = mesh.geometry.attributes.position;
+    const step = Math.max(1, Math.floor(pos.count / 500));
+    for (let i = 0; i < pos.count; i += step) samples.push(v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld).clone());
+  }
+  if (samples.length < 8) return;
+  let cx = 0, cy = 0, cz = 0;
+  for (const p of samples) { cx += p.x; cy += p.y; cz += p.z; }
+  cx /= samples.length; cy /= samples.length; cz /= samples.length;
+  let xx = 0, yy = 0, zz = 0, xy = 0, xz = 0, yz = 0;
+  for (const p of samples) {
+    const x = p.x - cx, y = p.y - cy, z = p.z - cz;
+    xx += x * x; yy += y * y; zz += z * z; xy += x * y; xz += x * z; yz += y * z;
+  }
+  const inv = invert3([xx, xy, xz, xy, yy, yz, xz, yz, zz]);
+  if (!inv) return;
+  let x = 1, y = 1, z = 1;
+  for (let k = 0; k < 12; k++) {
+    const nx = inv[0] * x + inv[1] * y + inv[2] * z;
+    const ny = inv[3] * x + inv[4] * y + inv[5] * z;
+    const nz = inv[6] * x + inv[7] * y + inv[8] * z;
+    const len = Math.hypot(nx, ny, nz) || 1;
+    x = nx / len; y = ny / len; z = nz / len;
+  }
+  group.quaternion.setFromUnitVectors(new THREE.Vector3(x, y, z), new THREE.Vector3(0, 1, 0));
+  // 薄軸朝上之後，再把平面上的最小外框轉到與牆平行，地板才鋪滿室內。
+  yawAlign(group);
+}
+
+function convexHullXZ(pts) {
+  const p = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const build = (src) => {
+    const h = [];
+    for (const q of src) {
+      while (h.length >= 2 && cross(h[h.length - 2], h[h.length - 1], q) <= 0) h.pop();
+      h.push(q);
+    }
+    return h;
+  };
+  return build(p).slice(0, -1).concat(build(p.slice().reverse()).slice(0, -1));
+}
+
+/** 已貼平的薄片：繞垂直軸轉到最小外框與 XZ 軸對齊。 */
+function yawAlign(group) {
+  group.updateMatrixWorld(true);
+  const pts = [];
+  const v = new THREE.Vector3();
+  for (const mesh of group.children) {
+    if (!mesh.isMesh || mesh.userData.shell) continue;
+    const pos = mesh.geometry.attributes.position;
+    const step = Math.max(1, Math.floor(pos.count / 400));
+    for (let i = 0; i < pos.count; i += step) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
+      pts.push([v.x, v.z]);
+    }
+  }
+  const hull = convexHullXZ(pts);
+  if (hull.length < 3) return;
+  let bestArea = Infinity;
+  let bestAng = 0;
+  for (let i = 0; i < hull.length; i++) {
+    const a = hull[i];
+    const b = hull[(i + 1) % hull.length];
+    const ang = Math.atan2(b[1] - a[1], b[0] - a[0]);
+    const c = Math.cos(ang);
+    const s = Math.sin(ang);
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (const q of hull) {
+      const x = q[0] * c + q[1] * s;
+      const z = -q[0] * s + q[1] * c;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (z < minZ) minZ = z;
+      if (z > maxZ) maxZ = z;
+    }
+    const area = (maxX - minX) * (maxZ - minZ);
+    if (area < bestArea) { bestArea = area; bestAng = ang; }
+  }
+  // 繞世界垂直軸轉。本地 Y 在貼平之後不是向上，用 rotateY 會把地板再掀起來。
+  group.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), bestAng);
+}
+
+/** 網格頂點在目前姿態下的外框。殼是同一套頂點，不重複算。 */
+function vertexBox(root) {
+  root.updateMatrixWorld(true);
+  const box = new THREE.Box3();
+  const v = new THREE.Vector3();
+  let any = false;
+  root.traverse((mesh) => {
+    if (!mesh.isMesh || mesh.userData.shell) return;
+    const pos = mesh.geometry.attributes.position;
+    for (let i = 0; i < pos.count; i++) box.expandByPoint(v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld));
+    any = true;
+  });
+  if (!any) box.setFromObject(root);
+  return box;
+}
+
+/** 把生成的 glb 底面貼到 y，再縮到指定的寬、高、深。size 用房子的公尺。 */
+function mountHouseGlb(parent, models, name, { size, x = 0, y = 0, z = 0, rotY = 0, layFlat: flat = false, ink = false, shadows = true, shade = '', side = THREE.FrontSide }) {
+  const parts = models.get(name) || [];
+  if (!parts.length) return;
+  const holder = new THREE.Group();
+  for (const part of parts) {
+    const material = part.material?.clone ? part.material.clone() : part.material;
+    if (material) {
+      if (shade) material.name = shade;
+      material.side = side;
+    }
+    const mesh = new THREE.Mesh(part.geometry, material);
+    mesh.applyMatrix4(part.matrix);
+    mesh.castShadow = shadows;
+    mesh.receiveShadow = true;
+    if (ink) addInkShell(mesh);
+    holder.add(mesh);
+  }
+  if (flat) layFlat(holder);
+  // 轉過的外框不能用 geometry.boundingBox 的八個角，那樣會把地板量得比網格大。
+  const box = vertexBox(holder);
+  const sz = box.getSize(new THREE.Vector3());
+  holder.position.set(-(box.min.x + box.max.x) / 2, -box.min.y, -(box.min.z + box.max.z) / 2);
+  const wrap = new THREE.Group();
+  wrap.add(holder);
+  wrap.scale.set(size.x / Math.max(sz.x, 1e-4), size.y / Math.max(sz.y, 1e-4), size.z / Math.max(sz.z, 1e-4));
+  wrap.rotation.y = rotY;
+  wrap.position.set(x, y, z);
+  wrap.name = name;
+  parent.add(wrap);
+}
 
 export function makeHouses(models, { shadows = true } = {}) {
   const group = new THREE.Group();
@@ -379,50 +526,21 @@ export function makeHouses(models, { shadows = true } = {}) {
       const name = k === 1 ? (si === 0 ? 'town/wall-wood-door' : 'town/wall-wood-window-shutters') : 'town/wall-wood';
       placeParts(house, name, i * CELL, 0, j * CELL, side.rot, CELL);
     }));
-    // 地板
-    const floor = new THREE.Mesh(new THREE.BoxGeometry(HOUSE_HALF * 2, 0.16, HOUSE_HALF * 2), new THREE.MeshStandardMaterial({ color: '#c8a77a', roughness: 0.9 }));
-    floor.position.y = 0.04; floor.receiveShadow = true; house.add(floor);
-    // 屋頂：兩片斜板＋兩面山牆
-    const W = HOUSE_HALF, over = 0.5, rise = 1.75, wallTop = CELL;
-    const half = W + over;
-    const slope = Math.atan2(rise, half);
-    const len = Math.hypot(half, rise) + 0.12;
-    const roofMat = new THREE.MeshStandardMaterial({ name: 'roof', color: '#C47A4A', roughness: 0.7 });
+    const W = HOUSE_HALF, span = W * 2 + 1, wallTop = CELL;
+    // 生成的屋頂幾乎跟底一樣高，高度收到牆頂以上 2.4 公尺，底面積蓋住牆。
+    mountHouseGlb(house, models, 'house/roof', { size: new THREE.Vector3(span, 2.4, span), y: wallTop, ink: true, shadows, shade: 'roof' });
     for (const s of [-1, 1]) {
-      const slab = new THREE.Mesh(new THREE.BoxGeometry(W * 2 + over * 2, 0.2, len), roofMat);
-      slab.position.set(0, wallTop + rise / 2 + 0.08, s * half / 2);
-      slab.rotation.x = s * slope;
-      slab.castShadow = shadows; slab.receiveShadow = true;
-      addInkShell(slab);
-      house.add(slab);
+      mountHouseGlb(house, models, 'house/gable', {
+        size: new THREE.Vector3(0.32, 2.3, span * 0.92), y: wallTop, x: s * (W - 0.02), rotY: s > 0 ? 0 : Math.PI, ink: true, shadows, shade: 'roof',
+      });
     }
-    const ridge = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, W * 2 + over * 2 + 0.1, 12), new THREE.MeshStandardMaterial({ name: 'roof', color: '#A8743E', roughness: 0.7 }));
-    ridge.rotation.z = Math.PI / 2; ridge.position.y = wallTop + rise + 0.12;
-    addInkShell(ridge);
-    house.add(ridge);
-    const shape = new THREE.Shape([new THREE.Vector2(-W, 0), new THREE.Vector2(W, 0), new THREE.Vector2(0, rise)]);
-    const gableGeo = new THREE.ExtrudeGeometry(shape, { depth: 0.12, bevelEnabled: false });
-    const gableMat = new THREE.MeshStandardMaterial({ color: '#f4e7c9', roughness: 0.9 });
-    for (const s of [-1, 1]) {
-      const g = new THREE.Mesh(gableGeo, gableMat);
-      g.rotation.y = Math.PI / 2;
-      g.position.set(s > 0 ? W - 0.12 : -W, wallTop, 0);
-      g.castShadow = shadows; addInkShell(g); house.add(g);
-      const win = new THREE.Mesh(new THREE.CircleGeometry(0.32, 20), new THREE.MeshStandardMaterial({ color: '#B7D0C8', emissive: '#000000', emissiveIntensity: 0, roughness: 0.6 }));
-      win.position.set(s * (W + 0.03), wallTop + rise * 0.4, 0); win.rotation.y = s * Math.PI / 2; house.add(win);
-    }
-    const chimney = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.85, 0.42), new THREE.MeshStandardMaterial({ name: 'stone', color: '#C9A380', roughness: 1 }));
-    chimney.position.set(-W * 0.45, wallTop + rise * 0.55, -half * 0.35);
-    chimney.castShadow = shadows;
-    house.add(chimney);
-    const cap = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.1, 0.54), new THREE.MeshStandardMaterial({ name: 'stone', color: '#E6E0D4', roughness: 1 }));
-    cap.position.set(-W * 0.45, wallTop + rise * 0.55 + 0.46, -half * 0.35);
-    house.add(cap);
-    // 信箱
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.9, 8), new THREE.MeshStandardMaterial({ color: '#8d6b4a' }));
-    post.position.set(W + 0.6, 0.45, W + 1.0); house.add(post);
-    const box = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.26, 0.45), new THREE.MeshStandardMaterial({ name: 'wood', color: '#CBA97A', roughness: 0.8 }));
-    box.position.set(W + 0.6, 0.98, W + 1.0); box.castShadow = shadows; house.add(box);
+    mountHouseGlb(house, models, 'house/floor', {
+      size: new THREE.Vector3(W * 2 - 0.2, 0.16, W * 2 - 0.2), y: 0.02, layFlat: true, shadows, shade: 'wood', side: THREE.DoubleSide,
+    });
+    mountHouseGlb(house, models, 'house/mailbox', {
+      size: new THREE.Vector3(1.05, 1.2, 0.32), x: W + 0.9, z: W + 1.05, shadows, shade: 'wood', side: THREE.DoubleSide,
+    });
+    placeParts(house, 'town/chimney', -W * 0.45, wallTop + 1.55, -(W + 0.5) * 0.35, 0, 1.6);
     group.add(house);
   }
   return group;

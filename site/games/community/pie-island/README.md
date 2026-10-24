@@ -49,7 +49,7 @@
 
 ## 素材
 
-樹、灌木、棕櫚與荷花是生成的 glb（`assets/models/anime/`，替換表在 `manifest.json`）。小屋牆片仍用 Kenney 的 CC0 木牆，上色成奶油色，清單與授權見 `assets/CREDITS.md`。噴水池、路燈、攤位、碼頭、船、帳棚、營火、石頭、花、草叢與農作物是 `src/dressing.js` 的程式模型。地形、海水、天空、小屋屋頂、角色與音樂也是程式產生的。
+噴水池、路燈、攤位、長椅、推車、碼頭、船、木桶、木箱、寶箱、旗子、岩石、帳棚、營火、木頭、獨木舟、告示牌、作物、柵欄、花、草、蘑菇，以及小屋木牆與煙囪，用 Kenney 的 CC0 模型。樹、灌木、棕櫚與荷花在載入時換成 `assets/models/anime/` 的 glb，替換表在 `manifest.json`。小屋的屋頂、山牆、地板與信箱是 `assets/models/house/` 的 glb。清單與授權見 `assets/CREDITS.md`。地形、海水、天空、角色與音樂是程式產生的。
 
 ## 網址參數
 
@@ -61,7 +61,6 @@
 src/main.js         渲染、輸入、鏡頭、介面、主迴圈
 src/layout.js       地形高度、步道、擺設、碰撞與移動（純函式，node 可測）
 src/island.js       地形網格、海水著色器、天空與雲、模型實例化、小屋
-src/dressing.js     噴水池、碼頭、帳棚、石頭、花等程式擺設
 src/look.js         捏臉資料：選項、預設、隨機、驗證、存檔
 src/face.js         五官繪製（貼圖與選單小圖示共用）
 src/character.js    Q 版角色模型、動作、表情泡泡

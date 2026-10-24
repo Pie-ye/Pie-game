@@ -1,0 +1,31 @@
+{
+  "model": "tencent/Hunyuan3D-2mini shape + Hunyuan3D-2 paint-v2-0-turbo",
+  "seed": 2026,
+  "gpu": "NVIDIA L4",
+  "assets": {
+    "house_roof": {
+      "shape_seconds": 35.547981091999645,
+      "raw_faces": 748070,
+      "faces": 8000,
+      "paint_seconds": 26.174284224000075
+    },
+    "house_gable": {
+      "shape_seconds": 30.14750990099992,
+      "raw_faces": 566750,
+      "faces": 8000,
+      "paint_seconds": 22.70624044999977
+    },
+    "house_floor": {
+      "shape_seconds": 27.56253562999973,
+      "raw_faces": 482240,
+      "faces": 8000,
+      "paint_seconds": 20.324205944999903
+    },
+    "house_mailbox": {
+      "shape_seconds": 24.52221715199994,
+      "raw_faces": 345148,
+      "faces": 8000,
+      "paint_seconds": 24.420181962000242
+    }
+  }
+}

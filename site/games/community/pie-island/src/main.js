@@ -7,7 +7,6 @@ import { createCreator } from './creator.js';
 import { createMultiplayer } from './multiplayer.js';
 import { createAudio } from './audio.js';
 import { createPost, toonify, loadSkyPanorama } from './style.js';
-import { makeDressing } from './dressing.js';
 
 const params = new URLSearchParams(location.search);
 const Q = {
@@ -161,14 +160,13 @@ function openCreator(first = false) {
 // ---------- 載入場景 ----------
 async function loadIsland() {
   const props = await applyAnimeModels(world.props);
-  const names = [...new Set([...props.map((p) => p.model), ...HOUSE_PARTS])].filter((n) => !n.startsWith('dress/'));
+  const names = [...new Set([...props.map((p) => p.model), ...HOUSE_PARTS])];
   const models = await loadModels(names, (k) => {
     ui.bar.style.width = `${Math.round(k * 100)}%`;
     ui.pct.textContent = `${Math.round(k * 100)}%`;
   });
   scene.add(instanceProps(models, props, { shadows: Q.shadows }));
   scene.add(makeHouses(models, { shadows: Q.shadows }));
-  scene.add(makeDressing(props, { shadows: Q.shadows }));
   toonify(scene);
   loadSkyPanorama('./assets/sky/day.jpg', sky, clouds);
   renderer.compile(scene, camera);
@@ -339,7 +337,7 @@ const tmpV = new THREE.Vector3();
 
 // 鏡頭被小屋擋住時拉近：沿著角色往鏡頭的方向找第一個碰到屋子的點
 let camDist = 0;
-const HOUSE_TOP = HOUSE_HALF * 2 / 3 + 2.1;
+const HOUSE_TOP = HOUSE_HALF * 2 / 3 + 2.6;   // 牆頂 1.9，生成的屋頂再高 2.4
 function clearDistance(t, dir, max) {
   for (let s = 0.6; s <= max; s += 0.3) {
     const x = t.x + dir[0] * s, y = t.y + dir[1] * s, z = t.z + dir[2] * s;
@@ -442,9 +440,12 @@ window.__island = {
   get look() { return { ...myLook }; },
   get zone() { return zoneName; },
   get camera() { return { ...cam, target: cam.target.toArray() }; },
-  setPose(x, z, heading = st.heading) { st = { ...st, x, z, y: groundAt(x, z), vy: 0, air: false, heading }; },
+  setPose(x, z, heading = st.heading) {
+    st = { ...st, x, z, y: groundAt(x, z), vy: 0, air: false, heading };
+    cam.target.set(st.x, st.y + 1.05, st.z);
+  },
   setLook(l) { applyLook(l); },
-  setCamera(yaw, pitch = cam.pitch, dist = cam.dist) { Object.assign(cam, { yaw, pitch, dist }); },
+  setCamera(yaw, pitch = cam.pitch, dist = cam.dist) { Object.assign(cam, { yaw, pitch, dist }); camDist = dist; },
   emote: doEmote,
   openCreator,
   coastDist,

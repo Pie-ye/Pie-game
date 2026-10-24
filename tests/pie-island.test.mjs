@@ -163,9 +163,9 @@ test('線上 CSP 相容：沒有內嵌腳本、import map、裸模組名稱或�
 });
 
 test('擺設用到的模型檔都在，整包大小在平台限制內', () => {
-  const names = new Set([...buildWorld().props.map((p) => p.model), 'town/wall-wood', 'town/wall-wood-door', 'town/wall-wood-window-shutters', 'town/chimney']);
+  const names = new Set([...buildWorld().props.map((p) => p.model), 'town/wall-wood', 'town/wall-wood-door', 'town/wall-wood-window-shutters', 'town/chimney', 'house/roof', 'house/gable', 'house/floor', 'house/mailbox']);
   for (const n of names) {
-    if (n.startsWith('dress/')) continue;
+    assert.ok(!n.startsWith('dress/'), `地圖還有程式模型 ${n}`);
     assert.ok(existsSync(join(gameDir, 'assets/models', `${n}.glb`)), `缺 ${n}.glb`);
   }
   assert.ok(fixedProps().length > 50);
