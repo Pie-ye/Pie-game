@@ -326,6 +326,15 @@ export class MultiplayerClient {
     };
   }
 
+  /**
+   * 伺服器端遊戲邏輯（平台內建的官方遊戲才有，例如派派鎮）：
+   *   const r = await client.game('tool', { tool: 'hoe', x: 3, y: 4 });   // 失敗時丟 err.code、err.msg
+   * 伺服器主動推的更新以 'game' 事件送達（payload 帶 op）。
+   */
+  game(op, data = {}) {
+    return this._saveRequest({ type: 'game', op, ...data });
+  }
+
   _saveRequest(body) {
     return new Promise((resolve, reject) => {
       if (!this._ws || this._ws.readyState !== WebSocket.OPEN) {
@@ -348,7 +357,7 @@ export class MultiplayerClient {
     if (!entry) return false;
     this._saves.delete(msg.rid);
     clearTimeout(entry.timer);
-    if (msg.type === 'error') entry.reject(Object.assign(new Error(msg.code || 'error'), { code: msg.code, current: msg.current }));
+    if (msg.type === 'error') entry.reject(Object.assign(new Error(msg.msg || msg.code || 'error'), { code: msg.code, current: msg.current, msg: msg.msg }));
     else if (msg.type === 'save' || msg.type === 'saved') entry.resolve({ value: msg.value === undefined ? null : msg.value, rev: msg.rev || 0, updatedAt: msg.updatedAt == null ? null : msg.updatedAt });
     else { const { type: _t, rid: _r, ...rest } = msg; entry.resolve(rest); }
     return true;
@@ -534,8 +543,13 @@ export class MultiplayerClient {
     }
     if (msg.type === 'pong' || msg.type === 'welcome') return;
     // 存檔的回覆與錯誤靠 rid 配對，不能拿去結算房間請求
-    if (['save', 'saved', 'saveList', 'mailSent', 'mailList', 'mailDeleted'].includes(msg.type) || (msg.type === 'error' && msg.rid)) {
+    if (['save', 'saved', 'saveList', 'mailSent', 'mailList', 'mailDeleted'].includes(msg.type) || (msg.type === 'error' && msg.rid)
+      || (msg.type === 'game' && msg.rid && this._saves.has(msg.rid))) {
       this._settleSave(msg);
+      return;
+    }
+    if (msg.type === 'game') {
+      this._emit('game', msg);
       return;
     }
     if (msg.type === 'mail') {

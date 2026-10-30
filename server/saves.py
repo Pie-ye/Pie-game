@@ -213,6 +213,21 @@ class SaveStore:
             )
         return cur.rowcount
 
+    def mail_take_sync(self, game_id: str, user_id: str, mail_id: int) -> tuple[str, Any] | None:
+        """取走自己的一封信（讀完立刻刪除，同一封只會成功一次）。回傳 (kind, data) 或 None。"""
+        with self._lock:
+            self._db.execute("BEGIN IMMEDIATE")
+            try:
+                row = self._db.execute("SELECT kind, data FROM inbox WHERE id=? AND game_id=? AND to_user=?",
+                                       (mail_id, game_id, str(user_id))).fetchone()
+                if row:
+                    self._db.execute("DELETE FROM inbox WHERE id=?", (mail_id,))
+                self._db.execute("COMMIT")
+            except BaseException:
+                self._db.execute("ROLLBACK")
+                raise
+        return (row[0], json.loads(row[1])) if row else None
+
     # ---------- 非同步包裝 ----------
     async def get(self, game_id: str, user_id: str, key: str) -> dict[str, Any] | None:
         return await asyncio.to_thread(self.get_sync, game_id, user_id, key)

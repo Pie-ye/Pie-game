@@ -60,6 +60,8 @@ export function canLike(social, owner, day) { return social.liked[owner] !== day
 
 // ---------- 信件 ----------
 const GIFTABLE = (k) => !!(CROPS[k] || FISH_PRICES[k]);
+const GIFTABLE_ANY = (k) => GIFTABLE(k) || ['wood', 'stone', 'fiber'].includes(k);
+export const marketable = (inv) => Object.entries(inv || {}).filter(([k, n]) => n > 0 && GIFTABLE_ANY(k));
 export function giftable(inv) { return Object.entries(inv || {}).filter(([k, n]) => n > 0 && GIFTABLE(k)); }
 export const itemName = (k) => (k.startsWith('fish_') ? fishName(k.slice(5)) : ITEM_NAMES[k] || k);
 /** 收到的信：檢查格式並整理成畫面用的資料；不合格回傳 null。 */
@@ -68,10 +70,16 @@ export function readMail(m) {
   const from = { id: String(m.from || ''), name: cleanText(m.fromName, 20) || '鎮民' };
   const d = m.data && typeof m.data === 'object' ? m.data : {};
   if (m.kind === 'note') { const text = cleanText(d.text, NOTE_MAX); return text ? { id: m.id, kind: 'note', from, text, at: m.createdAt } : null; }
-  if (m.kind === 'like') return { id: m.id, kind: 'like', from, at: m.createdAt };
-  if (m.kind === 'gift') {
+  if (m.kind === 'like' || m.kind === 'syslike') return { id: m.id, kind: 'like', from, at: m.createdAt, sys: m.kind === 'syslike' };
+  if (m.kind === 'syscoop') return { id: m.id, kind: 'coop', from, on: !!d.on, at: m.createdAt, sys: true };
+  if (m.kind === 'syssold') {
+    const n = d.n | 0, price = d.price | 0;
+    return GIFTABLE_ANY(d.item) && n >= 1 && price >= 1 ? { id: m.id, kind: 'sold', from, item: d.item, n, price, at: m.createdAt, sys: true } : null;
+  }
+  if (m.kind === 'sysgift' || m.kind === 'gift') {
     const n = d.n | 0;
-    return GIFTABLE(d.item) && n >= 1 && n <= 99 ? { id: m.id, kind: 'gift', from, item: d.item, n, at: m.createdAt } : null;
+    if (m.kind === 'gift') return null;                      // 舊版玩家互寄的禮物不再有效：禮物只能由伺服器發
+    return GIFTABLE(d.item) && n >= 1 && n <= 99 ? { id: m.id, kind: 'gift', from, item: d.item, n, at: m.createdAt, sys: true } : null;
   }
   return null;
 }

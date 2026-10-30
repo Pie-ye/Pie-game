@@ -43,8 +43,10 @@ def main() -> int:
         pg.wait_for_timeout(600)
         P = "window.__plaza"
 
-        # 0. 第一次進來會先捏臉
-        check(pg.is_visible(".creator"), "第一次進來自動開啟捏臉畫面")
+        # 0. 試玩模式（假 SDK 沒有伺服器遊戲邏輯）：從左下角打開捏臉
+        check("試玩" in pg.inner_text("#room-info") or "試玩" in pg.inner_text("#cloud"), "沒有伺服器時是試玩模式")
+        pg.click("#btn-look"); pg.wait_for_timeout(300)
+        check(pg.is_visible(".creator"), "左下角可以打開捏臉畫面")
         pg.locator(".creator-faces button").nth(5).click()
         pg.locator(".swatches").nth(0).locator("button").nth(9).click()   # 藍髮
         pg.locator(".swatches").nth(2).locator("button").nth(3).click()   # 黃上衣
@@ -74,12 +76,12 @@ def main() -> int:
         crop = pg.evaluate(f"{P}.farm.crops['{wx},{wy}']")
         check(bool(crop) and crop["t"] == "wheat" and crop["w"] > 0, "翻土、種小麥、澆水")
         pg.locator(".frame").screenshot(path=str(OUT / "farm_work.png"))
-        # 存檔：重新整理後還在
-        pg.reload(); pg.wait_for_function(f"{P} && {P}.farm && {P}.farm.crops['{wx},{wy}']", timeout=15000)
-        check(True, "重新整理後農場狀態還在（localStorage）")
+        # 試玩不存檔：重新整理就回到新農場（正式的存檔在伺服器，見 server_e2e.py）
+        pg.reload(); pg.wait_for_function(f"{P} && {P}.ready", timeout=15000); pg.wait_for_timeout(300)
+        check(not pg.evaluate(f"{P}.farm.crops['{wx},{wy}']"), "試玩模式不存檔，重新整理就重來")
 
-        # 2b. 出貨：把剛割的纖維之外，塞一條魚和兩顆小麥進背包再出貨
-        pg.evaluate(f"(() => {{ const f = {P}.farm; f.inv.wheat = 2; f.inv.fish_carp = 1; }})()")
+        # 2b. 出貨：試玩沙盒裡塞兩顆小麥和一條魚再出貨
+        pg.evaluate(f"(async () => {{ await {P}.call('sandboxGive', {{ item: 'wheat', n: 2 }}); await {P}.call('sandboxGive', {{ item: 'fish_carp', n: 1 }}); await {P}.reload(); }})()")
         gold0 = pg.evaluate(f"{P}.farm.gold")
         pg.evaluate(f"{P}.warp('farm', 'door')"); pg.wait_for_timeout(300)
         bin_ = pg.evaluate(f"{P}.map.signs.find(s => s.action === 'ship')")

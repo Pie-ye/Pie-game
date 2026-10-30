@@ -20,7 +20,7 @@ def magenta(p):
 
 def process(src: Path) -> Path:
     im = Image.open(src).convert("RGB")
-    if max(im.size) <= 64:                      # 已經是原生大小：只去背
+    if max(im.size) <= 128:                     # 已經是原生大小：只去背
         out = Image.new("RGBA", im.size)
         for y in range(im.size[1]):
             for x in range(im.size[0]):
@@ -51,7 +51,7 @@ def process(src: Path) -> Path:
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     n = 0
-    for lane in ("fish", "cropsA", "cropsB"):
+    for lane in ("fish", "cropsA", "cropsB", "show"):
         for f in sorted((SRC / lane).glob("*.png")):
             n += 1 if process(f) else 0
     print(f"{n} 張 → {OUT}")

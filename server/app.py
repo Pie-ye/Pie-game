@@ -20,6 +20,7 @@ from . import __version__
 from . import boot
 from .relay import Relay
 from .saves import SaveStore
+from .games.plaza import PlazaService
 
 DEFAULT_SHELL_PORT = 54460
 DEFAULT_CONTENT_PORT = 54461
@@ -246,7 +247,9 @@ def create_content_app(settings: Settings, *, relay: Relay | None = None) -> web
     app = web.Application()
     _add_security_headers(app, content_csp(settings))
 
-    relay_service = relay or Relay(settings.content_origin, retire_base=settings.retire_base, saves=_open_saves(settings))
+    saves = _open_saves(settings) if relay is None else None
+    relay_service = relay or Relay(settings.content_origin, retire_base=settings.retire_base, saves=saves,
+                                   plaza=PlazaService(saves) if saves is not None else None)
     app[RELAY_KEY] = relay_service
 
     async def healthz(_: web.Request) -> web.Response:

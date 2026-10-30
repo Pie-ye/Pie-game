@@ -40,6 +40,10 @@ export function buildTown() {
   objects.push(obj('barrels', px0 + 40, py1 - 52, { foot: [44, 8] }), obj('counterLong', px1 - 40, py1 - 52, { foot: [44, 6] }));
   for (const [bx, by, k] of [[px0 + 6, py0 + 34, 'banner1'], [px1 - 6, py0 + 34, 'banner3'], [px0 + 6, py1 - 4, 'banner4'], [px1 - 6, py1 - 4, 'banner6']]) objects.push(obj(k, bx, by, { foot: [8, 4] }));
   objects.push(obj('treeBigPink', 300, 330), obj('treeBigPink', 560, 300), obj('treeN', 150, 300), obj('treeN2', 820, 300));
+  // 跳蚤市場攤位（廣場南邊）
+  const fx = (px0 + px1) / 2, fy = py1 - 70;
+  objects.push(obj('counterLong', fx, fy, { foot: [44, 6] }), obj('awningA', fx, fy - 14, { foot: null, overhead: true }), obj('crate', fx - 30, fy, { foot: [10, 5] }), obj('sack', fx + 30, fy, { foot: [10, 5] }));
+  signs.push({ x: fx, y: fy, title: '跳蚤市場', lines: ['派派鎮跳蚤市場：把用不到的作物、魚、木材拿來賣，也能買別人上架的東西。'], action: 'flea', reach: 26, hint: 'E 逛市場' });
   objects.push(obj('signPost', 40, roadY * 16 - 4));
   objects.push(obj('bulletinBoard', 324, roadY * 16 - 4, { foot: [28, 6] }));
   signs.push({ x: 324, y: roadY * 16 - 4, title: '公告欄', lines: ['派派鎮公告欄：今天的活動都貼在這裡。'], action: 'events', reach: 20 });

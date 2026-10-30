@@ -95,6 +95,16 @@ export function createAudio() {
     else if (kind === 'talk') tone(880, 880, 0.04, 0.06, 'square');
   }
 
+  /** 角色語音：who 為 'phoebe' 或 'reggie'，隨機挑一句（pie-phoebe 的錄音）。 */
+  let lastVoice = 0;
+  function voice(who) {
+    if (muted || !ctx || ctx.state !== 'running' || performance.now() - lastVoice < 1500) return;
+    lastVoice = performance.now();
+    const n = 1 + Math.floor(Math.random() * 4), name = `voice/${who}_${n}.mp3`;
+    if (buffers[name]) { play(name, { gain: 0.6 }); return; }
+    load(name).then(() => play(name, { gain: 0.6 }));
+  }
+
   /** 自己走路時依時間節流：回傳是否該響。 */
   function stepDue(now, gapMs = 280) { if (now - lastStep < gapMs) return false; lastStep = now; return true; }
 
@@ -104,7 +114,7 @@ export function createAudio() {
     if (master) master.gain.value = m ? 0 : 1;
   }
   return {
-    unlock, step, stepDue, setMuted, tool,
+    unlock, step, stepDue, setMuted, tool, voice,
     get muted() { return muted; },
     sent() { play('send.wav', { gain: 0.35 }); },
     received() { play('recv.wav', { gain: 0.3 }); },

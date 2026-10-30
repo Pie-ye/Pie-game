@@ -105,6 +105,13 @@ for crop in ("carrot", "tomato", "pumpkin", "strawberry"):
     SPEC[f"{crop}Seed"] = (f"gen/{crop}_seed.png", 0, 0, 16, 16)
 for fish in ("carp", "catfish", "bass", "trout", "sardine", "tuna", "puffer", "golden"):
     SPEC[f"fish{fish[0].upper()}{fish[1:]}"] = (f"gen/fish_{fish}.png", 0, 0, 16, 16)
+# 原創地標：菲比啾比女神噴水池、瑞吉海獅秀（grok 依 pie-phoebe 原畫重繪成像素風）
+for i in range(3):
+    SPEC[f"fountain{i}"] = (f"gen/fountain_{i}.png", 0, 0, 64, 64)
+for pose in ("idle", "bark", "ball", "jump"):
+    SPEC[f"reggie{pose[0].upper()}{pose[1:]}"] = (f"gen/reggie_{pose}.png", 0, 0, 32, 32)
+SPEC["showStage"] = ("gen/show_stage.png", 0, 0, 96, 64)
+SPEC["showBench"] = ("gen/show_bench.png", 0, 0, 32, 16)
 for n in (27, 6, 18, 22, 23, 20, 13, 29, 17, 28):
     SPEC[f"emote{n}"] = (f"ninja/emote/e{n}.png", 0, 0, 14, 13)
 SPEC.update({
@@ -122,6 +129,13 @@ def main() -> None:
         if not box:
             raise SystemExit(f"{name}: 範圍內是空的")
         out[name] = [sheet, x + box[0], y + box[1], box[2] - box[0], box[3] - box[1]]
+    # 動畫的每一格要用同一個範圍（取聯集），輪播時才不會抖
+    for prefix in ("fountain", "reggie"):
+        names = [n for n in out if n.startswith(prefix)]
+        x0 = min(out[n][1] - SPEC[n][1] for n in names); y0 = min(out[n][2] - SPEC[n][2] for n in names)
+        x1 = max(out[n][1] - SPEC[n][1] + out[n][3] for n in names); y1 = max(out[n][2] - SPEC[n][2] + out[n][4] for n in names)
+        for n in names:
+            out[n] = [out[n][0], SPEC[n][1] + x0, SPEC[n][2] + y0, x1 - x0, y1 - y0]
     lines = ["// 由 tools/pie-plaza/build_atlas.py 產生，請勿手改。", "// 名稱: [圖檔, x, y, w, h]", "export const ATLAS = {"]
     for k, v in out.items():
         lines.append(f"  {k}: {json.dumps(v)},")

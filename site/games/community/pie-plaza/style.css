@@ -161,3 +161,7 @@ button:disabled { opacity:.5; cursor:default; }
 .mail p { margin:2px 0 4px; overflow-wrap:anywhere; }
 .mail button { min-height:28px; padding:0 8px; margin-right:4px; font-size:.8rem; box-shadow:none; }
 .hud-btns .badge { display:inline-block; min-width:16px; margin-left:3px; padding:0 4px; font-size:.7rem; line-height:16px; color:#fff; background:#d0402a; border-radius:8px; }
+.market-view { margin-top:6px; }
+.sell-form { display:grid; grid-template-columns:auto 1fr; gap:6px; align-items:center; margin:6px 0; }
+.sell-form select, .sell-form input { min-height:34px; font:inherit; font-size:.9rem; background:#fff8e4; border:2px solid var(--wood); border-radius:4px; color:var(--ink); }
+.person-row button.coop { font-size:.72rem; }

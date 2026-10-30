@@ -142,7 +142,7 @@ export function drawWorld(ctx, scene, map, people, cam, now, bubbleMs, opts = {}
   const over = [];
   for (const o of all) {
     if (!inView(o.x, o.y, o.w, o.h)) continue;
-    if (o.overhead) over.push(o); else if (o.wall || /^(rug|strawMat)/.test(o.k)) flat.push(o); else items.push({ y: o.y, o });
+    if (o.overhead) over.push(o); else if (o.wall || /^(rug|strawMat)/.test(o.k)) flat.push(o); else items.push({ y: o.y + (o.z || 0), o });
   }
   for (const o of flat) sprite(ctx, scene, o.k, o.x, o.y);
   if (opts.cursor) {
@@ -152,7 +152,8 @@ export function drawWorld(ctx, scene, map, people, cam, now, bubbleMs, opts = {}
   }
   for (const p of people) if (inView(p.x, p.y, 16, 16)) items.push({ y: p.y, p });
   items.sort((a, b) => a.y - b.y);
-  for (const it of items) { if (it.o) sprite(ctx, scene, it.o.k, it.o.x, it.o.y, it.o.tint); else drawPerson(ctx, scene, it.p, now); }
+  const frameOf = (o) => (o.anim ? o.anim[Math.floor(now / (1000 / (o.fps || 6))) % o.anim.length] : o.k);
+  for (const it of items) { if (it.o) sprite(ctx, scene, frameOf(it.o), it.o.x, it.o.y, it.o.tint); else drawPerson(ctx, scene, it.p, now); }
   for (const o of over) sprite(ctx, scene, o.k, o.x, o.y);
   for (const p of people) if (p.emote && now < p.emote.until && inView(p.x, p.y, 16, 16)) sprite(ctx, scene, `emote${p.emote.n}`, p.x + 1, p.y - 16 - Math.round(Math.abs(Math.sin(now / 160)) * 2));
   if (opts.fishing) drawLine(ctx, opts.fishing, now);

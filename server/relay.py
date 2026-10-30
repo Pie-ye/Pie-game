@@ -59,6 +59,9 @@ class Connection:
     lobby_subscribed: bool = False
     save_times: deque[float] = field(default_factory=deque)
     mail_times: deque[float] = field(default_factory=deque)
+    # 伺服器端遊戲（派派鎮）：正在看誰的農場、目前這一竿
+    viewing: str | None = None
+    cast: dict[str, Any] | None = None
     heartbeat_task: asyncio.Task[None] | None = None
 
     @property
@@ -118,6 +121,7 @@ class Relay:
         max_connections_per_user: int = MAX_CONNECTIONS_PER_USER,
         max_connections: int = MAX_CONNECTIONS,
         saves: SaveStore | None = None,
+        plaza: Any = None,
     ) -> None:
         self.content_origin = content_origin.rstrip("/")
         self._redeem = redeem
@@ -134,6 +138,7 @@ class Relay:
         self.max_connections_per_user = max_connections_per_user
         self.max_connections = max_connections
         self.saves = saves
+        self.plaza = plaza
 
         self.rooms: dict[str, Room] = {}
         self.connections_by_user: dict[Any, set[Connection]] = defaultdict(set)
@@ -146,6 +151,8 @@ class Relay:
     async def start(self) -> None:
         if self._cleanup_task is None:
             self._cleanup_task = asyncio.create_task(self._cleanup_loop())
+            if self.plaza is not None:
+                self.plaza.start(self)
 
     async def close(self) -> None:
         self._closing = True
@@ -167,6 +174,8 @@ class Relay:
                 *(socket.close(code=1001, message=b"server shutdown") for socket in sockets),
                 return_exceptions=True,
             )
+        if self.plaza is not None:
+            await self.plaza.close()
         if self.saves is not None:
             self.saves.close()
 
@@ -349,6 +358,7 @@ class Relay:
             "mail:send": self._mail_send,
             "mail:list": self._mail_list,
             "mail:delete": self._mail_delete,
+            "game": self._game,
         }
         handler = handlers.get(message_type)
         if handler is None:
@@ -738,8 +748,19 @@ class Relay:
         if items is not None:
             await self._save_reply(connection, {"type": "saveList", "rid": rid, "key": payload.get("key"), "items": items})
 
+    async def _game(self, connection: Connection, payload: dict[str, Any]) -> None:
+        """伺服器端遊戲邏輯（目前只有派派鎮）；其他遊戲送這種訊息一律拒絕。"""
+        if self.plaza is None or connection.game_id != self.plaza.GAME_ID:
+            await self._save_reply(connection, {"type": "error", "code": "bad_message", "rid": self._request_id(payload)})
+            return
+        await self.plaza.handle(self, connection, payload)
+
     async def _mail_send(self, connection: Connection, payload: dict[str, Any]) -> None:
         rid = self._request_id(payload)
+        if isinstance(payload.get("kind"), str) and payload["kind"].startswith("sys"):
+            # sys 開頭是伺服器自己寄的系統信（禮物、成交通知），玩家不能偽造
+            await self._save_reply(connection, {"type": "error", "code": "bad_mail", "rid": rid})
+            return
         now = self.clock()
         window = connection.mail_times
         while window and now - window[0] >= 60:

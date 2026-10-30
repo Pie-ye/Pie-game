@@ -146,12 +146,13 @@ site/games/community/
 | `storage.list(key)` | 某個鍵所有公開的小型值（≤4 KB），新的在前，最多 50 筆：`[{user, value, updatedAt}]` |
 | `mail.send(userId, kind, data)` | 寄信給同一款遊戲的玩家；寄件人 id 與名稱由伺服器填入 |
 | `mail.list()`／`mail.delete(ids)` | 自己的收件匣（新的在前，最多 100 封）／刪自己的信 |
+| `game(op, data)` | 伺服器端遊戲邏輯（平台內建的官方遊戲才有，例如派派鎮）。失敗時丟 `err.code`、`err.msg` |
 | `on(event, cb)` | 見下 |
 | `me` | `{id, username, displayName}` |
 | `room` | 目前房間快照 |
 | `isHost` | 是否為房主 |
 
-事件：`rooms`（大廳房間增減或人數變動，伺服器主動推，`{rooms, total}`；已在房內不會收到）、`mail`（有人寄信給你，`{from, kind}`）、`joined`、`playerJoined`、`playerLeft`、`hostChanged`、`message`、`state`、`error`、`disconnected`、`reconnected`。
+事件：`rooms`（大廳房間增減或人數變動，伺服器主動推，`{rooms, total}`；已在房內不會收到）、`mail`（有人寄信給你，`{from, kind}`）、`game`（伺服器主動推的遊戲更新，payload 帶 `op`）、`joined`、`playerJoined`、`playerLeft`、`hostChanged`、`message`、`state`、`error`、`disconnected`、`reconnected`。
 
 SDK 只接受 `event.source === window.parent` 的訊息；會自動回 `pong`；斷線用指數退避重連，並向外框要新 ticket（`pg:ticket`），成功後自動回到原房。
 

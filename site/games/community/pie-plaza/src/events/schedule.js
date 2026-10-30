@@ -15,7 +15,9 @@ export const EVENTS = [
   { id: 'fishing', name: '釣魚大賽', area: 'plaza', slots: [[12, 13], [18, 19]], icon: '🎣',
     desc: '在廣場的海邊釣魚！金色鯉魚比較容易上鉤，每條魚都會公布在聊天室。' },
   { id: 'campfire', name: '營火晚會', area: 'plaza', slots: [[20, 23]], icon: '🔥',
-    desc: '廣場中央點起營火、掛上燈籠，鎮長也會來跟大家聊天。' },
+    desc: '廣場西南邊的草地點起營火、掛上燈籠，大家圍著噴水池聊天。' },
+  { id: 'reggie', name: '瑞吉海獅秀', area: 'plaza', slots: [[10, 11], [15, 16], [19, 20]], icon: '🦭',
+    desc: '廣場東南角的海獅劇場開演！瑞吉會頂球、跳躍，帶條魚去餵牠會收到回禮。' },
   { id: 'flower', name: '週末花祭', area: 'town', slots: [[9, 21]], days: [0, 6], icon: '🌸',
     desc: '週末的商店街掛滿彩旗和花，居民都換上節慶的台詞。' },
 ];

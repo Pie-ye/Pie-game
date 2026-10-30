@@ -50,12 +50,13 @@ export function openVisitPanel(scene, lists, opts) {
   const section = (title) => { const h = el('h3', null, title); body.append(h); const box = el('div', 'people'); body.append(box); return box; };
   const visitBtn = (p) => btn('拜訪', () => { closePanel(); opts.onVisit(p.id, p.name); });
   const starBtn = (p) => { const b = btn(opts.isFriend(p.id) ? '★' : '☆', () => { b.textContent = opts.onFriend(p.id, p.name) ? '★' : '☆'; }, 'star'); b.title = '好友'; return b; };
+  const coopBtn = (p) => { const b = btn(opts.isCoop(p.id) ? '🤝 共耕中' : '🤝 邀請共耕', async () => { b.disabled = true; b.textContent = (await opts.onCoop(p.id, p.name)) ? '🤝 共耕中' : '🤝 邀請共耕'; b.disabled = false; }, 'coop'); b.title = '讓對方可以在你的農場使用所有農具'; return b; };
   const on = section('現在在線上的鎮民');
   if (!lists.online.length) on.append(el('p', 'note', '現在只有你在線上。'));
   for (const p of lists.online) on.append(row(scene, { ...p, online: true, friend: opts.isFriend(p.id) }, [starBtn(p), visitBtn(p)]));
   const fr = section('好友');
-  if (!lists.friends.length) fr.append(el('p', 'note', '在名冊或玩家名片按 ☆ 加好友。'));
-  for (const p of lists.friends) fr.append(row(scene, { ...p, friend: true }, [starBtn(p), visitBtn(p)]));
+  if (!lists.friends.length) fr.append(el('p', 'note', '在名冊或玩家名片按 ☆ 加好友。好友可以邀請來共同耕作。'));
+  for (const p of lists.friends) fr.append(row(scene, { ...p, friend: true }, [starBtn(p), coopBtn(p), visitBtn(p)]));
   const all = section('鎮民名冊（開放拜訪的家園）');
   all.append(el('p', 'note', '讀取中…'));
   lists.cards.then((cards) => {
@@ -68,7 +69,8 @@ export function openVisitPanel(scene, lists, opts) {
 /** 拜訪別人家時，在對方信箱前：按讚、留言、送禮、加好友。 */
 export function openVisitorMenu(scene, host, inv, opts) {
   const body = openPanel(`${host.name}的信箱`);
-  body.append(row(scene, { id: host.id, name: host.name, look: host.look, friend: opts.isFriend(host.id) }, []));
+  body.append(row(scene, { id: host.id, name: host.name, look: host.look, likes: host.likes, friend: opts.isFriend(host.id) }, []));
+  if (host.coop) body.append(el('p', 'note', '🤝 你是這裡的共同耕作夥伴：所有農具都能用，收成會放進主人的背包。'));
   const like = btn(opts.canLike ? '👍 稱讚這個家園' : '👍 今天已經稱讚過了', () => { opts.onLike(); like.disabled = true; like.textContent = '👍 已稱讚！'; });
   like.disabled = !opts.canLike;
   const fr = btn(opts.isFriend(host.id) ? '★ 已是好友（取消）' : '☆ 加為好友', () => { fr.textContent = opts.onFriend() ? '★ 已是好友（取消）' : '☆ 加為好友'; });
@@ -100,17 +102,23 @@ export function openMailbox(items, opts) {
   if (likes.length) {
     const card = el('div', 'mail like');
     card.append(el('b', null, `👍 ${likes.length} 個新的稱讚`), el('p', null, likes.slice(0, 8).map((m) => m.from.name).join('、') + (likes.length > 8 ? '…' : '')));
-    card.append(btn('收下', () => { opts.onLikes(likes); card.remove(); }));
+    card.append(btn('知道了', () => { opts.onRead(likes); card.remove(); }));
     body.append(card);
   }
   for (const m of items.filter((x) => x.kind !== 'like')) {
     const card = el('div', `mail ${m.kind}`);
     if (m.kind === 'note') {
       card.append(el('b', null, `✉ ${m.from.name}`), el('p', null, m.text));
-      card.append(btn('拜訪', () => { closePanel(); opts.onVisit(m.from.id, m.from.name); }), btn('刪除', () => { opts.onDelete(m); card.remove(); }));
+      card.append(btn('拜訪', () => { opts.onVisit(m.from.id, m.from.name); }), btn('刪除', () => { opts.onDelete(m); card.remove(); }));
     } else if (m.kind === 'gift') {
       card.append(el('b', null, `🎁 ${m.from.name} 送你 ${itemName(m.item)} ×${m.n}`));
       card.append(btn('收下', () => { opts.onClaim(m); card.remove(); }));
+    } else if (m.kind === 'sold') {
+      card.append(el('b', null, `💰 ${m.from.name} 買下了你的 ${itemName(m.item)} ×${m.n}`), el('p', null, `${m.price} G 已經入帳。`));
+      card.append(btn('知道了', () => { opts.onRead([m]); card.remove(); }));
+    } else if (m.kind === 'coop') {
+      card.append(el('b', null, `🤝 ${m.from.name} 邀請你共同耕作`), el('p', null, '你可以在他的農場使用所有農具。'));
+      card.append(btn('去看看', () => { opts.onRead([m]); opts.onVisit(m.from.id, m.from.name); }), btn('知道了', () => { opts.onRead([m]); card.remove(); }));
     }
     body.append(card);
   }
@@ -122,7 +130,8 @@ export function openPlayerCard(scene, p, opts) {
   body.append(row(scene, { ...p, online: true, friend: opts.isFriend(p.id) }, []));
   const box = el('div', 'menu-btns');
   const fr = btn(opts.isFriend(p.id) ? '★ 好友（取消）' : '☆ 加為好友', () => { fr.textContent = opts.onFriend() ? '★ 好友（取消）' : '☆ 加為好友'; });
-  box.append(btn('🏡 拜訪家園', () => { closePanel(); opts.onVisit(); }), btn('👋 打招呼', () => { opts.onWave(); closePanel(); }), fr);
+  const co = btn(opts.isCoop(p.id) ? '🤝 共耕中（取消）' : '🤝 邀請共同耕作', async () => { co.disabled = true; co.textContent = (await opts.onCoop()) ? '🤝 共耕中（取消）' : '🤝 邀請共同耕作'; co.disabled = false; });
+  box.append(btn('🏡 拜訪家園', () => { closePanel(); opts.onVisit(); }), btn('👋 打招呼', () => { opts.onWave(); closePanel(); }), fr, co);
   body.append(box);
 }
 

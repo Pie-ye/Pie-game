@@ -22,9 +22,13 @@
 
 ## 補畫素材：grok 生成
 
-- 檔案：`gen/*.png`：紅蘿蔔、番茄、南瓜、草莓的種子袋／四個生長階段／成品，八種魚與舊靴子，釣竿、營火、路燈、公告欄、節慶燈串。
-- 以 Sprout Lands 的作物圖與官方調色盤為風格參考，由 grok（image_gen）產生後，用 `tools/pie-plaza/process_art.py` 縮回原生像素並去背。
+- 檔案：`gen/*.png`：紅蘿蔔、番茄、南瓜、草莓的種子袋／四個生長階段／成品，八種魚與舊靴子，釣竿、營火、路燈、公告欄、節慶燈串，以及原創地標（菲比啾比女神噴水池三格動畫、瑞吉海獅四個動作、舞台、長椅）。
+- 以 Sprout Lands 的作物圖與官方調色盤為風格參考，由 grok（image_gen）產生後，用 `tools/pie-plaza/process_art.py` 縮回原生像素並去背。噴水池與瑞吉依 pie-phoebe 的角色原畫重繪成同一套像素風。
 - 提示詞與規格：`tools/pie-plaza/art/RULES.md`、`art/*/BRIEF.md`。
+
+## 語音：pie-phoebe
+
+- 檔案：`audio/voice/phoebe_*.mp3`、`audio/voice/reggie_*.mp3`，從社群遊戲 pie-phoebe 複製，許願與餵海獅時播放。
 
 ## 字型：Zpix（最像素）
 

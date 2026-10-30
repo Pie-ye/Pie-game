@@ -12,11 +12,12 @@ export function eventObjects(area, active) {
   const on = (id) => active.includes(id);
   if (area === 'plaza') {
     if (on('campfire')) {
+      // 廣場中央是女神噴水池，營火晚會辦在西南邊的草地
       const fire = pick('campfire', 'stump');
-      out.push(obj(fire, 240, 172, { foot: [14, 7], light: 70, flicker: true }));
+      out.push(obj(fire, 140, 214, { foot: [14, 7], light: 70, flicker: true }));
       const lan = pick('lanternString');
-      if (lan) for (const [x, y] of [[176, 118], [304, 118], [176, 214], [304, 214]]) out.push(obj(lan, x, y, { foot: null, overhead: true, light: 26 }));
-      out.push(obj('log', 214, 188, { foot: [16, 5] }), obj('log', 266, 188, { foot: [16, 5] }));
+      if (lan) for (const [x, y] of [[176, 118], [304, 118], [104, 176], [176, 176]]) out.push(obj(lan, x, y, { foot: null, overhead: true, light: 26 }));
+      out.push(obj('log', 114, 226, { foot: [16, 5] }), obj('log', 166, 226, { foot: [16, 5] }));
     }
     if (on('fishing')) {
       for (const [x, y, k] of [[60, 102, 'banner2'], [420, 102, 'banner3'], [60, 236, 'banner5'], [420, 236, 'banner4']]) out.push(obj(k, x, y, { foot: [8, 4] }));

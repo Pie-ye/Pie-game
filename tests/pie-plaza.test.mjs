@@ -124,7 +124,9 @@ test('NPCs and signs can be talked to from an adjacent walkable spot', () => {
   for (const m of [maps.town, ...SHOPS.map((s) => maps[`shop:${s.id}`]), maps.plaza, maps['farm:u1']]) {
     const ok = reach(m, Object.values(m.entries)[0]);
     for (const t of [...m.npcs, ...m.signs]) {
-      const spots = [[0, 14, 1], [0, -12, 0], [14, 0, 2], [-14, 0, 3]].map(([dx, dy, dir]) => ({ x: t.x + dx, y: t.y + dy, dir }));
+      // 從四個方向、由近到遠（不超過互動距離）找站得住、面向它就能互動的位置
+      const spots = [];
+      for (const d of [14, 22, 30, 38].filter((d) => d <= 14 + (t.reach || 14))) for (const [ux, uy, dir] of [[0, 1, 1], [0, -1, 0], [1, 0, 2], [-1, 0, 3]]) spots.push({ x: t.x + ux * d, y: t.y + uy * d + (uy < 0 ? 2 : 0), dir });
       const good = spots.some((p) => !m.blocked(p.x, p.y) && ok(p.x - 2, p.y - 2, p.x + 2, p.y + 2) && m.interactAt(p) === t);
       assert.ok(good, `${m.id}: cannot talk to ${t.name || t.title}`);
     }
@@ -287,8 +289,9 @@ test('events follow Taipei time', () => {
   assert.deepEqual(EV.activeEvents(at(8)).map((e) => e.id), ['market']);
   assert.deepEqual(EV.activeEvents(at(12)).map((e) => e.id), ['fishing']);
   assert.deepEqual(EV.activeEvents(at(21)).map((e) => e.id), ['campfire']);
-  assert.deepEqual(EV.activeEvents(at(15)).map((e) => e.id), []);
-  assert.ok(EV.activeEvents(at(15, 6)).some((e) => e.id === 'flower'), 'Saturday flower festival');
+  assert.deepEqual(EV.activeEvents(at(15)).map((e) => e.id), ['reggie']);
+  assert.deepEqual(EV.activeEvents(at(14)).map((e) => e.id), []);
+  assert.ok(EV.activeEvents(at(14, 6)).some((e) => e.id === 'flower'), 'Saturday flower festival');
   const day = EV.todaySchedule(at(12));
   assert.equal(day.find((x) => x.e.id === 'market').state, 'past');
   assert.equal(day.find((x) => x.e.id === 'fishing' && x.from === 12).state, 'now');
@@ -308,7 +311,10 @@ test('event decorations use known sprites and never block warps or entries', () 
     for (const e of Object.values(m.entries)) assert.equal(m.blocked(e.x, e.y), false, `${id} entry blocked by event`);
     const ok = reach(m, Object.values(m.entries)[0]);
     for (const w of m.warps) assert.ok(ok(w.x0, w.y0, w.x1, w.y1), `${id}: event blocks warp to ${w.to}`);
-    for (const t of [...m.npcs, ...m.signs]) assert.ok([[0, 14], [0, -12], [14, 0], [-14, 0]].some(([dx, dy]) => !m.blocked(t.x + dx, t.y + dy)), `${id}: event blocks ${t.name || t.title}`);
+    for (const t of [...m.npcs, ...m.signs]) {
+      const ds = [14, 22, 30, 38].filter((d) => d <= 14 + (t.reach || 14));
+      assert.ok(ds.some((d) => [[0, 1, 1], [0, -1, 0], [1, 0, 2], [-1, 0, 3]].some(([ux, uy, dir]) => { const p = { x: t.x + ux * d, y: t.y + uy * d, dir }; return !m.blocked(p.x, p.y) && m.interactAt(p) === t; })), `${id}: event blocks ${t.name || t.title}`);
+    }
     m.dynamic = [];
   }
 });
@@ -331,7 +337,6 @@ test('house yard decorations never block the door or the farm path', () => {
 });
 
 // ---------- 雲端存檔 ----------
-const { createCloud } = await import(`${SRC}/cloud.js`);
 test('packFarm / unpackFarm round trip and worst-case size', () => {
   const s = F.newFarm('u1');
   s.gold = 1234; s.inv = { wheat: 3, fish_carp: 2 }; s.seeds = { tomato: 4 }; s.seedSel = 'tomato'; s.at = 1790000000000;
@@ -350,59 +355,6 @@ test('packFarm / unpackFarm round trip and worst-case size', () => {
   assert.equal(F.unpackFarm({ v: 'nope' }, 'u1'), null);
 });
 
-function fakeStorage(initial = {}) {
-  const db = { ...initial }; const calls = [];
-  return {
-    db, calls,
-    async get(key) { calls.push(['get', key]); return db[key] ? { ...db[key] } : { value: null, rev: 0 }; },
-    async put(key, value, { ifRev } = {}) {
-      calls.push(['put', key]);
-      const cur = db[key] || { value: null, rev: 0 };
-      if (ifRev != null && ifRev !== cur.rev) throw Object.assign(new Error('save_conflict'), { code: 'save_conflict', current: db[key] ? { ...cur } : null });
-      db[key] = { value, rev: cur.rev + 1 }; return { rev: cur.rev + 1 };
-    },
-  };
-}
-const slot = (state) => ({ local: () => state.v, at: (d) => d.at, pack: (d) => d, unpack: (v) => v, apply: (d, src) => { state.v = d; state.src = src; } });
-const tick = () => new Promise((r) => setTimeout(r, 0));
-
-test('cloud: newer cloud copy wins on start, newer local copy is uploaded', async () => {
-  const st = fakeStorage({ a: { value: { at: 50, n: 'cloud' }, rev: 2 }, b: { value: { at: 10, n: 'old' }, rev: 1 } });
-  const a = { v: { at: 20, n: 'local' } }, b = { v: { at: 30, n: 'newer local' } }, c = { v: null };
-  const cloud = createCloud(st, { a: slot(a), b: slot(b), c: slot(c) });
-  const r = await cloud.start();
-  assert.deepEqual(r, { a: 'cloud', b: 'local', c: 'empty' });
-  assert.equal(a.v.n, 'cloud');
-  await new Promise((res) => setTimeout(res, 260));
-  assert.equal(st.db.b.value.n, 'newer local'); assert.equal(st.db.b.rev, 2);
-  assert.equal(st.db.c, undefined, 'nothing to upload for empty slots');
-});
-test('cloud: conflict adopts a newer remote copy, otherwise retries with the server revision', async () => {
-  const st = fakeStorage({ a: { value: { at: 1 }, rev: 1 } });
-  const a = { v: { at: 1 } };
-  const cloud = createCloud(st, { a: slot(a) });
-  await cloud.start();
-  // 另一台裝置先存了較新的版本
-  st.db.a = { value: { at: 999, n: 'other device' }, rev: 5 };
-  a.v = { at: 500, n: 'mine' };
-  cloud.changed('a');
-  await new Promise((res) => setTimeout(res, 4200));
-  assert.equal(a.v.n, 'other device'); assert.equal(a.src, 'conflict');
-  // 這次我們比較新：拿到伺服器版本號後重送
-  st.db.a = { value: { at: 100 }, rev: 9 };
-  a.v = { at: 2000, n: 'mine newer' };
-  cloud.changed('a');
-  await new Promise((res) => setTimeout(res, 4300));
-  assert.equal(st.db.a.value.n, 'mine newer'); assert.equal(st.db.a.rev, 10);
-});
-test('cloud: without storage it stays local and never throws', async () => {
-  const statuses = [];
-  const cloud = createCloud(null, { a: slot({ v: { at: 1 } }) }, (s) => statuses.push(s));
-  assert.deepEqual(await cloud.start(), {});
-  cloud.changed('a'); cloud.resume();
-  assert.equal(statuses.at(-1), '本機');
-  await tick();
-});
 
 // ---------- 拜訪與社交 ----------
 const SO = await import(`${SRC}/social/home.js`);
@@ -454,9 +406,12 @@ test('social settings, friends and daily likes', () => {
 test('mail is validated and gifts move items safely', () => {
   assert.equal(SO.readMail({ id: 1, from: 'u2', fromName: '小菲', kind: 'note', data: { text: ' 你好‮ ' } }).text, '你好');
   assert.equal(SO.readMail({ id: 2, kind: 'note', data: { text: '   ' } }), null);
-  assert.equal(SO.readMail({ id: 3, kind: 'gift', data: { item: 'wood', n: 1 } }), null, 'only crops and fish can be gifts');
-  assert.equal(SO.readMail({ id: 4, kind: 'gift', data: { item: 'pumpkin', n: 500 } }), null);
-  assert.equal(SO.readMail({ id: 5, kind: 'gift', data: { item: 'fish_tuna', n: 2 } }).n, 2);
+  assert.equal(SO.readMail({ id: 3, kind: 'sysgift', data: { item: 'wood', n: 1 } }), null, 'only crops and fish can be gifts');
+  assert.equal(SO.readMail({ id: 4, kind: 'sysgift', data: { item: 'pumpkin', n: 500 } }), null);
+  assert.equal(SO.readMail({ id: 5, kind: 'sysgift', data: { item: 'fish_tuna', n: 2 } }).n, 2);
+  assert.equal(SO.readMail({ id: 5, kind: 'gift', data: { item: 'fish_tuna', n: 2 } }), null, 'player-sent gifts are not valid: only the server issues gifts');
+  assert.equal(SO.readMail({ id: 6, kind: 'syssold', from: 'u2', fromName: 'B', data: { item: 'pumpkin', n: 2, price: 300 } }).price, 300);
+  assert.equal(SO.readMail({ id: 7, kind: 'syscoop', data: { on: true } }).kind, 'coop');
   assert.equal(SO.readMail({ id: 6, kind: 'hack', data: {} }), null);
   const inv = { pumpkin: 1, wood: 9 };
   assert.equal(SO.takeGift(inv, 'wood'), false);

@@ -69,6 +69,7 @@ export async function connectPlaza(cb) {
     if (msg.data && typeof msg.data === 'object' && cb.other) cb.other(id, msg.data);
   });
   client.on('mail', (m) => { if (cb.mail) cb.mail(m); });
+  client.on('game', (m) => { if (cb.game) cb.game(m); });
   client.on('disconnected', () => cb.status('連線中斷，重連中…'));
   client.on('reconnected', () => cb.status(null));
   client.on('error', (e) => { if (e && e.code === 'rejoin_failed') join().catch(() => {}); else cb.status(`錯誤：${errText(e)}`); });
@@ -78,6 +79,8 @@ export async function connectPlaza(cb) {
     me,
     /** 雲端存檔（SDK client.storage）；舊版 SDK 沒有時為 null。 */
     storage: client.storage || null,
+    /** 伺服器端遊戲邏輯（SDK client.game）；舊版 SDK 沒有時為 null。 */
+    game: typeof client.game === 'function' ? (op, data) => client.game(op, data) : null,
     /** 信箱（SDK client.mail）。 */
     mail: client.mail || null,
     online: () => [...others].map(([id, name]) => ({ id, name })),

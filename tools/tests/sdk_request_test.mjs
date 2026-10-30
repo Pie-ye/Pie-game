@@ -181,6 +181,18 @@ assert((await inboxP)[0].id === 7, 'mail.list resolves items');
 let pushed = null; client.on('mail', (m) => { pushed = m; });
 ws.peer({ type: 'mail', from: 'u3', kind: 'like' });
 assert(pushed && pushed.from === 'u3', 'mail push emits mail event');
+// 伺服器端遊戲：回覆配對、推播成為 game 事件、錯誤帶 msg
+const gP = client.game('tool', { tool: 'hoe', x: 1, y: 2 });
+const gMsg = ws.sent[ws.sent.length - 1];
+assert(gMsg.type === 'game' && gMsg.op === 'tool' && gMsg.x === 1, 'game sends op and data');
+ws.peer({ type: 'game', rid: gMsg.rid, op: 'tool', ok: true, result: { ok: true } });
+assert((await gP).result.ok, 'game resolves payload');
+let gameEv = null; client.on('game', (m) => { gameEv = m; });
+ws.peer({ type: 'game', op: 'patch', owner: 'u1', tiles: {} });
+assert(gameEv && gameEv.op === 'patch', 'server pushes become game events');
+const gErr = client.game('purchase', { id: 1 });
+ws.peer({ type: 'error', code: 'sold_out', msg: '已經賣掉了', rid: ws.sent[ws.sent.length - 1].rid });
+try { await gErr; throw new Error('should reject'); } catch (err) { assert(err.code === 'sold_out' && err.msg === '已經賣掉了', 'game errors carry msg'); }
 const pendingSave = client.storage.get('farm');
 ws.close();
 try {
