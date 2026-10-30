@@ -1,5 +1,6 @@
 // 小屋裝潢：可擺的家具、地板與牆紙。純資料與規則，node 可測。
 import { ROOM } from '../maps/interior.js';
+import { defaultExterior, sanitizeExterior } from './exterior.js';
 
 // k 是圖集名稱；wall: true 的掛在牆上（畫、時鐘）；w/h 是佔用格數
 export const FURNITURE = [
@@ -61,12 +62,12 @@ export function defaultDecor() {
   const put = (k, tx, ty) => { if (canPlace(items, k, tx, ty)) items.push(placeAt(furniture(k), tx, ty)); };
   put('rugGL', 9, 7); put('bedGreen', 1, 3); put('dresser', 2, 3); put('tableN', 14, 6); put('chairL', 13, 6); put('chairR', 15, 6);
   put('plantN', 18, 3); put('lampG', 17, 3); put('paintField', 6, 1); put('clockRound', 10, 1); put('paintFlower', 13, 1); put('bookcase', 5, 3); put('bookcaseBig', 7, 3); put('sofa', 4, 9); put('flowerPot', 1, 11);
-  return { v: 1, floor: 'tan', wall: 'cream', style: 'houseThatch', items };
+  return { v: 1, floor: 'tan', wall: 'cream', style: 'houseThatch', ext: defaultExterior(), items };
 }
 
 export function sanitizeDecor(d) {
   if (!d || typeof d !== 'object' || d.v !== 1) return defaultDecor();
-  const out = { v: 1, floor: FLOORS[d.floor] ? d.floor : 'tan', wall: WALLS[d.wall] ? d.wall : 'cream', style: HOUSE_STYLES[d.style] ? d.style : 'houseThatch', items: [] };
+  const out = { v: 1, floor: FLOORS[d.floor] ? d.floor : 'tan', wall: WALLS[d.wall] ? d.wall : 'cream', style: HOUSE_STYLES[d.style] ? d.style : 'houseThatch', ext: sanitizeExterior(d.ext), items: [] };
   for (const it of Array.isArray(d.items) ? d.items.slice(0, 80) : []) {
     if (!it || !furniture(it.k)) continue;
     const tx = it.tx | 0, ty = it.ty | 0;

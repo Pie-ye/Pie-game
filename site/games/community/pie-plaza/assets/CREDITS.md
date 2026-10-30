@@ -14,11 +14,17 @@
 
 - 作者：Pixel-boy（與 AAA）　https://pixel-boy.itch.io/ninja-adventure-asset-pack
 - 授權：CC0 1.0，可自由使用。
-- 檔案：`ninja/boy.png`（角色，執行時依玩家替換上衣顏色）、`ninja/dialog.png`、`ninja/dialog_box.png`、`ninja/faceset_box.png`、
+- 檔案：`ninja/body/*.png`（捏臉的 13 個角色底版與頭像，執行時換髮色、膚色、衣服顏色；清單與換色分析見 `tools/pie-plaza/build_bodies.py`）、`ninja/dialog.png`、
   `ninja/house.png`（商店與房屋）、`ninja/element.png`（櫃台、書櫃、桶子等）、`ninja/nature.png`（樹、雜草、石頭）、
   `ninja/interior_floor.png`（室內地板與牆紙、市集石板）、`ninja/tools/*.png`（工具圖示）、`ninja/npc/*.png`（居民角色與對話頭像）、
   `audio/village.ogg`（音樂 Village）、`audio/bird.wav`、`audio/send.wav`、`audio/recv.wav`、`audio/join.wav`。
 - `audio/wind.wav` 由該素材包的 `Ambient/Wind.wav` 截取 12 秒、降取樣為 11 kHz 單聲道並做首尾交叉淡化，腳本見 `tools/pie-plaza/prep_assets.py`。
+
+## 補畫素材：grok 生成
+
+- 檔案：`gen/*.png`：紅蘿蔔、番茄、南瓜、草莓的種子袋／四個生長階段／成品，八種魚與舊靴子，釣竿、營火、路燈、公告欄、節慶燈串。
+- 以 Sprout Lands 的作物圖與官方調色盤為風格參考，由 grok（image_gen）產生後，用 `tools/pie-plaza/process_art.py` 縮回原生像素並去背。
+- 提示詞與規格：`tools/pie-plaza/art/RULES.md`、`art/*/BRIEF.md`。
 
 ## 字型：Zpix（最像素）
 

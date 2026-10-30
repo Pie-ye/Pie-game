@@ -9,7 +9,7 @@ const cache = new Map();
 export function getMap(area, ctx = {}) {
   const [kind, arg] = area.split(':');
   if (kind === 'farm' || kind === 'house') {            // 個人地圖：資料可能改變，每次重建
-    if (kind === 'farm') return buildFarm(arg, ctx.decor && ctx.decor.style);
+    if (kind === 'farm') return buildFarm(arg, ctx.decor || {});
     return buildHouse(arg, ctx.decor);
   }
   if (!cache.has(area)) {

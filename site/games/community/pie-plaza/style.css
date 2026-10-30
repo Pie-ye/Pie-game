@@ -94,3 +94,50 @@ button:disabled { opacity:.5; cursor:default; }
 .styles button { width:100%; min-height:90px; display:flex; align-items:center; gap:8px; margin-bottom:6px; }
 .styles button.on { background:var(--accent); }
 .styles i { display:block; image-rendering:pixelated; flex:none; }
+
+/* ---------- 捏臉 ---------- */
+.creator { position:absolute; inset:4px; display:flex; align-items:center; justify-content:center; background:rgba(20,12,6,.55); line-height:1.4; z-index:5; }
+.creator-card { width:min(96%, 760px); max-height:96%; display:flex; flex-direction:column; padding:12px 14px; overflow:hidden; }
+.creator-head b { font-size:1.1rem; color:var(--wood); }
+.creator-body { display:flex; gap:14px; min-height:0; margin-top:8px; }
+.creator-left { flex:none; display:flex; flex-direction:column; align-items:center; gap:10px; }
+.creator-preview { width:160px; height:160px; image-rendering:pixelated; background:radial-gradient(#fff3d0, #e9c98a); border:3px solid var(--wood); border-radius:6px; }
+.creator-btns { display:flex; gap:6px; }
+.creator-right { flex:1; min-width:0; overflow-y:auto; padding-right:4px; }
+.creator-right h3 { margin:6px 0 4px; font-size:.9rem; color:var(--wood); }
+.creator-faces { display:grid; grid-template-columns:repeat(auto-fill, minmax(62px, 1fr)); gap:4px; }
+.creator-faces button { min-height:0; padding:2px; display:flex; flex-direction:column; align-items:center; box-shadow:none; }
+.creator-faces button.on { background:var(--accent); }
+.creator-faces canvas { width:48px; height:48px; image-rendering:pixelated; }
+.creator-faces small { font-size:.62rem; line-height:1.1; }
+.swatches { display:flex; flex-wrap:wrap; gap:5px; }
+.swatches button { width:28px; height:28px; min-height:0; padding:0; border-radius:50%; border:3px solid var(--wood-dark); box-shadow:none; }
+.swatches button.on { outline:3px solid #e8452c; outline-offset:1px; }
+.swatches button.orig { background:repeating-linear-gradient(45deg, #f6e2b3 0 4px, #c89a5a 4px 8px); }
+
+/* ---------- 釣魚、商店、公告欄、小屋設計 ---------- */
+.fishing { position:absolute; right:22%; top:50%; transform:translateY(-55%); padding:6px; line-height:1.2; text-align:center; font-size:.75rem; z-index:3; }
+.fishing[hidden] { display:none; }
+.fishing canvas { display:block; width:64px; height:240px; }
+.fishing p { margin:4px 0 0; color:var(--wood); }
+.gold-line { font-weight:700; color:var(--wood); }
+.sale { color:#c0392b; font-weight:700; }
+.shop-row { display:grid; grid-template-columns:1fr auto auto; grid-template-rows:auto auto; gap:2px 4px; align-items:center; padding:4px; margin:4px 0; background:#fff8e4; border:2px solid var(--paper-dark); border-radius:4px; }
+.shop-row span { display:flex; align-items:center; gap:4px; grid-column:1; }
+.shop-row small { grid-column:1; grid-row:2; color:var(--muted); }
+.shop-row button { min-height:30px; padding:0 8px; grid-row:1 / span 2; box-shadow:none; }
+.event { position:relative; padding:6px 8px; margin:6px 0; background:#fff8e4; border:2px solid var(--paper-dark); border-radius:4px; }
+.event.now { border-color:var(--accent-dark); background:#fff1c9; }
+.event.past { opacity:.55; }
+.event p { margin:2px 0 0; font-size:.85rem; }
+.event .tag { position:absolute; right:6px; top:4px; font-size:.75rem; color:var(--wood); }
+.note { font-size:.8rem; color:var(--muted); }
+.styles.compact button { min-height:64px; margin-bottom:4px; }
+.yard { display:grid; grid-template-columns:1fr 1fr; gap:4px; }
+.yard select { min-height:34px; font:inherit; font-size:.85rem; background:#fff8e4; border:2px solid var(--wood); border-radius:4px; color:var(--ink); }
+#gold { display:block; margin-top:2px; padding-top:2px; border-top:2px solid var(--paper-dark); text-align:right; font-weight:700; color:#8a5a10; }
+#event-badge { position:absolute; top:76px; right:12px; padding:2px 8px; line-height:1.5; font-size:.8rem; color:#fff3d6; background:rgba(160,60,20,.88); border-radius:4px; }
+#event-badge[hidden] { display:none; }
+.hud-btns { position:absolute; left:12px; bottom:12px; display:flex; flex-direction:column; gap:4px; }
+.hud-btns button { min-height:32px; padding:0 8px; font-size:.8rem; }
+#toolbar button em.count { position:absolute; right:2px; bottom:0; font-style:normal; font-size:.65rem; line-height:1; color:var(--wood-dark); }

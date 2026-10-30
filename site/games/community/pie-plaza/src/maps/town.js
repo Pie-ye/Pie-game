@@ -41,6 +41,9 @@ export function buildTown() {
   for (const [bx, by, k] of [[px0 + 6, py0 + 34, 'banner1'], [px1 - 6, py0 + 34, 'banner3'], [px0 + 6, py1 - 4, 'banner4'], [px1 - 6, py1 - 4, 'banner6']]) objects.push(obj(k, bx, by, { foot: [8, 4] }));
   objects.push(obj('treeBigPink', 300, 330), obj('treeBigPink', 560, 300), obj('treeN', 150, 300), obj('treeN2', 820, 300));
   objects.push(obj('signPost', 40, roadY * 16 - 4));
+  objects.push(obj('bulletinBoard', 324, roadY * 16 - 4, { foot: [28, 6] }));
+  signs.push({ x: 324, y: roadY * 16 - 4, title: '公告欄', lines: ['派派鎮公告欄：今天的活動都貼在這裡。'], action: 'events', reach: 20 });
+  for (const lx of [60, 180, 330, 570, 730, 860]) objects.push(obj('lampPost', lx, (roadY + 2) * 16 + 14, { foot: [6, 4] }));
   signs.push({ x: 40, y: roadY * 16 - 4, title: '路牌', lines: ['派派鎮 商店街', '← 西邊回到廣場'] });
   const rnd = mulberry(5566);
   const isFree = (tx, ty) => objects.some((o) => Math.abs(o.x - (tx * 16 + 8)) < o.w / 2 + 8 && ty * 16 + 13 > o.y - o.h - 4 && ty * 16 + 13 < o.y + 10);

@@ -89,7 +89,7 @@ def main() -> int:
             pg.add_init_script(f"window.__PLAYER = {json.dumps({'id': 'u%d' % (i + 1), 'username': name, 'displayName': name}, ensure_ascii=False)};")
             pg.on("console", lambda m, n=name: errors.append(f"{n}: {m.text}") if m.type == "error" or (m.type == "warning" and "失敗" in m.text) else None)
             pg.on("pageerror", lambda e, n=name: errors.append(f"{n}: {e}"))
-            pg.goto(base)
+            pg.goto(base); pg.evaluate("localStorage.setItem('pie-plaza:look:' + window.__PLAYER.id, '[1,2,1,4,1]')"); pg.reload()
             pg.wait_for_function("document.getElementById('room-info').textContent.includes('人在線')", timeout=15000)
             pages.append(pg)
         a, b = pages
@@ -98,6 +98,8 @@ def main() -> int:
         a.wait_for_timeout(600)
         check("2 人在線" in a.inner_text("#room-info"), "A 看到 2 人在線")
         check("2 人在線" in b.inner_text("#room-info"), "B 看到 2 人在線")
+        b.wait_for_timeout(300)
+        check(b.evaluate("(window.__plaza.people.get('u1') || {}).look") == [1, 2, 1, 4, 1], "B 看到 A 捏好的外觀")
         a.keyboard.down("d"); a.wait_for_timeout(900); a.keyboard.up("d")
         a.keyboard.press("Enter"); a.keyboard.type("大家好，<b>HTML</b> 不會被解析"); a.keyboard.press("Enter")
         b.wait_for_timeout(700)

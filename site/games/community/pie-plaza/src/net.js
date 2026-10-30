@@ -8,7 +8,7 @@ const label = (p) => (p && (p.displayName || p.username)) || '訪客';
 export const errText = (e) => ({ room_full: '房間已滿', room_not_found: '找不到房間', already_joined: '已在房間內' }[e && e.code] || (e && (e.code || e.message)) || '未知錯誤');
 
 /**
- * cb：{ joined(players), playerJoined(p), playerLeft(id), pose(id, {x,y,area}), chat(id, text), status(text) }
+ * cb：{ joined(players), playerJoined(p), playerLeft(id), pose(id, {x,y,area}), chat(id, text), other(id, data), status(text) }
  * 回傳 { me, sendPose(pose, to), sendChat(text), get count }
  */
 export async function connectPlaza(cb) {
@@ -65,7 +65,8 @@ export async function connectPlaza(cb) {
     const pos = parsePos(msg.data);
     if (pos) { cb.pose(id, pos); return; }
     const text = parseChat(msg.data);
-    if (text) cb.chat(id, text);
+    if (text) { cb.chat(id, text); return; }
+    if (msg.data && typeof msg.data === 'object' && cb.other) cb.other(id, msg.data);
   });
   client.on('disconnected', () => cb.status('連線中斷，重連中…'));
   client.on('reconnected', () => cb.status(null));
@@ -78,5 +79,7 @@ export async function connectPlaza(cb) {
     nameOf: (id) => others.get(String(id)) || '訪客',
     sendPose(p, to) { if (client.room) client.send({ k: 'p', p: [Math.round(p.x * 10) / 10, Math.round(p.y * 10) / 10], a: p.area }, to); },
     sendChat(text) { if (client.room) client.send({ k: 'c', t: text }); },
+    /** 其他訊息（外觀 l、釣魚大賽 f）；收到端一律自行檢查。 */
+    send(data, to) { if (client.room) client.send(data, to); },
   };
 }

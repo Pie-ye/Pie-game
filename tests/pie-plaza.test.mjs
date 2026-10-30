@@ -10,6 +10,12 @@ const { syncFarm } = await import(`${SRC}/maps/farm.js`);
 const { SHOPS, TOWNSFOLK } = await import(`${SRC}/maps/npcs.js`);
 const F = await import(`${SRC}/farm/state.js`);
 const C = await import(`${SRC}/house/catalog.js`);
+const LK = await import(`${SRC}/avatar/look.js`);
+const { BODIES } = await import(`${SRC}/engine/bodies.js`);
+const FI = await import(`${SRC}/fish/fishing.js`);
+const EV = await import(`${SRC}/events/schedule.js`);
+const { eventObjects } = await import(`${SRC}/events/effects.js`);
+const EX = await import(`${SRC}/house/exterior.js`);
 
 // ---------- 聊天與基本邏輯 ----------
 test('cleanText strips controls, bidi marks and collapses spaces', () => {
@@ -149,9 +155,11 @@ test('till, plant, water, grow and harvest', () => {
   const s = F.newFarm('u1');
   const [x, y] = [22, 12];
   delete s.debris[`${x},${y}`];
-  assert.equal(F.useTool(s, 'wheat', x, y, 0).ok, false, 'needs tilled soil');
+  assert.equal(F.useTool(s, 'seed', x, y, 0).ok, false, 'needs tilled soil');
   assert.ok(F.useTool(s, 'hoe', x, y, 0).till);
-  assert.ok(F.useTool(s, 'wheat', x, y, 0).plant);
+  const seeds = s.seeds.wheat;
+  assert.equal(F.useTool(s, 'seed', x, y, 0).plant, 'wheat');
+  assert.equal(s.seeds.wheat, seeds - 1);
   assert.equal(F.grow(s, F.GROW_MS * 10), false, 'no water, no growth');
   let t = 1000;
   for (let stage = 1; stage <= 3; stage++) { F.useTool(s, 'wateringcan', x, y, t); t += F.GROW_MS; F.grow(s, t); assert.equal(s.crops[`${x},${y}`].s, stage); }
@@ -160,12 +168,15 @@ test('till, plant, water, grow and harvest', () => {
   assert.equal(F.useTool(s, 'hoe', 19, 12, 0).ok, false, 'path stays clear');
 });
 test('sanitizeFarm drops bad data', () => {
-  const s = F.sanitizeFarm({ v: 1, debris: { '1,1': { t: 'lava', hp: 9 }, '5,15': { t: 'stone', hp: 99 } }, tilled: { 'x,y': {} }, crops: { '6,15': { t: 'wheat', s: 9 } }, inv: { wood: -5, stone: 'a' } }, 'u1');
+  const s = F.sanitizeFarm({ v: 2, debris: { '1,1': { t: 'lava', hp: 9 }, '5,15': { t: 'stone', hp: 99 } }, tilled: { 'x,y': {} }, crops: { '6,15': { t: 'wheat', s: 9 } }, inv: { wood: -5, stone: 'a', hack: 5 }, gold: -9, seeds: { wheat: 3, lava: 9 } }, 'u1');
+  assert.equal(s.inv.hack, undefined); assert.equal(s.gold, 0); assert.deepEqual(s.seeds, { wheat: 3 });
   assert.equal(s.debris['1,1'], undefined);
   assert.equal(s.debris['5,15'].hp, 2);
   assert.equal(s.crops['6,15'], undefined, 'crop on untilled tile removed');
-  assert.equal(s.inv.wood, 0);
-  assert.equal(F.sanitizeFarm(null, 'u1').v, 1);
+  assert.equal(s.inv.wood, undefined);
+  const old = F.sanitizeFarm({ v: 1, debris: {}, inv: { wheat: 2 } }, 'u1');
+  assert.equal(old.v, 2); assert.deepEqual(old.seeds, F.STARTER_SEEDS); assert.equal(old.inv.wheat, 2);
+  assert.equal(F.sanitizeFarm(null, 'u1').v, 2);
 });
 test('farm debris blocks walking until cleared', () => {
   const m = getMap('farm:u1', { decor }), s = F.newFarm('u1');
@@ -204,4 +215,117 @@ test('house furniture never blocks the way out', () => {
 });
 test('ground kinds used by maps are known', () => {
   for (const m of Object.values(maps)) for (const v of m.grid.a) assert.ok(Object.values(KIND).includes(v));
+});
+
+// ---------- 經濟 ----------
+test('buy seeds, cycle seed type, ship everything', () => {
+  const s = F.newFarm('u1');
+  s.gold = 100;
+  assert.equal(F.buySeed(s, 'pumpkin', 2).ok, false, 'not enough gold');
+  assert.ok(F.buySeed(s, 'tomato', 2).ok);
+  assert.equal(s.gold, 100 - 2 * F.CROPS.tomato.seed);
+  const seen = new Set(); for (let i = 0; i < 5; i++) seen.add(F.nextSeed(s));
+  assert.deepEqual([...seen].sort(), ['carrot', 'tomato', 'wheat']);
+  s.inv = { wheat: 3, wood: 5, fish_carp: 2 };
+  const r = F.shipAll(s, { ...F.CROP_PRICES, ...FI.FISH_PRICES });
+  assert.equal(r.total, 3 * F.CROPS.wheat.sell + 2 * FI.FISH_PRICES.fish_carp);
+  assert.deepEqual(s.inv, { wood: 5 }, 'wood is kept');
+});
+test('every crop has sprites for all stages, item and seed', () => {
+  for (const k of F.CROP_KEYS) for (const n of [...F.CROPS[k].stages, `${k}Item`, `${k}Seed`]) assert.ok(ATLAS[n], n);
+});
+
+// ---------- 捏臉 ----------
+test('look sanitize, default and palette', () => {
+  assert.equal(LK.sanitizeLook([0, 0, 0, 0]), null);
+  assert.equal(LK.sanitizeLook([99, 0, 0, 0, 0]), null);
+  assert.equal(LK.sanitizeLook([0, 1.5, 0, 0, 0]), null);
+  assert.deepEqual(LK.sanitizeLook([1, 2, 3, 4, 5]), [1, 2, 3, 4, 5]);
+  assert.ok(LK.sanitizeLook(LK.defaultLook('abc')));
+  for (let i = 0; i < 50; i++) assert.ok(LK.sanitizeLook(LK.randomLook()));
+  assert.equal(LK.lookPalette([0, 0, 0, 0, 0]).map.size, 0, 'original colours need no remap');
+  const p = LK.lookPalette([0, 4, 0, 6, 0]);
+  assert.ok(p.map.size >= BODIES[0].hair.length + BODIES[0].top.length);
+});
+test('role palette keeps relative shading', () => {
+  const m = LK.rolePalette([[200, 50, 50], [120, 30, 30]], [210, 0.6, 0.5]);
+  const a = LK.rgbToHsl(m.get('200,50,50')), b = LK.rgbToHsl(m.get('120,30,30'));
+  assert.ok(a[2] > b[2]); assert.ok(Math.abs(a[0] - 210) < 3);
+});
+test('every body has colours to recolour and a face picture', () => {
+  for (const b of BODIES) { assert.ok(b.top.length + b.bottom.length > 0, b.id); assert.ok(b.name); }
+});
+
+// ---------- 釣魚 ----------
+test('fish rolls depend on place, time and contest', () => {
+  const r = FI.mulberry ? FI.mulberry(1) : Math.random;
+  for (let i = 0; i < 200; i++) {
+    const f = FI.rollFish('pond', 3, false);
+    assert.ok(f.where.includes('pond')); assert.notEqual(f.id, 'trout', 'trout only in daytime'); assert.notEqual(f.id, 'golden');
+  }
+  let golden = 0; for (let i = 0; i < 2000; i++) if (FI.rollFish('sea', 12, true).id === 'golden') golden++;
+  assert.ok(golden > 0, 'golden carp can appear during the contest');
+  for (const f of FI.FISH) if (!f.junk) assert.ok(ATLAS[`fish${f.id[0].toUpperCase()}${f.id.slice(1)}`], f.id);
+});
+test('minigame: holding keeps the bar on a calm fish and catches it; idling loses it', () => {
+  const calm = { diff: 1 };
+  const g = FI.newMinigame(calm);
+  let t = 0; const rnd = () => 0.5;
+  while (!g.done && t < 30) { FI.stepMinigame(g, 1 / 60, g.bar + g.size / 2 < g.fish, rnd); t += 1 / 60; }
+  assert.equal(g.done, 'caught');
+  const g2 = FI.newMinigame({ diff: 3 }); g2.fish = 0.9; t = 0;
+  while (!g2.done && t < 30) { FI.stepMinigame(g2, 1 / 60, false, () => 0.99); t += 1 / 60; }
+  assert.equal(g2.done, 'escaped');
+});
+
+// ---------- 活動 ----------
+const at = (h, dow = 3) => { // 2026-10-28 是星期三；回傳台北時間 h 點的毫秒
+  const base = Date.UTC(2026, 9, 28 + ((dow - 3 + 7) % 7), h - 8, 30);
+  return base;
+};
+test('events follow Taipei time', () => {
+  assert.deepEqual(EV.activeEvents(at(8)).map((e) => e.id), ['market']);
+  assert.deepEqual(EV.activeEvents(at(12)).map((e) => e.id), ['fishing']);
+  assert.deepEqual(EV.activeEvents(at(21)).map((e) => e.id), ['campfire']);
+  assert.deepEqual(EV.activeEvents(at(15)).map((e) => e.id), []);
+  assert.ok(EV.activeEvents(at(15, 6)).some((e) => e.id === 'flower'), 'Saturday flower festival');
+  const day = EV.todaySchedule(at(12));
+  assert.equal(day.find((x) => x.e.id === 'market').state, 'past');
+  assert.equal(day.find((x) => x.e.id === 'fishing' && x.from === 12).state, 'now');
+});
+test('daylight: bright noon, dark midnight, warm dusk', () => {
+  assert.equal(EV.daylight(at(12)).dark, 0);
+  assert.ok(EV.daylight(at(23)).dark > 0.5);
+  assert.ok(EV.daylight(at(17)).warm > 0.2);
+});
+test('event decorations use known sprites and never block warps or entries', () => {
+  for (const id of ['plaza', 'town']) {
+    const m = maps[id];
+    const objs = eventObjects(id, EV.EVENTS.map((e) => e.id));
+    assert.ok(objs.length > 0);
+    for (const o of objs) assert.ok(ATLAS[o.k], o.k);
+    m.dynamic = objs.filter((o) => o.foot).map((o) => ({ x0: o.x - o.foot[0] / 2, x1: o.x + o.foot[0] / 2, y0: o.y - o.foot[1], y1: o.y }));
+    for (const e of Object.values(m.entries)) assert.equal(m.blocked(e.x, e.y), false, `${id} entry blocked by event`);
+    const ok = reach(m, Object.values(m.entries)[0]);
+    for (const w of m.warps) assert.ok(ok(w.x0, w.y0, w.x1, w.y1), `${id}: event blocks warp to ${w.to}`);
+    for (const t of [...m.npcs, ...m.signs]) assert.ok([[0, 14], [0, -12], [14, 0], [-14, 0]].some(([dx, dy]) => !m.blocked(t.x + dx, t.y + dy)), `${id}: event blocks ${t.name || t.title}`);
+    m.dynamic = [];
+  }
+});
+
+// ---------- 小屋外觀 ----------
+test('exterior sanitize and yard sprites', () => {
+  assert.deepEqual(EX.sanitizeExterior({ roof: 99, wall: -1, yard: [1, 'x', 99] }), { roof: 0, wall: 0, yard: [1, 0, 0, 0] });
+  for (const k of EX.YARD) if (k) assert.ok(ATLAS[k], k);
+  for (const k of Object.keys(C.HOUSE_STYLES)) assert.ok(EX.EAVES[k], k);
+});
+test('house yard decorations never block the door or the farm path', () => {
+  for (const style of Object.keys(C.HOUSE_STYLES)) {
+    const d = C.defaultDecor(); d.style = style; d.ext.yard = [3, 7, 8, 11];
+    const m = getMap('farm:u1', { decor: d });
+    const ok = reach(m, m.entries.east);
+    const w = m.warps.find((x) => x.to.startsWith('house'));
+    assert.ok(ok(w.x0, w.y0, w.x1, w.y1), `${style}: door unreachable`);
+    for (const t of m.signs) assert.ok([[0, 14], [14, 0], [-14, 0]].some(([dx, dy]) => !m.blocked(t.x + dx, t.y + dy)), `${style}: ${t.title}`);
+  }
 });

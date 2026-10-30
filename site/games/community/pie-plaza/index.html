@@ -18,7 +18,9 @@
       <div class="frame">
         <canvas id="world" aria-label="遊戲畫面"></canvas>
         <div id="fade" aria-hidden="true"></div>
-        <div id="clock" aria-label="時間"><b id="clock-day"></b><span id="clock-time"></span></div>
+        <div id="clock" aria-label="時間與金幣"><b id="clock-day"></b><span id="clock-time"></span><span id="gold">0 G</span></div>
+        <div id="event-badge" role="status" hidden></div>
+        <div class="hud-btns"><button type="button" id="btn-look">捏臉</button><button type="button" id="btn-events">活動</button></div>
         <div id="toast" role="status" aria-live="polite"></div>
         <div id="inv" aria-label="背包"></div>
         <div id="toolbar" role="toolbar" aria-label="工具列"></div>

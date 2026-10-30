@@ -19,6 +19,8 @@ export function buildPlaza() {
     obj('treeRound', 430, 200), obj('treeRound', 418, 256), obj('treeApple', 348, 258), obj('treeSmall', 290, 246),
     obj('treeSmall', 190, 246), obj('treeRound', 268, 66), obj('rockBig', 380, 214), obj('rockBig', 96, 218),
     obj('signPost', 52, 126), obj('signPost', 428, 126),
+    obj('bulletinBoard', 330, 122, { foot: [28, 6] }),
+    obj('lampPost', 168, 124, { foot: [6, 4] }), obj('lampPost', 168, 206, { foot: [6, 4] }), obj('lampPost', 312, 206, { foot: [6, 4] }),
   ];
   const rnd = mulberry(20261030);
   const decor = scatter(rnd, g, [KIND.GRASS], 120, ['flowerY', 'flowerY2', 'flowerP', 'flowerP2', 'flowerB', 'mushA', 'mushB', 'mushC', 'mushD', 'bush', 'bushBerry', 'pebble'],
@@ -33,6 +35,7 @@ export function buildPlaza() {
     signs: [
       { x: 52, y: 126, title: '告示牌', lines: ['← 西邊：我的農場', '每個人都有一塊自己的地，先把雜草和石頭清乾淨吧！'] },
       { x: 428, y: 126, title: '告示牌', lines: ['東邊：商店街 →', '雜貨店、麵包店、餐館、鐵匠鋪、木匠屋、診所都在那裡。'] },
+      { x: 330, y: 122, title: '公告欄', lines: ['派派鎮公告欄：今天的活動都貼在這裡。'], action: 'events', reach: 20 },
     ],
     bridges: [{ x: 0, y: 128 }, { x: 448, y: 128 }],
   });

@@ -97,6 +97,19 @@ SPEC = {
     "hay": ("ninja/element.png", 192, 64, 16, 32), "strawMat": ("ninja/element.png", 208, 64, 48, 48),
     "vase": ("ninja/element.png", 0, 160, 16, 16), "rugN": ("ninja/element.png", 96, 160, 16, 16),
 }
+# grok 補畫的素材（tools/pie-plaza/process_art.py 輸出到 assets/gen/）
+for crop in ("carrot", "tomato", "pumpkin", "strawberry"):
+    for i in range(4):
+        SPEC[f"{crop}{i}"] = (f"gen/{crop}_{i}.png", 0, 0, 16, 16)
+    SPEC[f"{crop}Item"] = (f"gen/{crop}_item.png", 0, 0, 16, 16)
+    SPEC[f"{crop}Seed"] = (f"gen/{crop}_seed.png", 0, 0, 16, 16)
+for fish in ("carp", "catfish", "bass", "trout", "sardine", "tuna", "puffer", "golden"):
+    SPEC[f"fish{fish[0].upper()}{fish[1:]}"] = (f"gen/fish_{fish}.png", 0, 0, 16, 16)
+SPEC.update({
+    "junkBoot": ("gen/junk_boot.png", 0, 0, 16, 16), "rodIcon": ("gen/rod.png", 0, 0, 16, 16),
+    "campfire": ("gen/campfire.png", 0, 0, 16, 16), "lampPost": ("gen/lamp_post.png", 0, 0, 16, 32),
+    "bulletinBoard": ("gen/bulletin_board.png", 0, 0, 32, 32), "lanternString": ("gen/lantern_string.png", 0, 0, 32, 16),
+})
 
 
 def main() -> None:

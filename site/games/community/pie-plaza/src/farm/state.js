@@ -12,14 +12,19 @@ export const DEBRIS = {
   twig: { tool: 'axe', hp: 1, drop: 'wood', looks: ['log'] },
   stump: { tool: 'axe', hp: 4, drop: 'wood', looks: ['stump', 'brownRockS'] },
 };
+// seed：種子價格；sell：成品售價；grow：每階所需時間倍數（越大越慢）
+const crop = (name, seed, sell, grow) => ({ name, seed, sell, grow });
 export const CROPS = {
-  wheat: { name: '小麥', stages: ['wheat0', 'wheat1', 'wheat2', 'wheat3'], item: 'wheat' },
-  beet: { name: '甜菜', stages: ['beet0', 'beet1', 'beet2', 'beet3'], item: 'beet' },
+  wheat: crop('小麥', 10, 25, 1), carrot: crop('紅蘿蔔', 15, 40, 1), beet: crop('甜菜', 20, 55, 1.3),
+  tomato: crop('番茄', 30, 80, 1.6), strawberry: crop('草莓', 40, 110, 1.9), pumpkin: crop('南瓜', 60, 190, 2.6),
 };
-export const GROW_MS = 45_000;                      // 澆過水後多久長一階
-export const TOOLS = ['axe', 'pickaxe', 'sickle', 'hoe', 'wateringcan', 'wheat', 'beet', 'hammer'];
-export const TOOL_NAMES = { axe: '斧頭', pickaxe: '十字鎬', sickle: '鐮刀', hoe: '鋤頭', wateringcan: '澆水壺', wheat: '小麥種子', beet: '甜菜種子', hammer: '裝潢' };
-export const ITEM_NAMES = { wood: '木材', stone: '石頭', fiber: '纖維', wheat: '小麥', beet: '甜菜' };
+for (const [k, c] of Object.entries(CROPS)) { c.stages = [0, 1, 2, 3].map((i) => `${k}${i}`); c.item = k; }
+export const CROP_KEYS = Object.keys(CROPS);
+export const GROW_MS = 45_000;                      // 澆過水後多久長一階（乘上作物倍數）
+export const TOOLS = ['axe', 'pickaxe', 'sickle', 'hoe', 'wateringcan', 'rod', 'seed', 'hammer'];
+export const TOOL_NAMES = { axe: '斧頭', pickaxe: '十字鎬', sickle: '鐮刀', hoe: '鋤頭', wateringcan: '澆水壺', rod: '釣竿', seed: '種子', hammer: '裝潢' };
+export const ITEM_NAMES = { wood: '木材', stone: '石頭', fiber: '纖維', ...Object.fromEntries(Object.entries(CROPS).map(([k, c]) => [k, c.name])) };
+export const STARTER_SEEDS = { wheat: 15, carrot: 5 };
 
 const key = (x, y) => `${x},${y}`;
 export const isPath = (x, y) => (PATH_X.includes(x) && y >= FARM.house.ty && y <= PATH_Y[1]) || (PATH_Y.includes(y) && x >= PATH_X[0]);
@@ -39,21 +44,58 @@ export function newFarm(owner) {
     const d = DEBRIS[t];
     debris[key(x, y)] = { t, hp: d.hp, look: Math.floor(rnd() * d.looks.length) };
   }
-  return { v: 1, debris, tilled: {}, crops: {}, inv: { wood: 0, stone: 0, fiber: 0, wheat: 0, beet: 0 } };
+  return { v: 2, debris, tilled: {}, crops: {}, inv: {}, seeds: { ...STARTER_SEEDS }, seedSel: 'wheat', gold: 100 };
 }
 
-/** 讀檔時把壞資料清掉（localStorage 可能被手改）。 */
+const cap = (n) => Math.max(0, Math.min(999999, Math.floor(Number(n) || 0)));
+/** 讀檔時把壞資料清掉（localStorage 可能被手改）；v1 舊檔會升級並送起始種子。 */
 export function sanitizeFarm(s, owner) {
-  if (!s || typeof s !== 'object' || s.v !== 1) return newFarm(owner);
+  if (!s || typeof s !== 'object' || (s.v !== 1 && s.v !== 2)) return newFarm(owner);
   const out = newFarm(owner);
   const okKey = (k) => /^\d{1,2},\d{1,2}$/.test(k);
   out.debris = {};
   for (const [k, d] of Object.entries(s.debris || {})) if (okKey(k) && d && DEBRIS[d.t]) out.debris[k] = { t: d.t, hp: Math.max(1, Math.min(DEBRIS[d.t].hp, d.hp | 0)), look: (d.look | 0) % DEBRIS[d.t].looks.length };
   for (const [k, t] of Object.entries(s.tilled || {})) if (okKey(k) && t) out.tilled[k] = { w: Number(t.w) || 0 };
   for (const [k, c] of Object.entries(s.crops || {})) if (okKey(k) && c && CROPS[c.t] && out.tilled[k]) out.crops[k] = { t: c.t, s: Math.max(0, Math.min(3, c.s | 0)), w: Number(c.w) || 0 };
-  for (const k of Object.keys(out.inv)) out.inv[k] = Math.max(0, Math.min(99999, (s.inv && s.inv[k]) | 0));
+  for (const [k, n] of Object.entries(s.inv || {})) if (ITEM_NAMES[k] || /^fish_|^junk_/.test(k)) { const v = cap(n); if (v) out.inv[k] = v; }
+  if (s.v === 2) {
+    out.seeds = {};
+    for (const k of CROP_KEYS) { const v = cap(s.seeds && s.seeds[k]); if (v) out.seeds[k] = v; }
+    out.gold = cap(s.gold);
+    out.seedSel = CROPS[s.seedSel] ? s.seedSel : 'wheat';
+  }
   return out;
 }
+
+/** 種子選擇：Q 切換到下一種有庫存的種子。 */
+export function nextSeed(state) {
+  const have = CROP_KEYS.filter((k) => state.seeds[k] > 0);
+  if (!have.length) return state.seedSel;
+  const i = have.indexOf(state.seedSel);
+  state.seedSel = have[(i + 1) % have.length];
+  return state.seedSel;
+}
+export function buySeed(state, k, n = 1) {
+  const c = CROPS[k];
+  if (!c || n < 1) return { ok: false, msg: '' };
+  if (state.gold < c.seed * n) return { ok: false, msg: '金幣不夠' };
+  state.gold -= c.seed * n;
+  state.seeds[k] = (state.seeds[k] || 0) + n;
+  if (!state.seeds[state.seedSel]) state.seedSel = k;
+  return { ok: true, msg: `買了 ${n} 包${c.name}種子` };
+}
+/** 出貨：把作物與魚全部賣掉；prices 是 { 物品: 單價 }。 */
+export function shipAll(state, prices) {
+  let total = 0; const sold = [];
+  for (const [k, n] of Object.entries(state.inv)) {
+    const p = prices[k];
+    if (!p || !n) continue;
+    total += p * n; sold.push([k, n]); delete state.inv[k];
+  }
+  state.gold += total;
+  return { total, sold };
+}
+export const CROP_PRICES = Object.fromEntries(Object.entries(CROPS).map(([k, c]) => [k, c.sell]));
 
 /**
  * 在 (x,y) 用工具。回傳 { ok, msg, changed }；會直接修改 state。
@@ -61,7 +103,7 @@ export function sanitizeFarm(s, owner) {
  */
 export function useTool(state, tool, x, y, now) {
   const k = key(x, y);
-  if (!inField(x, y) && tool !== 'hammer') return { ok: false, msg: '這裡不能耕作' };
+  if (!inField(x, y)) return { ok: false, msg: '這裡不能耕作' };
   if (isPath(x, y)) return { ok: false, msg: '這是小路，留著走路吧' };
   const d = state.debris[k];
   if (d) {
@@ -92,11 +134,15 @@ export function useTool(state, tool, x, y, now) {
     if (crop) crop.w = now;
     return { ok: true, msg: '', changed: true, water: true };
   }
-  if (CROPS[tool]) {
+  if (tool === 'seed') {
+    const t = state.seedSel;
+    if (!CROPS[t] || !(state.seeds[t] > 0)) return { ok: false, msg: '沒有種子了，去雜貨店買吧' };
     if (!state.tilled[k]) return { ok: false, msg: '先用鋤頭翻土' };
     if (crop) return { ok: false, msg: '這裡已經種了東西' };
-    state.crops[k] = { t: tool, s: 0, w: state.tilled[k].w || 0 };
-    return { ok: true, msg: `種下${CROPS[tool].name}`, changed: true, plant: tool };
+    state.seeds[t] -= 1;
+    if (!state.seeds[t]) { delete state.seeds[t]; nextSeed(state); }
+    state.crops[k] = { t, s: 0, w: state.tilled[k].w || 0 };
+    return { ok: true, msg: `種下${CROPS[t].name}`, changed: true, plant: t };
   }
   if (tool === 'axe' || tool === 'pickaxe' || tool === 'sickle') return { ok: false, msg: '這裡沒有東西' };
   return { ok: false, msg: '' };
@@ -106,7 +152,7 @@ export function useTool(state, tool, x, y, now) {
 export function grow(state, now) {
   let changed = false;
   for (const [k, c] of Object.entries(state.crops)) {
-    if (c.s < 3 && c.w && now - c.w >= GROW_MS) { c.s += 1; c.w = 0; if (state.tilled[k]) state.tilled[k].w = 0; changed = true; }
+    if (c.s < 3 && c.w && now - c.w >= GROW_MS * CROPS[c.t].grow) { c.s += 1; c.w = 0; if (state.tilled[k]) state.tilled[k].w = 0; changed = true; }
   }
   // 沒種東西的濕土過一陣子會乾
   for (const t of Object.values(state.tilled)) if (t.w && now - t.w > GROW_MS * 2) { t.w = 0; changed = true; }

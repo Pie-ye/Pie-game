@@ -27,7 +27,6 @@ def main(sprout: Path, ninja: Path, font: Path) -> None:
         "sprout/furniture.png": sp / "Objects/Basic_Furniture.png",
         "sprout/chest.png": sp / "Objects/Chest.png",
         "sprout/chicken_house.png": sp / "Objects/Free_Chicken_House.png",
-        "ninja/boy.png": nj / "Actor/Character/Boy/SpriteSheet.png",
         "ninja/dialog.png": nj / "Ui/Dialog/DialogueBoxSimple.png",
         "audio/village.ogg": nj / "Audio/Musics/4 - Village.ogg",
         "audio/bird.wav": nj / "Audio/Sounds/Creature/Bird.wav",
@@ -44,13 +43,9 @@ def main(sprout: Path, ninja: Path, font: Path) -> None:
         "ninja/element.png": nj / "Backgrounds/Tilesets/TilesetElement.png",
         "ninja/nature.png": nj / "Backgrounds/Tilesets/TilesetNature.png",
         "ninja/interior_floor.png": nj / "Backgrounds/Tilesets/Interior/TilesetInteriorFloor.png",
-        "ninja/dialog_box.png": nj / "Ui/Dialog/DialogBox.png",
-        "ninja/faceset_box.png": nj / "Ui/Dialog/FacesetBox.png",
     }
     for tool in ["Axe", "Pickaxe", "Sickle", "Hoe", "WateringCan", "Hammer"]:
         pairs[f"ninja/tools/{tool.lower()}.png"] = nj / f"Items/Tool/{tool}.png"
-    pairs["ninja/tools/seed.png"] = nj / "Items/Food/Seed1.png"
-    pairs["ninja/tools/seed2.png"] = nj / "Items/Food/Seed2.png"
     for npc in NPCS:
         pairs[f"ninja/npc/{npc.lower()}.png"] = nj / f"Actor/Character/{npc}/SpriteSheet.png"
         pairs[f"ninja/npc/{npc.lower()}_face.png"] = nj / f"Actor/Character/{npc}/Faceset.png"

@@ -38,7 +38,7 @@ def main() -> int:
         pg.add_init_script("window.__PLAYER = {id:'u1',username:'阿派',displayName:'阿派'};")
         pg.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
         pg.on("pageerror", lambda e: errors.append(str(e)))
-        pg.goto(url)
+        pg.goto(url); pg.evaluate("localStorage.setItem('pie-plaza:look:' + window.__PLAYER.id, '[1,2,1,4,1]')"); pg.reload()
         pg.wait_for_function("window.__plaza && window.__plaza.map", timeout=15000)
         pg.wait_for_timeout(800)
         for i, (area, entry, pos) in enumerate(STOPS):

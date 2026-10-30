@@ -4,8 +4,10 @@ import { Grid, KIND } from '../engine/grid.js';
 import { obj, building, finalizeMap, scatter } from '../engine/world.js';
 import { mulberry, seedOf } from '../logic.js';
 import { FARM, DEBRIS, CROPS, isPath, POND } from '../farm/state.js';
+import { YARD, YARD_OFFSETS, EAVES, defaultExterior } from '../house/exterior.js';
 
-export function buildFarm(owner, style = 'houseThatch') {
+export function buildFarm(owner, decor = {}) {
+  const style = decor.style || 'houseThatch', ext = decor.ext || defaultExterior();
   const { w, h, house } = FARM;
   const g = new Grid(w, h, KIND.GRASS);
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (isPath(x, y)) g.set(x, y, KIND.DIRT);
@@ -13,10 +15,12 @@ export function buildFarm(owner, style = 'houseThatch') {
   const cx = house.tx * 16, base = house.ty * 16 - 1;
   const hb = building(style, cx, base, `house:${owner}`, null, '我的小屋');
   hb.warp.entry = 'door';
-  const objects = [hb.building, obj('signPost', cx - 52, base + 14), obj('chest', cx + 48, base + 12)];
+  hb.building.tint = { roof: ext.roof, wall: ext.wall, eaves: EAVES[style] || 0.6 };
+  const objects = [hb.building, obj('signPost', cx - 72, base + 14), obj('chest', cx + 70, base + 12)];
+  ext.yard.forEach((v, i) => { if (YARD[v]) objects.push(obj(YARD[v], cx + YARD_OFFSETS[i], base + 10, { foot: [10, 5] })); });
   const signs = [
-    { x: cx - 52, y: base + 14, title: '小屋設計', lines: ['要換小屋的樣子嗎？'], action: 'houseStyle' },
-    { x: cx + 48, y: base + 12, title: '出貨箱', lines: ['出貨箱：把作物放進來，隔天就會換成金幣。', '（出貨功能之後開放，背包裡的東西會先留著。）'] },
+    { x: cx - 72, y: base + 14, title: '小屋設計', lines: ['要改造小屋嗎？可以換樣式、屋頂和牆的顏色，還有門前的擺設。'], action: 'houseDesign' },
+    { x: cx + 70, y: base + 12, title: '出貨箱', lines: ['出貨箱：把作物和魚放進來換成金幣。'], action: 'ship' },
   ];
   // 四周樹林（東邊留出口）
   for (let x = 32; x < w * 16; x += 64) { objects.push(obj(x % 128 ? 'treeClump' : 'pineClump', x, 60)); objects.push(obj('pineClump', x, h * 16 + 6, { foot: [60, 24] })); }
@@ -25,10 +29,10 @@ export function buildFarm(owner, style = 'houseThatch') {
   for (let y = 150; y < h * 16 - 20; y += 40) if (y < 14 * 16 || y > 18 * 16) objects.push(obj('treeBig', w * 16 - 18, y));
   objects.push(obj('lily', POND.x0 * 16 + 30, POND.y0 * 16 + 28, { foot: null }), obj('lily', POND.x1 * 16 - 10, POND.y1 * 16 - 6, { foot: null }));
   const rnd = mulberry(seedOf(`farmdecor:${owner}`));
-  const decor = scatter(rnd, g, [KIND.GRASS], 50, ['flowerY', 'flowerP', 'flowerB', 'mushA', 'fern'], objects,
+  const flowers = scatter(rnd, g, [KIND.GRASS], 50, ['flowerY', 'flowerP', 'flowerB', 'mushA', 'fern'], objects,
     (tx, ty) => ty >= FARM.field.y0 || g.get(tx, ty - 1) !== KIND.GRASS || objects.some((o) => Math.abs(o.x - (tx * 16 + 8)) < o.w / 2 + 6 && ty * 16 + 13 > o.y - o.h && ty * 16 + 13 < o.y + 10));
   const map = finalizeMap({
-    id: `farm:${owner}`, title: '我的農場', grid: g, base: 'grass', objects: [...objects, ...decor], signs, shared: false, owner, farm: true,
+    id: `farm:${owner}`, title: '我的農場', grid: g, base: 'grass', objects: [...objects, ...flowers], signs, shared: false, owner, farm: true,
     warps: [hb.warp, { x0: w * 16 - 8, y0: 15 * 16, x1: w * 16 + 8, y1: 17 * 16, to: 'plaza', entry: 'west', label: '廣場' }],
     entries: { east: { x: w * 16 - 20, y: 16 * 16 + 4, dir: 2 }, door: { x: hb.doorX, y: base + 14, dir: 0 } },
   });
