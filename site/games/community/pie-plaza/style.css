@@ -1,0 +1,96 @@
+@font-face { font-family: Zpix; src: url('./assets/fonts/zpix.woff2') format('woff2'); font-display: swap; }
+:root {
+  --wood: #7a4a24; --wood-dark: #4a2c12; --wood-light: #a86f3a;
+  --paper: #f6e2b3; --paper-dark: #e0c488; --ink: #4a2c12; --muted: #8a6a3e;
+  --accent: #e8a43a; --accent-dark: #b9741c; --water: #4aa3c7;
+}
+* { box-sizing: border-box; }
+html, body { margin:0; height:100%; color:var(--ink); font:16px/1.6 Zpix, "PingFang TC", "Noto Sans TC", monospace; }
+body { background: var(--water) url('./assets/sprout/water.png') 0 0 / 64px 16px; }
+button, input { font:inherit; }
+
+/* 像素風木框：用疊加的方塊陰影做出階梯角 */
+.panel, #room header {
+  background: var(--paper); color: var(--ink);
+  border: 4px solid var(--wood-dark);
+  box-shadow: inset 0 0 0 3px var(--paper-dark), inset 0 0 0 5px var(--wood-light), 0 4px 0 var(--wood-dark);
+  border-radius: 6px;
+}
+
+input:not([type=checkbox]) { min-height:44px; padding:0 10px; background:#fff8e4; color:var(--ink); border:3px solid var(--wood); border-radius:4px; box-shadow:inset 2px 2px 0 var(--paper-dark); }
+button {
+  min-height:44px; padding:0 14px; cursor:pointer; color:var(--ink);
+  background:var(--paper-dark); border:3px solid var(--wood-dark); border-radius:4px;
+  box-shadow:inset 0 -4px 0 rgba(122,74,36,.35), 0 3px 0 var(--wood-dark);
+}
+button:hover:not(:disabled) { background:#ecd197; }
+button:active:not(:disabled) { transform:translateY(3px); box-shadow:inset 0 -4px 0 rgba(122,74,36,.35); }
+#chat-form button { background:var(--accent); font-weight:700; }
+#chat-form button:hover { background:#f2b552; }
+button:disabled { opacity:.5; cursor:default; }
+:focus-visible { outline:3px solid #2f6fd0; outline-offset:2px; }
+
+#room { display:grid; grid-template-columns:minmax(0,1fr) 260px; grid-template-rows:auto minmax(0,1fr); height:100%; gap:10px; padding:10px; }
+#room header { grid-column:1 / -1; display:flex; gap:12px; align-items:center; padding:6px 14px; }
+#room-title { font-size:1.1rem; letter-spacing:.2em; }
+#room-info { flex:1; color:var(--muted); font-size:.9rem; }
+#room header button { min-height:36px; }
+.stage { display:flex; align-items:center; justify-content:center; min-height:0; min-width:0; }
+.frame { position:relative; line-height:0; }
+#world {
+  max-width:100%; max-height:100%; image-rendering:pixelated; touch-action:none;
+  border:4px solid var(--wood-dark); border-radius:6px; box-shadow:0 4px 0 var(--wood-dark); background:var(--water);
+}
+#chat { display:flex; flex-direction:column; min-height:0; padding:10px; }
+#log { flex:1; overflow-y:auto; margin:0 0 8px; padding:4px 6px; list-style:none; font-size:.95rem; }
+#log li { margin:3px 0; overflow-wrap:anywhere; }
+#log .sys { color:var(--muted); }
+#log .who { font-weight:700; color:var(--wood); }
+#log .me .who { color:var(--accent-dark); }
+#chat-form { display:flex; gap:6px; }
+#chat-input { flex:1; min-width:0; }
+@media (max-width:760px) {
+  #room { grid-template-columns:1fr; grid-template-rows:auto minmax(0,1fr) 38%; }
+}
+
+/* ---------- 遊戲內介面（星露谷風：木框、羊皮紙） ---------- */
+.wood-box { background:var(--paper); border:3px solid var(--wood-dark); border-radius:4px; box-shadow:inset 0 0 0 2px var(--paper-dark), 0 3px 0 rgba(0,0,0,.35); }
+#fade { position:absolute; inset:4px; background:#000; opacity:0; pointer-events:none; transition:opacity .18s; border-radius:3px; }
+#fade.on { opacity:1; }
+#clock { position:absolute; top:12px; right:12px; display:flex; flex-direction:column; align-items:flex-end; gap:0; padding:4px 10px; line-height:1.3; font-size:.85rem; background:var(--paper); border:3px solid var(--wood-dark); border-radius:4px; box-shadow:inset 0 0 0 2px var(--paper-dark), 0 3px 0 rgba(0,0,0,.35); }
+#clock b { color:var(--wood); }
+#toast { position:absolute; top:12px; left:50%; transform:translateX(-50%); padding:4px 12px; line-height:1.5; font-size:.9rem; color:#fff3d6; background:rgba(40,24,10,.82); border-radius:4px; opacity:0; transition:opacity .2s; pointer-events:none; white-space:nowrap; }
+#toast.on { opacity:1; }
+#inv { position:absolute; top:12px; left:12px; display:flex; gap:6px; line-height:1.3; font-size:.8rem; }
+#inv span { display:flex; align-items:center; gap:3px; padding:2px 6px; background:rgba(246,226,179,.92); border:2px solid var(--wood-dark); border-radius:4px; }
+#inv i { display:inline-block; image-rendering:pixelated; }
+#toolbar { position:absolute; left:50%; bottom:10px; transform:translateX(-50%); display:flex; gap:3px; padding:4px; background:var(--paper); border:3px solid var(--wood-dark); border-radius:4px; box-shadow:inset 0 0 0 2px var(--paper-dark), 0 3px 0 rgba(0,0,0,.35); }
+#toolbar button { position:relative; width:40px; height:40px; min-height:0; padding:0; background:#f3d79d; border:2px solid var(--wood); box-shadow:none; border-radius:2px; }
+#toolbar button.on { outline:3px solid #e8452c; outline-offset:-1px; background:#ffe6ae; }
+#toolbar button:disabled { opacity:.35; }
+#toolbar button img, #toolbar button i { width:32px; height:32px; image-rendering:pixelated; display:block; margin:auto; }
+#toolbar button small { position:absolute; left:2px; top:0; font-size:.6rem; line-height:1; color:var(--wood-dark); }
+#dialog { position:absolute; left:50%; bottom:64px; transform:translateX(-50%); width:min(92%, 620px); display:flex; gap:10px; padding:10px; line-height:1.5; cursor:pointer; background:var(--paper); border:4px solid var(--wood-dark); border-radius:6px; box-shadow:inset 0 0 0 3px var(--paper-dark), inset 0 0 0 5px var(--wood-light), 0 4px 0 rgba(0,0,0,.4); }
+#dialog[hidden], #panel[hidden] { display:none; }
+#dialog .face { flex:none; width:96px; height:96px; background:#e9c98a; border:3px solid var(--wood); border-radius:4px; display:flex; align-items:center; justify-content:center; }
+#dialog .face img { width:76px; height:76px; image-rendering:pixelated; }
+#dialog .body { position:relative; flex:1; min-width:0; }
+#dialog b { display:inline-block; padding:0 8px; margin-bottom:4px; color:#fff3d6; background:var(--wood); border-radius:3px; }
+#dialog p { margin:0; font-size:1.05rem; min-height:3em; }
+#dialog .more { position:absolute; right:2px; bottom:0; color:var(--wood); animation:bob 0.8s steps(2) infinite; }
+@keyframes bob { 50% { transform:translateY(3px); } }
+#panel { position:absolute; right:12px; top:56px; bottom:64px; width:270px; display:flex; flex-direction:column; padding:8px; line-height:1.4; }
+.panel-head { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px; }
+.panel-head button { min-height:32px; }
+#panel-body { flex:1; overflow-y:auto; font-size:.9rem; }
+#panel-body h3 { margin:8px 0 4px; font-size:.9rem; color:var(--wood); }
+.chips { display:flex; flex-wrap:wrap; gap:4px; }
+.chips button { min-height:30px; padding:0 8px; font-size:.85rem; box-shadow:none; }
+.chips button.on { background:var(--accent); }
+.grid-items { display:grid; grid-template-columns:repeat(3, 1fr); gap:4px; }
+.grid-items button { min-height:64px; padding:4px 2px; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:2px; font-size:.7rem; line-height:1.1; box-shadow:none; }
+.grid-items button.on { background:var(--accent); }
+.grid-items i { display:block; image-rendering:pixelated; }
+.styles button { width:100%; min-height:90px; display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.styles button.on { background:var(--accent); }
+.styles i { display:block; image-rendering:pixelated; flex:none; }
