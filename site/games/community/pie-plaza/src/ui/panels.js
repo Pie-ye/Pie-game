@@ -12,6 +12,7 @@ document.getElementById('panel-close').addEventListener('click', () => closePane
 export function closePanel() { panel().hidden = true; const cb = onClose; onClose = null; if (cb) cb(); }
 export const panelOpen = () => !panel().hidden;
 
+export function openPanel(title, close) { return open(title, close); }
 function open(title, close) {
   document.getElementById('panel-title').textContent = title;
   const body = document.getElementById('panel-body'); body.textContent = '';

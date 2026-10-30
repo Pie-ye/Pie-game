@@ -1,6 +1,7 @@
 // 個人存檔（農場、小屋）：SDK 沒有雲端存檔，先放在瀏覽器 localStorage，依帳號區分。
 import { newFarm, sanitizeFarm } from './farm/state.js';
 import { defaultDecor, sanitizeDecor } from './house/catalog.js';
+import { sanitizeSocial } from './social/home.js';
 
 const k = (owner, what) => `pie-plaza:${what}:${owner}`;
 function read(key) { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (_e) { return null; } }
@@ -20,3 +21,5 @@ export function loadLookEntry(owner) {
 }
 export function loadLook(owner) { const e = loadLookEntry(owner); return e ? e.l : null; }
 export function saveLook(owner, l, at = Date.now()) { write(k(owner, 'look'), { l, at }); }
+export function loadSocial(owner) { return sanitizeSocial(read(k(owner, 'social'))); }
+export function saveSocial(owner, s) { write(k(owner, 'social'), s); }

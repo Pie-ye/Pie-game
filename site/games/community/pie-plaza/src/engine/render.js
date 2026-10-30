@@ -154,6 +154,7 @@ export function drawWorld(ctx, scene, map, people, cam, now, bubbleMs, opts = {}
   items.sort((a, b) => a.y - b.y);
   for (const it of items) { if (it.o) sprite(ctx, scene, it.o.k, it.o.x, it.o.y, it.o.tint); else drawPerson(ctx, scene, it.p, now); }
   for (const o of over) sprite(ctx, scene, o.k, o.x, o.y);
+  for (const p of people) if (p.emote && now < p.emote.until && inView(p.x, p.y, 16, 16)) sprite(ctx, scene, `emote${p.emote.n}`, p.x + 1, p.y - 16 - Math.round(Math.abs(Math.sin(now / 160)) * 2));
   if (opts.fishing) drawLine(ctx, opts.fishing, now);
   if (map.base !== 'void') drawNight(ctx, cam, opts.light, lightsOf(all), now, S);
   ctx.setTransform(S, 0, 0, S, -cam.x * S, -cam.y * S);

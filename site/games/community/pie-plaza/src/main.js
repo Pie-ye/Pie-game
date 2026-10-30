@@ -22,6 +22,8 @@ import { activeEvents, eventById, daylight, taipei } from './events/schedule.js'
 import { eventObjects } from './events/effects.js';
 import * as store from './store.js';
 import { createCloud } from './cloud.js';
+import { makeHome, readHome, makeCard, readCard, sanitizeSocial, isFriend, toggleFriend, canLike, readMail, takeGift, today, EMOTES, NOTE_MAX } from './social/home.js';
+import { openVisitPanel, openVisitorMenu, openMailbox, openPlayerCard, openEmotes } from './ui/social.js';
 import { packFarm, unpackFarm } from './farm/state.js';
 import { sanitizeDecor } from './house/catalog.js';
 
@@ -42,6 +44,8 @@ let farm = null, decor = null;
 let tool = 0, edit = null, hover = null, fishing = null, holding = false;
 let target = null, warpLock = 0, warping = false, lastChat = -1e9, lastSent = null, lastSentAt = 0, lastArea = null;
 let events = [], cloud = null, lookAt = 0;
+let social = sanitizeSocial(null), mails = [];
+const visits = new Map();      // 拜訪過的家園：owner -> { farm, decor, look, name, fetchedAt }
 const people = new Map();      // 其他玩家：id -> { id, name, look, x, y, tx, ty, area, dir, moving, movedAt, bubble, bubbleAt, seen, lastStep }
 
 // ---------- 聊天紀錄（一律 textContent，不吃 HTML） ----------
@@ -57,14 +61,15 @@ function addLog(text, who, cls) {
 const sys = (t) => addLog(t, '', 'sys');
 function updateInfo(extra) {
   titleEl.textContent = map ? map.title : '派派鎮';
-  infoEl.textContent = extra || (net ? `${net.online} 人在線` : '單機模式（登入後才看得到別人）');
+  infoEl.textContent = extra || (net ? `${net.count} 人在線` : '單機模式（登入後才看得到別人）');
 }
 function refreshHud() {
   if (!farm) return;
   hud.inventory(farm.inv); hud.gold(farm.gold); hud.seed(farm.seedSel, farm.seeds[farm.seedSel] || 0);
 }
-const saveFarm = () => { farm.at = Date.now(); store.saveFarm(myId, farm); refreshHud(); if (cloud) cloud.changed('farm'); };
-const saveDecor = () => { decor.at = Date.now(); store.saveDecor(myId, decor); if (cloud) cloud.changed('decor'); };
+const saveFarm = () => { farm.at = Date.now(); store.saveFarm(myId, farm); refreshHud(); if (cloud) cloud.changed('farm'); publishSoon(); };
+const saveDecor = () => { decor.at = Date.now(); store.saveDecor(myId, decor); if (cloud) cloud.changed('decor'); publishSoon(); };
+const saveSocial = () => { social.at = Date.now(); store.saveSocial(myId, social); if (cloud) cloud.changed('social'); };
 const cloudEl = $('cloud');
 const cloudStatus = (t) => { if (cloudEl) cloudEl.textContent = t ? `☁ ${t}` : ''; };
 
@@ -104,6 +109,10 @@ function checkEvents(first) {
 
 // ---------- 區域 ----------
 const personal = (kind) => `${kind}:${myId}`;
+/** 'farm:123' → '123'；共用地圖回傳 null。 */
+const ownerOf = (a) => (/^(farm|house):/.test(a) ? a.slice(a.indexOf(':') + 1) : null);
+const atHome = () => !!map && map.owner === myId;
+const visiting = () => !!map && !!map.owner && map.owner !== myId;
 function prepNpcs(m) {
   for (const n of m.npcs) {
     n.npc = true; n.moving = false; n.home = n.home || { x: n.x, y: n.y };
@@ -112,15 +121,23 @@ function prepNpcs(m) {
 }
 function toolAllowed(t) {
   if (!map) return false;
+  if (map.farm && visiting()) return t === 'wateringcan' || t === 'rod';
   if (map.farm) return t !== 'hammer';
   if (map.id === 'plaza') return t === 'rod';
   return map.id === personal('house') && t === 'hammer';
 }
 function loadArea(a, entry) {
-  const m = getMap(a, { decor });
+  const owner = ownerOf(a), host = owner && owner !== myId ? visits.get(owner) : null;
+  if (owner && owner !== myId && !host) { hud.toast('要先從「拜訪」選單進去'); return false; }
+  const m = getMap(a, { decor: host ? host.decor : decor });
   if (!m) { sys(`找不到地區：${a}`); return false; }
   if (!m.shared) m.version = Date.now();
-  if (m.farm) syncFarm(m, farm);
+  if (m.farm) syncFarm(m, host ? host.farm : farm);
+  if (host) {
+    m.title = `${host.name}的${m.farm ? '農場' : '小屋'}`;
+    m.signs = m.signs.map((t) => (t.action === 'houseDesign' ? { ...t, title: `${host.name}的信箱`, lines: [`這是${host.name}的家。要留言、稱讚或送禮嗎？`], action: 'visitor' }
+      : t.action === 'ship' ? { ...t, title: '出貨箱', lines: [`${host.name}的出貨箱。`], action: null } : t));
+  }
   prepNpcs(m);
   applyEvents(m);
   const moved = a !== area;
@@ -135,16 +152,17 @@ function loadArea(a, entry) {
   sendPose(undefined, true);
   return true;
 }
-async function warpTo(w) {
+async function goArea(to, entry) {
   if (warping) return;
   warping = true;
   audio.tool('door');
   $('fade').classList.add('on');
   await new Promise((r) => setTimeout(r, 180));
-  loadArea(w.to === 'farm' ? personal('farm') : w.to, w.entry);
+  loadArea(to, entry);
   $('fade').classList.remove('on');
   warping = false;
 }
+const warpTo = (w) => goArea(w.to === 'farm' ? personal('farm') : w.to, w.entry);
 /** 小屋外觀或裝潢改了：重建目前地圖但保留位置。 */
 function rebuildHere() {
   const keep = { x: me.x, y: me.y, dir: me.dir };
@@ -164,6 +182,7 @@ const SOUND = { weed: 'swish', stone: 'pick', twig: 'chop', stump: 'chop' };
 function act(tx, ty) {
   const t = TOOLS[tool];
   if (t === 'rod') { castRod(); return; }
+  if (map.farm && visiting()) { if (t === 'wateringcan') helpWater(tx, ty); else hud.toast('這是別人的農場：可以幫忙澆水或在池塘釣魚'); return; }
   if (!map.farm) {
     if (t === 'hammer' && map.id === personal('house')) { startEdit(); return; }
     hud.toast(map.id === 'plaza' ? '在廣場只能釣魚（選 6 釣竿）' : '這裡不能用工具'); return;
@@ -215,6 +234,7 @@ function doAction(action) {
   else if (action === 'market') openSeedShop('山姆的早市攤（八折）', () => farm.gold, buyAt, 0.8);
   else if (action === 'houseDesign') openDesign();
   else if (action === 'events') openEventBoard(Date.now());
+  else if (action === 'visitor') openVisitor();
   else if (action === 'ship') {
     const r = shipAll(farm, SELL);
     if (!r.total) { hud.toast('背包裡沒有可以出貨的作物或魚'); return; }
@@ -229,7 +249,7 @@ function openDesign() {
     if (p.wall != null) decor.ext.wall = p.wall;
     if (p.yard) decor.ext.yard[p.yard[0]] = p.yard[1];
     saveDecor();
-    if (map.farm) rebuildHere(); else hud.toast('改好了，回農場看看吧！');
+    if (map.farm && atHome()) rebuildHere(); else hud.toast('改好了，回農場看看吧！');
   }, null);
 }
 
@@ -323,9 +343,139 @@ function openLook(first) {
   openCreator(scene, me.look || defaultLook(myId), (l) => {
     me.look = l; lookAt = Date.now(); store.saveLook(myId, l, lookAt);
     if (cloud) cloud.changed('look');
+    publishSoon();
     if (net) net.send({ k: 'l', l });
     hud.toast(first ? '歡迎來到派派鎮！' : '換好造型了！');
   }, { first });
+}
+
+// ---------- 社交：拜訪家園 ----------
+let publishTimer = null;
+/** 自己的家園快照與名片：改動後 15 秒內合併上傳（公開與否看設定），並通知正在拜訪的人。 */
+function publishSoon(ms = 15000) {
+  if (!net || !net.storage) return;
+  clearTimeout(publishTimer);
+  publishTimer = setTimeout(publishHome, ms);
+}
+async function publishHome() {
+  if (!net || !net.storage || !farm || !decor) return;
+  const look = me.look || defaultLook(myId);
+  try {
+    await net.storage.put('home', makeHome({ farm, decor, look, name: myName }), { public: social.open });
+    await net.storage.put('card', makeCard({ farm, decor, look, name: myName, likes: social.likes }), { public: social.open });
+    net.send({ k: 'h' });
+  } catch (_e) { publishSoon(30000); }
+}
+async function fetchHome(owner) {
+  const r = await net.storage.peek(owner, 'home');
+  const home = readHome(r.value, owner);
+  if (home) visits.set(owner, { ...home, fetchedAt: performance.now() });
+  return home;
+}
+async function visit(owner, name) {
+  if (!net || !net.storage) { hud.toast('登入後才能拜訪別人的家'); return; }
+  if (owner === myId) { goArea(personal('farm'), 'door'); return; }
+  hud.toast(`前往${name || '鎮民'}的家…`);
+  try {
+    const home = await fetchHome(owner);
+    if (!home) { hud.toast(`${name || '對方'}的家園沒有開放拜訪`, 2500); return; }
+    goArea(`farm:${owner}`, 'east');
+    sys(`🏡 你來到了${home.name}的農場。在信箱前按 E 可以留言、稱讚或送禮。`);
+  } catch (_e) { hud.toast('現在連不上，稍後再試'); }
+}
+/** 主人改了家園：正在拜訪的人重新讀一次（最多 4 秒一次）。 */
+async function refreshVisit(owner) {
+  const v = visits.get(owner);
+  if (!v || performance.now() - v.fetchedAt < 4000 || ownerOf(area) !== owner) return;
+  try { if (await fetchHome(owner)) rebuildHere(); } catch (_e) { /* 下次再說 */ }
+}
+const waterToasts = new Map();
+/** 訪客幫主人澆水：主人在線上才行，由主人自己的遊戲寫入（主人是唯一能改自己農場的人）。 */
+function helpWater(tx, ty) {
+  const owner = map.owner, host = visits.get(owner), key = `${tx},${ty}`;
+  if (!host.farm.tilled[key]) { hud.toast('這裡沒有翻過的土'); audio.tool('nope'); return; }
+  if (!people.has(owner)) { hud.toast(`${host.name}不在線上，沒辦法幫忙澆水`); audio.tool('nope'); return; }
+  if (host.farm.tilled[key].w) { hud.toast('已經澆過水了'); return; }
+  me.acting = performance.now() + 220;
+  net.send({ k: 'w', x: tx, y: ty }, owner);
+  host.farm.tilled[key].w = Date.now();
+  if (host.farm.crops[key]) host.farm.crops[key].w = Date.now();
+  syncFarm(map, host.farm); audio.tool('water');
+}
+function onHelpWater(id, d) {
+  const p = people.get(id);
+  if (!p || !farm || !Number.isInteger(d.x) || !Number.isInteger(d.y)) return;
+  const key = `${d.x},${d.y}`, t = farm.tilled[key];
+  if (!t || t.w) return;
+  t.w = Date.now();
+  if (farm.crops[key]) farm.crops[key].w = t.w;
+  saveFarm();
+  if (map.farm && atHome()) syncFarm(map, farm);
+  const n = (waterToasts.get(id) || 0) + 1; waterToasts.set(id, n);
+  if (n === 1) setTimeout(() => { const c = waterToasts.get(id); waterToasts.delete(id); sys(`💧 ${p.name} 幫你的農場澆了 ${c} 格水`); hud.toast(`💧 ${p.name} 幫你澆水了`, 2500); }, 2500);
+}
+function openVisitor() {
+  const owner = map.owner, host = visits.get(owner);
+  if (!host || !net) return;
+  openVisitorMenu(scene, { id: owner, name: host.name, look: host.look }, farm.inv, {
+    canLike: canLike(social, owner, today()),
+    isFriend: (id) => isFriend(social, id),
+    onFriend: () => { const f = toggleFriend(social, owner, host.name); saveSocial(); hud.toast(f ? `已加${host.name}為好友` : '已取消好友'); return f; },
+    onLike: () => { social.liked[owner] = today(); saveSocial(); net.mail.send(owner, 'like', {}).then(() => hud.toast('👍 已稱讚！')).catch(() => hud.toast('稱讚沒送出，稍後再試')); audio.tool('harvest'); },
+    onNote: (text) => { const t = cleanText(text, NOTE_MAX); if (!t) return; net.mail.send(owner, 'note', { text: t }).then(() => hud.toast('✉ 留言已投進信箱')).catch((e) => hud.toast(e.code === 'mail_rate_limited' ? '寄太多了，等一下再寄' : '留言沒送出')); },
+    onGift: (k) => {
+      if (!takeGift(farm.inv, k)) return false;
+      saveFarm();
+      net.mail.send(owner, 'gift', { item: k, n: 1 }).then(() => hud.toast(`🎁 送出了！`))
+        .catch(() => { farm.inv[k] = (farm.inv[k] || 0) + 1; saveFarm(); hud.toast('禮物沒送出，已放回背包'); });
+      audio.tool('harvest');
+      return true;
+    },
+  });
+}
+
+// ---------- 社交：信箱、好友、表情 ----------
+async function loadMail() {
+  if (!net || !net.mail) return;
+  try { mails = (await net.mail.list()).map(readMail).filter(Boolean); } catch (_e) { return; }
+  const b = $('mail-badge'); b.textContent = mails.length ? String(mails.length) : ''; b.hidden = !mails.length;
+}
+async function openMail() {
+  if (!net || !net.mail) { hud.toast('登入後才有信箱'); return; }
+  await loadMail();
+  openMailbox(mails, {
+    onVisit: (id, name) => visit(id, name),
+    onDelete: (m) => { net.mail.delete([m.id]).then(loadMail); },
+    onLikes: async (likes) => {
+      const n = await net.mail.delete(likes.map((m) => m.id)).catch(() => 0);
+      if (n) { social.likes += n; saveSocial(); publishSoon(1000); hud.toast(`👍 收下 ${n} 個稱讚（累積 ${social.likes}）`); }
+      loadMail();
+    },
+    onClaim: async (m) => {
+      // 先刪信再入帳：別台裝置同時收也只會成功一次
+      const n = await net.mail.delete([m.id]).catch(() => 0);
+      if (n) { farm.inv[m.item] = (farm.inv[m.item] || 0) + m.n; saveFarm(); audio.tool('harvest'); hud.toast(`🎁 收下了！`); }
+      loadMail();
+    },
+  });
+}
+function openVisits() {
+  if (!net || !net.storage) { hud.toast('登入後才能拜訪別人的家'); return; }
+  const online = net.online().map((p) => ({ ...p, look: (people.get(p.id) || {}).look }));
+  const onlineIds = new Set(online.map((p) => p.id));
+  const cards = net.storage.list('card').then((items) => items.map((it) => { const c = readCard(it.value); return c && { ...c, id: String(it.user) }; })
+    .filter((c) => c && c.id !== myId).sort((a, b) => b.likes - a.likes || b.at - a.at));
+  openVisitPanel(scene, { online, friends: social.friends.map((f) => ({ ...f, online: onlineIds.has(f.id), look: (people.get(f.id) || {}).look })), cards }, {
+    myOpen: social.open,
+    onToggleOpen: (open) => { social.open = open; saveSocial(); publishSoon(500); hud.toast(open ? '家園開放拜訪中' : '家園已關閉拜訪'); },
+    onVisit: (id, name) => visit(id, name),
+    isFriend: (id) => isFriend(social, id),
+    onFriend: (id, name) => { const f = toggleFriend(social, id, name); saveSocial(); return f; },
+  });
+}
+function emote(i) {
+  me.emote = { n: EMOTES[i], until: performance.now() + 2600 };
+  if (net) net.send({ k: 'm', e: i });
 }
 
 // ---------- 連線 ----------
@@ -360,8 +510,12 @@ async function connect() {
         p.bubble = text; p.bubbleAt = performance.now();
         addLog(text, p.name); audio.received();
       },
+      mail(m) { loadMail(); hud.toast(m.kind === 'like' ? '👍 有人稱讚了你的家園' : m.kind === 'gift' ? '🎁 有人送你禮物，打開信箱看看' : '✉ 收到新的留言', 2500); },
       other(id, d) {
         const p = person(id);
+        if (d.k === 'h') { refreshVisit(id); return; }
+        if (d.k === 'w') { onHelpWater(id, d); return; }
+        if (d.k === 'm') { if (Number.isInteger(d.e) && EMOTES[d.e]) p.emote = { n: EMOTES[d.e], until: performance.now() + 2600 }; return; }
         if (d.k === 'l') { const l = sanitizeLook(d.l); if (l) p.look = l; }
         else if (d.k === 'f' && isOn('fishing')) {
           const f = FISH.find((x) => x.id === d.f);
@@ -372,13 +526,15 @@ async function connect() {
     });
     if (net.offline) { sys(net.reason); net = null; updateInfo(); cloudStatus('本機（未登入）'); return; }
     myId = net.me.id; myName = net.me.name; me.id = myId;
-    farm = store.loadFarm(myId); decor = store.loadDecor(myId);
+    farm = store.loadFarm(myId); decor = store.loadDecor(myId); social = store.loadSocial(myId);
     const le = store.loadLookEntry(myId); me.look = le && sanitizeLook(le.l); lookAt = le ? le.at : 0;
     refreshHud();
     if (area.startsWith('farm:') || area.startsWith('house:')) loadArea(personal(area.split(':')[0]), null);
     updateInfo();
     await startCloud();
     if (!me.look && !creatorOpen()) openLook(true); else sendLook();
+    loadMail();
+    publishSoon(3000);
     setInterval(() => sendPose(), POS_TICK_MS);
   } catch (err) { net = null; updateInfo(`連線失敗：${errText(err)}（單機模式）`); }
 }
@@ -390,13 +546,17 @@ async function startCloud() {
       local: () => farm, at: (f) => f.at || 0, pack: packFarm, unpack: (v) => unpackFarm(v, myId),
       apply(f, src) {
         farm = f; store.saveFarm(myId, farm); refreshHud();
-        if (map && map.farm) syncFarm(map, farm);
+        if (map && map.farm && atHome()) syncFarm(map, farm);
         if (src === 'conflict') hud.toast('已載入另一台裝置較新的農場進度', 3000);
       },
     },
     decor: {
       local: () => decor, at: (d) => d.at || 0, pack: store.decorData, unpack: (v) => sanitizeDecor(v),
-      apply(d) { decor = d; store.saveDecor(myId, decor); if (here()) rebuildHere(); },
+      apply(d) { decor = d; store.saveDecor(myId, decor); if (atHome()) rebuildHere(); },
+    },
+    social: {
+      local: () => social, at: (x) => x.at || 0, pack: (x) => x, unpack: (v) => sanitizeSocial(v),
+      apply(x) { social = x; store.saveSocial(myId, social); },
     },
     look: {
       local: () => (me.look ? { l: me.look, at: lookAt } : null), at: (e) => e.at || 0, pack: (e) => e,
@@ -433,6 +593,9 @@ muteBtn.addEventListener('click', () => { audio.unlock(); audio.setMuted(!audio.
 paintMute();
 $('btn-look').addEventListener('click', () => { if (scene && !creatorOpen()) openLook(false); });
 $('btn-events').addEventListener('click', () => openEventBoard(Date.now()));
+$('btn-visit').addEventListener('click', openVisits);
+$('btn-mail').addEventListener('click', openMail);
+$('btn-emote').addEventListener('click', () => openEmotes(emote));
 $('chat-form').addEventListener('submit', (e) => {
   e.preventDefault();
   const input = $('chat-input');
@@ -459,6 +622,7 @@ addEventListener('keydown', (e) => {
   if (/^[1-8]$/.test(e.key)) { selectTool(Number(e.key) - 1); return; }
   if (k === 'q' && farm) { nextSeed(farm); refreshHud(); hud.toast(`種子：${CROPS[farm.seedSel].name}`); return; }
   if (k === 'e' || k === 'x') { e.preventDefault(); interact(); return; }
+  if (k === 't') { e.preventDefault(); openEmotes(emote); return; }
   if (k === 'c') { e.preventDefault(); if (!fishingPress() && !interact()) { const f = facingTile(me); act(f.tx, f.ty); } return; }
   if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) { keys.add(k); target = null; e.preventDefault(); }
 });
@@ -480,6 +644,17 @@ canvas.addEventListener('pointerdown', (e) => {
   if (fishing) { holding = true; fishingPress(); return; }
   const w = worldAt(e), t = tileOf(w.x, w.y);
   if (edit) { editClick(t.tx, t.ty); return; }
+  // 點到同一區的其他玩家：名片（拜訪、打招呼、好友）
+  const other = [...people.values()].find((p) => p.area === area && Math.hypot(p.x - w.x, p.y - 8 - w.y) < 10);
+  if (other) {
+    openPlayerCard(scene, other, {
+      isFriend: (id) => isFriend(social, id),
+      onFriend: () => { const f = toggleFriend(social, other.id, other.name); saveSocial(); return f; },
+      onVisit: () => visit(other.id, other.name),
+      onWave: () => { me.dir = dirOf(other.x - me.x, other.y - me.y, me.dir); emote(1); if (net) net.sendChat(`👋 嗨，${other.name}！`); addLog(`👋 嗨，${other.name}！`, '我', 'me'); },
+    });
+    return;
+  }
   // 點到附近的 NPC 或告示牌：轉身對話
   const near = [...map.npcs, ...map.signs].find((o) => Math.hypot(o.x - w.x, o.y - 8 - w.y) < 14);
   if (near && Math.hypot(near.x - me.x, near.y - me.y) < (near.reach || 0) + 34) { me.dir = dirOf(near.x - me.x, near.y - me.y, me.dir); interact(); return; }
@@ -543,7 +718,7 @@ function frame(now) {
       const pl = placeAt(f, ox, oy);
       opts.ghost = { k: f.k, x: pl.x, y: pl.y, ok: canPlace(decor.items, f.k, ox, oy) };
     } else if (edit && hover) opts.cursor = { ...hover, ok: !!itemAt(decor.items, hover.tx, hover.ty) };
-    else if (map.farm && !dialog.open && TOOLS[tool] !== 'rod') {
+    else if (map.farm && !dialog.open && TOOLS[tool] !== 'rod' && (atHome() || TOOLS[tool] === 'wateringcan')) {
       const mine = tileOf(me.x, me.y - 2);
       const h = hover && Math.max(Math.abs(hover.tx - mine.tx), Math.abs(hover.ty - mine.ty)) === 1 ? hover : facingTile(me);
       opts.cursor = { ...h, ok: true };
@@ -560,7 +735,7 @@ function frame(now) {
     if (now - lastEvents > 5000) { checkEvents(false); lastEvents = now; }
     if (farm && now - lastGrow > 1000) {
       lastGrow = now;
-      if (grow(farm, Date.now())) { saveFarm(); if (map.farm) syncFarm(map, farm); }
+      if (grow(farm, Date.now())) { saveFarm(); if (map.farm && atHome()) syncFarm(map, farm); }
     }
   }
   requestAnimationFrame(frame);
@@ -583,7 +758,8 @@ start();
 // 測試用：讓瀏覽器測試能讀到目前狀態
 window.__plaza = {
   get area() { return area; }, get me() { return me; }, get farm() { return farm; }, get decor() { return decor; }, get map() { return map; },
-  get fishing() { return fishing; }, get events() { return events; }, get cloud() { return cloud; }, people,
+  get fishing() { return fishing; }, get events() { return events; }, get cloud() { return cloud; }, get social() { return social; }, get mails() { return mails; }, people, visits,
+  visit: (id, name) => visit(id, name), publish: () => publishHome(), emote: (i) => emote(i),
   warp: (to, entry) => loadArea(to === 'farm' || to === 'house' ? personal(to) : to, entry),
   setEvents: (ids) => { events = ids; applyEvents(map); },
   touch: () => saveFarm(),

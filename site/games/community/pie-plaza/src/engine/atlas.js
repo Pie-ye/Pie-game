@@ -180,6 +180,16 @@ export const ATLAS = {
   fishTuna: ["gen/fish_tuna.png", 0, 3, 15, 9],
   fishPuffer: ["gen/fish_puffer.png", 2, 2, 13, 12],
   fishGolden: ["gen/fish_golden.png", 0, 0, 15, 13],
+  emote27: ["ninja/emote/e27.png", 0, 0, 14, 13],
+  emote6: ["ninja/emote/e6.png", 0, 0, 14, 13],
+  emote18: ["ninja/emote/e18.png", 0, 0, 14, 13],
+  emote22: ["ninja/emote/e22.png", 0, 0, 14, 13],
+  emote23: ["ninja/emote/e23.png", 0, 0, 14, 13],
+  emote20: ["ninja/emote/e20.png", 0, 0, 14, 13],
+  emote13: ["ninja/emote/e13.png", 0, 0, 14, 13],
+  emote29: ["ninja/emote/e29.png", 0, 0, 14, 13],
+  emote17: ["ninja/emote/e17.png", 0, 0, 14, 13],
+  emote28: ["ninja/emote/e28.png", 0, 0, 14, 13],
   junkBoot: ["gen/junk_boot.png", 1, 1, 13, 12],
   rodIcon: ["gen/rod.png", 0, 1, 16, 15],
   campfire: ["gen/campfire.png", 2, 1, 13, 15],
@@ -188,4 +198,4 @@ export const ATLAS = {
   lanternString: ["gen/lantern_string.png", 0, 1, 32, 10],
 };
 export const DOORS = {"houseOrange": [-8.0, 14], "houseBeige": [-8.0, 14], "houseOrange2": [-8.0, 14], "shopRed": [-8.0, 14], "shopBurger": [0.0, 14], "shopDark": [-9.0, 8], "shopBakery": [0.0, 16], "houseAngle": [0.0, 16], "houseChimney": [-7.5, 13], "houseThatch": [-7.5, 13], "houseWood": [-7.0, 13], "houseSmall": [0.0, 14]};
-export const SHEETS = ["gen/bulletin_board.png", "gen/campfire.png", "gen/carrot_0.png", "gen/carrot_1.png", "gen/carrot_2.png", "gen/carrot_3.png", "gen/carrot_item.png", "gen/carrot_seed.png", "gen/fish_bass.png", "gen/fish_carp.png", "gen/fish_catfish.png", "gen/fish_golden.png", "gen/fish_puffer.png", "gen/fish_sardine.png", "gen/fish_trout.png", "gen/fish_tuna.png", "gen/junk_boot.png", "gen/lamp_post.png", "gen/lantern_string.png", "gen/pumpkin_0.png", "gen/pumpkin_1.png", "gen/pumpkin_2.png", "gen/pumpkin_3.png", "gen/pumpkin_item.png", "gen/pumpkin_seed.png", "gen/rod.png", "gen/strawberry_0.png", "gen/strawberry_1.png", "gen/strawberry_2.png", "gen/strawberry_3.png", "gen/strawberry_item.png", "gen/strawberry_seed.png", "gen/tomato_0.png", "gen/tomato_1.png", "gen/tomato_2.png", "gen/tomato_3.png", "gen/tomato_item.png", "gen/tomato_seed.png", "ninja/element.png", "ninja/house.png", "ninja/nature.png", "sprout/biom.png", "sprout/bridge.png", "sprout/chest.png", "sprout/chicken_house.png", "sprout/furniture.png", "sprout/plants.png"];
+export const SHEETS = ["gen/bulletin_board.png", "gen/campfire.png", "gen/carrot_0.png", "gen/carrot_1.png", "gen/carrot_2.png", "gen/carrot_3.png", "gen/carrot_item.png", "gen/carrot_seed.png", "gen/fish_bass.png", "gen/fish_carp.png", "gen/fish_catfish.png", "gen/fish_golden.png", "gen/fish_puffer.png", "gen/fish_sardine.png", "gen/fish_trout.png", "gen/fish_tuna.png", "gen/junk_boot.png", "gen/lamp_post.png", "gen/lantern_string.png", "gen/pumpkin_0.png", "gen/pumpkin_1.png", "gen/pumpkin_2.png", "gen/pumpkin_3.png", "gen/pumpkin_item.png", "gen/pumpkin_seed.png", "gen/rod.png", "gen/strawberry_0.png", "gen/strawberry_1.png", "gen/strawberry_2.png", "gen/strawberry_3.png", "gen/strawberry_item.png", "gen/strawberry_seed.png", "gen/tomato_0.png", "gen/tomato_1.png", "gen/tomato_2.png", "gen/tomato_3.png", "gen/tomato_item.png", "gen/tomato_seed.png", "ninja/element.png", "ninja/emote/e13.png", "ninja/emote/e17.png", "ninja/emote/e18.png", "ninja/emote/e20.png", "ninja/emote/e22.png", "ninja/emote/e23.png", "ninja/emote/e27.png", "ninja/emote/e28.png", "ninja/emote/e29.png", "ninja/emote/e6.png", "ninja/house.png", "ninja/nature.png", "sprout/biom.png", "sprout/bridge.png", "sprout/chest.png", "sprout/chicken_house.png", "sprout/furniture.png", "sprout/plants.png"];

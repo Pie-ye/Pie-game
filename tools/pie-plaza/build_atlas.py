@@ -105,6 +105,8 @@ for crop in ("carrot", "tomato", "pumpkin", "strawberry"):
     SPEC[f"{crop}Seed"] = (f"gen/{crop}_seed.png", 0, 0, 16, 16)
 for fish in ("carp", "catfish", "bass", "trout", "sardine", "tuna", "puffer", "golden"):
     SPEC[f"fish{fish[0].upper()}{fish[1:]}"] = (f"gen/fish_{fish}.png", 0, 0, 16, 16)
+for n in (27, 6, 18, 22, 23, 20, 13, 29, 17, 28):
+    SPEC[f"emote{n}"] = (f"ninja/emote/e{n}.png", 0, 0, 14, 13)
 SPEC.update({
     "junkBoot": ("gen/junk_boot.png", 0, 0, 16, 16), "rodIcon": ("gen/rod.png", 0, 0, 16, 16),
     "campfire": ("gen/campfire.png", 0, 0, 16, 16), "lampPost": ("gen/lamp_post.png", 0, 0, 16, 32),

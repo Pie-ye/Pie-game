@@ -11,6 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2] / "site/games/community/pie-plaza/assets"
 # 商店街 NPC：店主與路人（Ninja Adventure 角色與對話頭像）
+EMOTES = [27, 6, 18, 22, 23, 20, 13, 29, 17, 28]   # 愛心、開心、微笑、驚訝、疑問、無言、難過、閃亮、生氣、想睡
 NPCS = ["OldMan2", "Hunter", "Woman", "Villager4", "Cavegirl2", "OldMan", "Noble", "Child", "OldWoman", "Villager3"]
 
 
@@ -46,6 +47,8 @@ def main(sprout: Path, ninja: Path, font: Path) -> None:
     }
     for tool in ["Axe", "Pickaxe", "Sickle", "Hoe", "WateringCan", "Hammer"]:
         pairs[f"ninja/tools/{tool.lower()}.png"] = nj / f"Items/Tool/{tool}.png"
+    for n in EMOTES:
+        pairs[f"ninja/emote/e{n}.png"] = nj / f"Ui/Emote/emote{n}.png"
     for npc in NPCS:
         pairs[f"ninja/npc/{npc.lower()}.png"] = nj / f"Actor/Character/{npc}/SpriteSheet.png"
         pairs[f"ninja/npc/{npc.lower()}_face.png"] = nj / f"Actor/Character/{npc}/Faceset.png"

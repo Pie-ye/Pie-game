@@ -292,6 +292,9 @@ export class MultiplayerClient {
    * 雲端存檔（每位玩家在這款遊戲自己的資料，跨裝置）：
    *   const { value, rev } = await client.storage.get('farm');      // 沒有存過時 value 為 null、rev 為 0
    *   await client.storage.put('farm', data, { ifRev: rev });       // 帶 ifRev 時若別台裝置先存過會丟 save_conflict（err.current 是伺服器上的版本）
+   *   await client.storage.put('card', data, { public: true });    // 公開：同一款遊戲的其他玩家可以讀
+   *   const { value } = await client.storage.peek(userId, 'card'); // 讀別人公開的值（沒公開時 value 為 null）
+   *   const items = await client.storage.list('card');             // 所有公開的小型值（≤4 KB），新的在前，最多 50 筆：[{ user, value, updatedAt }]
    * 鍵：小寫英數、- 和 _，最多 32 字；每個值 48 KB 內；每人每款遊戲最多 16 個鍵；每分鐘最多寫 30 次。
    */
   get storage() {
@@ -300,8 +303,26 @@ export class MultiplayerClient {
       put: (key, value, opts = {}) => {
         const body = { type: 'save:put', key, value };
         if (opts.ifRev != null) body.ifRev = opts.ifRev;
+        if (opts.public != null) body.public = Boolean(opts.public);
         return this._saveRequest(body);
       },
+      peek: (user, key) => this._saveRequest({ type: 'save:peek', user: String(user), key }),
+      list: (key) => this._saveRequest({ type: 'save:list', key }).then((r) => r.items || []),
+    };
+  }
+
+  /**
+   * 信箱（同一款遊戲的玩家互寄小型訊息，寄件人由伺服器填入）：
+   *   await client.mail.send(userId, 'note', { text: '你好' });    // kind：小寫英文 1–12 字；data ≤1 KB；每分鐘 10 封
+   *   const items = await client.mail.list();                       // [{ id, from, fromName, kind, data, createdAt }]，新的在前，最多 100 封
+   *   await client.mail.delete([id, ...]);
+   * 收件人在線上時會收到 'mail' 事件 { from, kind }。
+   */
+  get mail() {
+    return {
+      send: (to, kind, data) => this._saveRequest({ type: 'mail:send', to: String(to), kind, data }),
+      list: () => this._saveRequest({ type: 'mail:list' }).then((r) => r.items || []),
+      delete: (ids) => this._saveRequest({ type: 'mail:delete', ids }).then((r) => r.count || 0),
     };
   }
 
@@ -328,7 +349,8 @@ export class MultiplayerClient {
     this._saves.delete(msg.rid);
     clearTimeout(entry.timer);
     if (msg.type === 'error') entry.reject(Object.assign(new Error(msg.code || 'error'), { code: msg.code, current: msg.current }));
-    else entry.resolve({ value: msg.value === undefined ? null : msg.value, rev: msg.rev || 0, updatedAt: msg.updatedAt == null ? null : msg.updatedAt });
+    else if (msg.type === 'save' || msg.type === 'saved') entry.resolve({ value: msg.value === undefined ? null : msg.value, rev: msg.rev || 0, updatedAt: msg.updatedAt == null ? null : msg.updatedAt });
+    else { const { type: _t, rid: _r, ...rest } = msg; entry.resolve(rest); }
     return true;
   }
 
@@ -512,8 +534,12 @@ export class MultiplayerClient {
     }
     if (msg.type === 'pong' || msg.type === 'welcome') return;
     // 存檔的回覆與錯誤靠 rid 配對，不能拿去結算房間請求
-    if (msg.type === 'save' || msg.type === 'saved' || (msg.type === 'error' && msg.rid)) {
+    if (['save', 'saved', 'saveList', 'mailSent', 'mailList', 'mailDeleted'].includes(msg.type) || (msg.type === 'error' && msg.rid)) {
       this._settleSave(msg);
+      return;
+    }
+    if (msg.type === 'mail') {
+      this._emit('mail', { from: msg.from, kind: msg.kind });
       return;
     }
     if (msg.type === 'error') {

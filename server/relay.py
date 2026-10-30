@@ -37,6 +37,7 @@ IDLE_TIMEOUT_SECONDS = 75
 # 存檔訊息可以比一般訊息大（一般訊息會被廣播，存檔只到伺服器）；另外限制每分鐘寫入次數
 MAX_SAVE_MESSAGE_BYTES = MAX_VALUE_BYTES + 1024
 MAX_SAVE_WRITES_PER_MINUTE = 30
+MAX_MAIL_PER_MINUTE = 10
 REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
 
 PRIVATE_CODE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
@@ -57,6 +58,7 @@ class Connection:
     message_times: deque[float] = field(default_factory=deque)
     lobby_subscribed: bool = False
     save_times: deque[float] = field(default_factory=deque)
+    mail_times: deque[float] = field(default_factory=deque)
     heartbeat_task: asyncio.Task[None] | None = None
 
     @property
@@ -342,6 +344,11 @@ class Relay:
             "pong": self._client_pong,
             "save:get": self._save_get,
             "save:put": self._save_put,
+            "save:peek": self._save_peek,
+            "save:list": self._save_list,
+            "mail:send": self._mail_send,
+            "mail:list": self._mail_list,
+            "mail:delete": self._mail_delete,
         }
         handler = handlers.get(message_type)
         if handler is None:
@@ -678,12 +685,13 @@ class Relay:
         if if_rev is not None and (not isinstance(if_rev, int) or isinstance(if_rev, bool) or if_rev < 0):
             await self._save_reply(connection, {"type": "error", "code": "bad_message", "rid": rid})
             return
-        if "value" not in payload:
+        public = payload.get("public", False)
+        if "value" not in payload or not isinstance(public, bool):
             await self._save_reply(connection, {"type": "error", "code": "bad_message", "rid": rid})
             return
         window.append(now)
         try:
-            saved = await self.saves.put(connection.game_id, connection.user_id, payload.get("key"), payload["value"], if_rev)
+            saved = await self.saves.put(connection.game_id, connection.user_id, payload.get("key"), payload["value"], if_rev, public)
         except SaveError as err:
             reply: dict[str, Any] = {"type": "error", "code": err.code, "rid": rid}
             if err.current is not None:
@@ -694,6 +702,84 @@ class Relay:
             await self._save_reply(connection, {"type": "error", "code": "bad_message", "rid": rid})
             return
         await self._save_reply(connection, {"type": "saved", "rid": rid, "key": payload.get("key"), **saved})
+
+    async def _store_call(self, connection: Connection, rid: str | None, fn, *args):
+        """呼叫存檔庫；失敗時回錯誤並傳回 None。"""
+        if self.saves is None:
+            await self._save_reply(connection, {"type": "error", "code": "save_unavailable", "rid": rid})
+            return None
+        try:
+            return await fn(*args)
+        except SaveError as err:
+            await self._save_reply(connection, {"type": "error", "code": err.code, "rid": rid})
+        except (TypeError, ValueError):
+            await self._save_reply(connection, {"type": "error", "code": "bad_message", "rid": rid})
+        return None
+
+    async def _save_peek(self, connection: Connection, payload: dict[str, Any]) -> None:
+        """讀別人公開的存檔（拜訪家園）；沒公開或不存在都回 value: null。"""
+        rid = self._request_id(payload)
+        if self.saves is None:
+            await self._save_reply(connection, {"type": "error", "code": "save_unavailable", "rid": rid})
+            return
+        found = await self._store_call(connection, rid, self._peek, connection.game_id, payload.get("user"), payload.get("key"))
+        if found is not None:
+            value = found or {}
+            await self._save_reply(connection, {"type": "save", "rid": rid, "key": payload.get("key"), "user": payload.get("user"),
+                                                "value": value.get("value"), "rev": 0, "updatedAt": value.get("updatedAt")})
+
+    async def _peek(self, game_id, user, key):
+        found = await self.saves.peek(game_id, user, key)
+        return found if found is not None else {}
+
+    async def _save_list(self, connection: Connection, payload: dict[str, Any]) -> None:
+        rid = self._request_id(payload)
+        items = await self._store_call(connection, rid, self.saves.list_public if self.saves else None, connection.game_id, payload.get("key"))
+        if items is not None:
+            await self._save_reply(connection, {"type": "saveList", "rid": rid, "key": payload.get("key"), "items": items})
+
+    async def _mail_send(self, connection: Connection, payload: dict[str, Any]) -> None:
+        rid = self._request_id(payload)
+        now = self.clock()
+        window = connection.mail_times
+        while window and now - window[0] >= 60:
+            window.popleft()
+        if len(window) >= MAX_MAIL_PER_MINUTE:
+            await self._save_reply(connection, {"type": "error", "code": "mail_rate_limited", "rid": rid})
+            return
+        if "data" not in payload:
+            await self._save_reply(connection, {"type": "error", "code": "bad_message", "rid": rid})
+            return
+        window.append(now)
+        sent = await self._store_call(
+            connection, rid, self.saves.mail_send if self.saves else None, connection.game_id, connection.user_id,
+            connection.display_name or connection.username, payload.get("to"), payload.get("kind"), payload["data"],
+        )
+        if sent is None:
+            return
+        await self._save_reply(connection, {"type": "mailSent", "rid": rid, **sent})
+        # 收件人在線上（同一款遊戲）就推通知，讓他重新抓信箱
+        targets = [c for uid, conns in list(self.connections_by_user.items()) if str(uid) == payload.get("to") for c in list(conns)]
+        for other in targets:
+            if other.game_id == connection.game_id and not other.ws.closed:
+                with contextlib.suppress(ConnectionError, RuntimeError):
+                    await other.ws.send_json({"type": "mail", "from": connection.user_id, "kind": payload.get("kind")})
+
+    async def _mail_list(self, connection: Connection, payload: dict[str, Any]) -> None:
+        rid = self._request_id(payload)
+        items = await self._store_call(connection, rid, self.saves.mail_list if self.saves else None, connection.game_id, connection.user_id)
+        if items is not None:
+            await self._save_reply(connection, {"type": "mailList", "rid": rid, "items": items})
+
+    async def _mail_delete(self, connection: Connection, payload: dict[str, Any]) -> None:
+        rid = self._request_id(payload)
+        ids = payload.get("ids")
+        if not isinstance(ids, list):
+            await self._save_reply(connection, {"type": "error", "code": "bad_message", "rid": rid})
+            return
+        n = await self._store_call(connection, rid, self.saves.mail_delete if self.saves else None, connection.game_id, connection.user_id, ids)
+        if n is not None:
+            await self._save_reply(connection, {"type": "mailDeleted", "rid": rid, "count": n})
 
     async def _send_error(self, connection: Connection, code: str) -> None:
         await self._send_ws_error(connection.ws, code)

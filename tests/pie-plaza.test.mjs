@@ -386,13 +386,13 @@ test('cloud: conflict adopts a newer remote copy, otherwise retries with the ser
   st.db.a = { value: { at: 999, n: 'other device' }, rev: 5 };
   a.v = { at: 500, n: 'mine' };
   cloud.changed('a');
-  await new Promise((res) => setTimeout(res, 3100));
+  await new Promise((res) => setTimeout(res, 4200));
   assert.equal(a.v.n, 'other device'); assert.equal(a.src, 'conflict');
   // 這次我們比較新：拿到伺服器版本號後重送
   st.db.a = { value: { at: 100 }, rev: 9 };
   a.v = { at: 2000, n: 'mine newer' };
   cloud.changed('a');
-  await new Promise((res) => setTimeout(res, 3200));
+  await new Promise((res) => setTimeout(res, 4300));
   assert.equal(st.db.a.value.n, 'mine newer'); assert.equal(st.db.a.rev, 10);
 });
 test('cloud: without storage it stays local and never throws', async () => {
@@ -402,4 +402,65 @@ test('cloud: without storage it stays local and never throws', async () => {
   cloud.changed('a'); cloud.resume();
   assert.equal(statuses.at(-1), '本機');
   await tick();
+});
+
+// ---------- 拜訪與社交 ----------
+const SO = await import(`${SRC}/social/home.js`);
+test('home snapshot round trip hides gold, backpack and seeds', () => {
+  const farm = F.newFarm('u1'); farm.gold = 9999; farm.inv = { pumpkin: 5 }; farm.seeds = { tomato: 3 }; farm.at = 5;
+  farm.tilled['22,12'] = { w: 1790000000000 }; farm.crops['22,12'] = { t: 'tomato', s: 2, w: 1790000000000 };
+  const d = C.defaultDecor(); d.style = 'houseWood'; d.ext.roof = 2;
+  const home = SO.makeHome({ farm, decor: d, look: [1, 2, 3, 4, 5], name: '阿派' });
+  const text = JSON.stringify(home);
+  assert.ok(!text.includes('9999') && !text.includes('pumpkin') && !text.includes('"seeds"'), 'private data stays private');
+  assert.ok(Buffer.byteLength(text) < 40 * 1024);
+  const back = SO.readHome(JSON.parse(text), 'u1');
+  assert.equal(back.name, '阿派'); assert.equal(back.decor.style, 'houseWood'); assert.equal(back.decor.ext.roof, 2);
+  assert.deepEqual(back.farm.crops['22,12'], { t: 'tomato', s: 2, w: 1790000000000 });
+  assert.equal(Object.keys(back.farm.debris).length, Object.keys(farm.debris).length);
+  assert.equal(back.farm.gold, 0);
+  assert.deepEqual(back.look, [1, 2, 3, 4, 5]);
+  assert.equal(SO.readHome({ v: 9 }, 'u1'), null);
+  assert.equal(SO.readHome({ v: 1, name: '<b>x</b>', field: { d: [[1, 1, 99, 1, 1]] }, look: 'bad' }, 'u1').look, null);
+});
+test('a visited farm and house build from the snapshot and have working warps', () => {
+  const home = SO.readHome(SO.makeHome({ farm: F.newFarm('u9'), decor: C.defaultDecor(), look: null, name: 'B' }), 'u9');
+  const fm = getMap('farm:u9', { decor: home.decor }), hm = getMap('house:u9', { decor: home.decor });
+  syncFarm(fm, home.farm);
+  assert.equal(fm.owner, 'u9'); assert.equal(hm.owner, 'u9');
+  assert.ok(fm.warps.some((w) => w.to === 'house:u9')); assert.ok(hm.warps.some((w) => w.to === 'farm:u9'));
+  const ok = reach(fm, fm.entries.east);
+  const door = fm.warps.find((w) => w.to === 'house:u9');
+  assert.ok(ok(door.x0, door.y0, door.x1, door.y1), 'visitor can walk from the bridge to the house');
+});
+test('directory card is small and readable', () => {
+  const farm = F.newFarm('u1');
+  const card = SO.makeCard({ farm, decor: C.defaultDecor(), look: [0, 0, 0, 1, 0], name: '很長的名字'.repeat(10), likes: 7 });
+  assert.ok(Buffer.byteLength(JSON.stringify(card)) < 1024);
+  const c = SO.readCard(JSON.parse(JSON.stringify(card)));
+  assert.equal(c.likes, 7); assert.equal(Array.from(c.name).length, 20);
+  assert.equal(SO.readCard({ v: 1, likes: -5, crops: 'x' }).likes, 0);
+  assert.equal(SO.readCard(null), null);
+});
+test('social settings, friends and daily likes', () => {
+  const s = SO.sanitizeSocial({ v: 1, open: false, friends: [{ id: 'u2', name: '小菲' }, { id: 5 }, null], liked: { u2: '2026-10-30', u3: 'bad' }, likes: 3 });
+  assert.equal(s.open, false); assert.deepEqual(s.friends, [{ id: 'u2', name: '小菲' }]); assert.deepEqual(s.liked, { u2: '2026-10-30' });
+  assert.equal(SO.toggleFriend(s, 'u3', 'C'), true); assert.equal(SO.isFriend(s, 'u3'), true);
+  assert.equal(SO.toggleFriend(s, 'u3', 'C'), false);
+  assert.equal(SO.canLike(s, 'u2', '2026-10-30'), false); assert.equal(SO.canLike(s, 'u2', '2026-10-31'), true);
+  assert.equal(SO.sanitizeSocial(null).open, true, 'homes are open by default');
+  assert.equal(SO.today(Date.UTC(2026, 9, 30, 17, 0)), '2026-10-31', 'Taipei date');
+});
+test('mail is validated and gifts move items safely', () => {
+  assert.equal(SO.readMail({ id: 1, from: 'u2', fromName: '小菲', kind: 'note', data: { text: ' 你好‮ ' } }).text, '你好');
+  assert.equal(SO.readMail({ id: 2, kind: 'note', data: { text: '   ' } }), null);
+  assert.equal(SO.readMail({ id: 3, kind: 'gift', data: { item: 'wood', n: 1 } }), null, 'only crops and fish can be gifts');
+  assert.equal(SO.readMail({ id: 4, kind: 'gift', data: { item: 'pumpkin', n: 500 } }), null);
+  assert.equal(SO.readMail({ id: 5, kind: 'gift', data: { item: 'fish_tuna', n: 2 } }).n, 2);
+  assert.equal(SO.readMail({ id: 6, kind: 'hack', data: {} }), null);
+  const inv = { pumpkin: 1, wood: 9 };
+  assert.equal(SO.takeGift(inv, 'wood'), false);
+  assert.equal(SO.takeGift(inv, 'pumpkin'), true); assert.deepEqual(inv, { wood: 9 });
+  assert.equal(SO.takeGift(inv, 'pumpkin'), false);
+  for (const n of SO.EMOTES) assert.ok(ATLAS[`emote${n}`], `emote${n}`);
 });

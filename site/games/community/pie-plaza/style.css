@@ -142,3 +142,22 @@ button:disabled { opacity:.5; cursor:default; }
 .hud-btns button { min-height:32px; padding:0 8px; font-size:.8rem; }
 #toolbar button em.count { position:absolute; right:2px; bottom:0; font-style:normal; font-size:.65rem; line-height:1; color:var(--wood-dark); }
 #cloud { color:var(--muted); font-size:.8rem; white-space:nowrap; }
+
+/* ---------- 社交 ---------- */
+.chk-line { display:flex; align-items:center; gap:6px; padding:6px; background:#fff1c9; border:2px solid var(--paper-dark); border-radius:4px; }
+.chk-line input { width:18px; height:18px; min-height:0; accent-color:var(--wood); }
+.people { display:flex; flex-direction:column; gap:4px; }
+.person-row { display:flex; align-items:center; gap:6px; padding:4px; background:#fff8e4; border:2px solid var(--paper-dark); border-radius:4px; }
+.person-row .avatar { width:32px; height:32px; image-rendering:pixelated; background:#e9c98a; border-radius:3px; flex:none; }
+.person-info { flex:1; min-width:0; display:flex; flex-direction:column; line-height:1.25; }
+.person-info b { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.person-info small { color:var(--muted); font-size:.72rem; }
+.person-row button { min-height:30px; padding:0 8px; box-shadow:none; font-size:.8rem; }
+.person-row button.star { padding:0 6px; color:#c48a10; }
+.menu-btns { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0; }
+.menu-btns button { min-height:36px; font-size:.85rem; }
+#panel textarea { width:100%; font:inherit; font-size:.9rem; padding:6px; background:#fff8e4; color:var(--ink); border:3px solid var(--wood); border-radius:4px; resize:vertical; }
+.mail { position:relative; padding:6px 8px; margin:6px 0; background:#fff8e4; border:2px solid var(--paper-dark); border-radius:4px; }
+.mail p { margin:2px 0 4px; overflow-wrap:anywhere; }
+.mail button { min-height:28px; padding:0 8px; margin-right:4px; font-size:.8rem; box-shadow:none; }
+.hud-btns .badge { display:inline-block; min-width:16px; margin-left:3px; padding:0 4px; font-size:.7rem; line-height:16px; color:#fff; background:#d0402a; border-radius:8px; }

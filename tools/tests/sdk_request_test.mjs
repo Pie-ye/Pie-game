@@ -157,6 +157,30 @@ assert((await roomWhileSaving)[0].id === 'r9', 'room request unaffected by save 
 const ok = client.storage.put('look', [1, 2]);
 ws.peer({ type: 'saved', rid: ws.sent[ws.sent.length - 1].rid, key: 'look', rev: 1, updatedAt: 5 });
 assert((await ok).rev === 1, 'put resolves with new rev');
+// 公開、拜訪、名冊、信箱
+const pubPut = client.storage.put('card', { n: 1 }, { public: true });
+assert(ws.sent[ws.sent.length - 1].public === true, 'put forwards public flag');
+ws.peer({ type: 'saved', rid: ws.sent[ws.sent.length - 1].rid, key: 'card', rev: 1, updatedAt: 1 });
+await pubPut;
+const peekP = client.storage.peek(42, 'home');
+const peekMsg = ws.sent[ws.sent.length - 1];
+assert(peekMsg.type === 'save:peek' && peekMsg.user === '42', 'peek stringifies the user id');
+ws.peer({ type: 'save', rid: peekMsg.rid, key: 'home', user: '42', value: { a: 1 }, rev: 0, updatedAt: 3 });
+assert((await peekP).value.a === 1, 'peek resolves value');
+const listP = client.storage.list('card');
+ws.peer({ type: 'saveList', rid: ws.sent[ws.sent.length - 1].rid, key: 'card', items: [{ user: 'u2', value: {} }] });
+assert((await listP)[0].user === 'u2', 'list resolves items');
+const mailP = client.mail.send('u2', 'note', { text: 'hi' });
+const mailMsg = ws.sent[ws.sent.length - 1];
+assert(mailMsg.type === 'mail:send' && mailMsg.to === 'u2' && mailMsg.kind === 'note', 'mail.send sends mail:send');
+ws.peer({ type: 'mailSent', rid: mailMsg.rid, id: 7, createdAt: 1 });
+assert((await mailP).id === 7, 'mail.send resolves id');
+const inboxP = client.mail.list();
+ws.peer({ type: 'mailList', rid: ws.sent[ws.sent.length - 1].rid, items: [{ id: 7 }] });
+assert((await inboxP)[0].id === 7, 'mail.list resolves items');
+let pushed = null; client.on('mail', (m) => { pushed = m; });
+ws.peer({ type: 'mail', from: 'u3', kind: 'like' });
+assert(pushed && pushed.from === 'u3', 'mail push emits mail event');
 const pendingSave = client.storage.get('farm');
 ws.close();
 try {

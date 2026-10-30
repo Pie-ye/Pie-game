@@ -140,12 +140,18 @@ site/games/community/
 | `send(data, to?)` | 廣播或密語 |
 | `setState(key, value)` | 僅房主 |
 | `kick(playerId)` | 僅房主 |
+| `storage.get(key)` | 雲端存檔：讀自己在這款遊戲的資料，`{value, rev, updatedAt}`（沒存過 `value=null`、`rev=0`） |
+| `storage.put(key, value, {ifRev, public})` | 寫入。帶 `ifRev` 時若別台裝置先存過會丟 `save_conflict`（`err.current` 是伺服器版本）；`public: true` 讓同一款遊戲的其他玩家能讀 |
+| `storage.peek(userId, key)` | 讀別人**公開**的值（沒公開或不存在 `value=null`） |
+| `storage.list(key)` | 某個鍵所有公開的小型值（≤4 KB），新的在前，最多 50 筆：`[{user, value, updatedAt}]` |
+| `mail.send(userId, kind, data)` | 寄信給同一款遊戲的玩家；寄件人 id 與名稱由伺服器填入 |
+| `mail.list()`／`mail.delete(ids)` | 自己的收件匣（新的在前，最多 100 封）／刪自己的信 |
 | `on(event, cb)` | 見下 |
 | `me` | `{id, username, displayName}` |
 | `room` | 目前房間快照 |
 | `isHost` | 是否為房主 |
 
-事件：`rooms`（大廳房間增減或人數變動，伺服器主動推，`{rooms, total}`；已在房內不會收到）、`joined`、`playerJoined`、`playerLeft`、`hostChanged`、`message`、`state`、`error`、`disconnected`、`reconnected`。
+事件：`rooms`（大廳房間增減或人數變動，伺服器主動推，`{rooms, total}`；已在房內不會收到）、`mail`（有人寄信給你，`{from, kind}`）、`joined`、`playerJoined`、`playerLeft`、`hostChanged`、`message`、`state`、`error`、`disconnected`、`reconnected`。
 
 SDK 只接受 `event.source === window.parent` 的訊息；會自動回 `pong`；斷線用指數退避重連，並向外框要新 ticket（`pg:ticket`），成功後自動回到原房。
 
@@ -159,6 +165,14 @@ SDK 只接受 `event.source === window.parent` 的訊息；會自動回 `pong`�
 - `setState` 每房最多 64 個 key、key ≤ 64 字元、整份 state ≤ 64 KB（超過回 `state_too_large`）
 - 伺服器重啟會清空所有房間（請自己處理斷線）
 - 房主裁定規則，**不能用金幣**
+
+## 雲端存檔與信箱限制
+
+- 身分取自多人連線（一次性通行證），未登入的獨立模式沒有雲端存檔，請自己退回 `localStorage`
+- 鍵：小寫英數、`-`、`_`，1–32 字；每個值 ≤ 48 KB；每人每款遊戲最多 16 個鍵；每連線每分鐘最多寫 30 次（`save_rate_limited`）
+- 資料依（遊戲, 帳號）隔離；只有 `public: true` 的值別人讀得到，改回 `false` 立刻不公開
+- 信：`kind` 為小寫英文 1–12 字、`data` ≤ 1 KB；每連線每分鐘 10 封（`mail_rate_limited`）；每個收件匣只留最新 100 封
+- 存檔與信箱的回覆不會觸發 `error` 事件，錯誤由 Promise 拒絕（`err.code`）
 
 ## 本機開發
 
