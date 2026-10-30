@@ -1,4 +1,4 @@
-"""派派鎮的伺服器端遊戲服務：玩家資料、農場動作、拜訪、共同耕作、跳蚤市場、釣魚、許願池、海獅表演。
+"""派派鎮的伺服器端遊戲服務：玩家資料、農場動作、拜訪、共同耕作、跳蚤市場、釣魚、許願池、海獅表演、鎮民交易所。
 
 所有規則在伺服器執行（plaza_logic.py），瀏覽器只送操作、收結果。資料存在與雲端存檔同一個 SQLite：
   plaza_players（每位玩家一份 JSON）與 plaza_market（市場掛單）。
@@ -50,6 +50,12 @@ SCHEMA = (
         created_at  REAL NOT NULL
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS plaza_exchange (
+        k TEXT PRIMARY KEY,
+        v TEXT NOT NULL
+    )
+    """,
 )
 
 
@@ -70,6 +76,8 @@ class PlazaService:
         self.players: dict[str, dict[str, Any]] = {}
         self.dirty: set[str] = set()
         self.market: dict[int, dict[str, Any]] = {}
+        self.ex: dict[str, Any] = {}
+        self.ex_dirty = False
         self._loading: dict[str, asyncio.Future] = {}
         self._tasks: list[asyncio.Task] = []
         self._cast_seq = 0
@@ -78,6 +86,8 @@ class PlazaService:
                 store._db.execute(statement)
             for row in store._db.execute("SELECT id, seller, seller_name, item, n, price, created_at FROM plaza_market"):
                 self.market[row[0]] = {"id": row[0], "seller": row[1], "sellerName": row[2], "item": row[3], "n": row[4], "price": row[5], "at": row[6]}
+            row = store._db.execute("SELECT v FROM plaza_exchange WHERE k='state'").fetchone()
+        self.ex = L.sanitize_exchange(json.loads(row[0]) if row else None, self.now_ms())
 
     def now_ms(self) -> int:
         return int(self.clock() * 1000)
@@ -101,8 +111,6 @@ class PlazaService:
                 await self.flush()
 
     async def flush(self) -> None:
-        if not self.dirty:
-            return
         rows = []
         for uid in list(self.dirty):
             rec = self.players.get(uid)
@@ -110,14 +118,21 @@ class PlazaService:
                 rows.append((uid, json.dumps(rec, ensure_ascii=False, separators=(",", ":")), rec["name"], 1 if rec["social"]["open"] else 0,
                              rec["social"]["likes"], json.dumps(self._card(rec), ensure_ascii=False), self.clock()))
         self.dirty.clear()
-        await asyncio.to_thread(self._write_players, rows)
+        ex = json.dumps(self.ex, ensure_ascii=False, separators=(",", ":")) if self.ex_dirty else None
+        self.ex_dirty = False
+        if rows or ex is not None:
+            await asyncio.to_thread(self._write_players, rows, ex)
 
-    def _write_players(self, rows: list[tuple]) -> None:
+    def _write_players(self, rows: list[tuple], ex: str | None = None) -> None:
         with self.store._lock:
-            self.store._db.executemany(
-                "INSERT INTO plaza_players (user_id, data, name, open, likes, card, updated_at) VALUES (?,?,?,?,?,?,?) "
-                "ON CONFLICT(user_id) DO UPDATE SET data=excluded.data, name=excluded.name, open=excluded.open, "
-                "likes=excluded.likes, card=excluded.card, updated_at=excluded.updated_at", rows)
+            if rows:
+                self.store._db.executemany(
+                    "INSERT INTO plaza_players (user_id, data, name, open, likes, card, updated_at) VALUES (?,?,?,?,?,?,?) "
+                    "ON CONFLICT(user_id) DO UPDATE SET data=excluded.data, name=excluded.name, open=excluded.open, "
+                    "likes=excluded.likes, card=excluded.card, updated_at=excluded.updated_at", rows)
+            if ex is not None:
+                self.store._db.execute(
+                    "INSERT INTO plaza_exchange (k, v) VALUES ('state', ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", (ex,))
 
     async def _tick_loop(self, relay) -> None:
         """有人在看的農場：作物依伺服器時間成長，變化推給所有觀看者。"""
@@ -133,6 +148,7 @@ class PlazaService:
                     if changed:
                         self.dirty.add(owner)
                         await self._broadcast_patch(relay, owner, changed, by=None, kind="grow")
+                await self._run_exchange(relay)
 
     # ---------- 玩家資料 ----------
     async def load(self, uid: str, name: str | None = None, *, create: bool = True) -> dict[str, Any] | None:
@@ -183,7 +199,7 @@ class PlazaService:
     def private_view(self, rec: dict[str, Any]) -> dict[str, Any]:
         s = rec["social"]
         return {"name": rec["name"], "farm": L.pack_farm(rec["farm"]), "inv": rec["inv"], "seeds": rec["seeds"], "seedSel": rec["seedSel"],
-                "gold": rec["gold"], "decor": rec["decor"], "look": rec["look"],
+                "gold": rec["gold"], "shares": L.shares_of(rec), "decor": rec["decor"], "look": rec["look"],
                 "social": {"open": s["open"], "friends": s["friends"], "coop": s["coop"], "likes": s["likes"], "liked": s["liked"]},
                 "now": self.now_ms()}
 
@@ -213,7 +229,7 @@ class PlazaService:
         if rec is None:
             return
         payload = {"type": "game", "op": "me", "inv": rec["inv"], "gold": rec["gold"], "seeds": rec["seeds"], "seedSel": rec["seedSel"],
-                   "likes": rec["social"]["likes"], **fields}
+                   "shares": L.shares_of(rec), "likes": rec["social"]["likes"], **fields}
         for c in self._conns_of(relay, uid):
             await self._send(c, payload)
 
@@ -256,7 +272,7 @@ class PlazaService:
         return v
 
     def _mine(self, rec: dict[str, Any]) -> dict[str, Any]:
-        return {"inv": rec["inv"], "gold": rec["gold"], "seeds": rec["seeds"], "seedSel": rec["seedSel"]}
+        return {"inv": rec["inv"], "gold": rec["gold"], "seeds": rec["seeds"], "seedSel": rec["seedSel"], "shares": L.shares_of(rec)}
 
     # ---------- 自己 ----------
     async def op_load(self, relay, conn, me, rec, p):
@@ -320,11 +336,21 @@ class PlazaService:
         r = L.buy_seed(rec, p.get("crop"), p.get("n"), discount)
         if not r["ok"]:
             raise GameError("buy_failed", r["msg"])
+        n = p.get("n") if isinstance(p.get("n"), int) else 1
+        L.note_act(self.ex, "GROC", max(1, n))
+        self.ex_dirty = True
         self.dirty.add(me)
         return {"msg": r["msg"], **self._mine(rec)}
 
     async def op_ship(self, relay, conn, me, rec, p):
         r = L.ship_all(rec)
+        for k, n in r["sold"]:
+            if k == "wheat":
+                L.note_act(self.ex, "BAKE", n)
+            elif isinstance(k, str) and k.startswith("fish_"):
+                L.note_act(self.ex, "FISH", n)
+        if r["sold"]:
+            self.ex_dirty = True
         self.dirty.add(me)
         return {"total": r["total"], "sold": r["sold"], **self._mine(rec)}
 
@@ -422,8 +448,8 @@ class PlazaService:
         if kind == "sysgift" and data.get("item") in L.ITEMS:
             n = max(1, min(99, int(data.get("n") or 1)))
             rec["inv"][data["item"]] = rec["inv"].get(data["item"], 0) + n
-        elif kind == "syssold":
-            pass                                                  # 錢在成交時已經入帳，這裡只是讀過
+        elif kind in ("syssold", "sysdiv"):
+            pass                                                  # 錢在成交／發息時已經入帳，這裡只是讀過
         self.dirty.add(me)
         return self._mine(rec)
 
@@ -536,6 +562,8 @@ class PlazaService:
         if not fish.get("junk"):
             k = f"fish_{fish['id']}"
             rec["inv"][k] = rec["inv"].get(k, 0) + 1
+            L.note_act(self.ex, "FISH", 1)
+            self.ex_dirty = True
             self.dirty.add(me)
         return {"fish": fish["id"], "caught": True, "size": size, "contest": cast["contest"], **self._mine(rec)}
 
@@ -557,6 +585,8 @@ class PlazaService:
             reward = {"kind": "seed", "item": crop, "n": 3}
         else:
             reward = {"kind": "none"}
+        L.note_act(self.ex, "WISH", 1)
+        self.ex_dirty = True
         self.dirty.add(me)
         return {"reward": reward, **self._mine(rec)}
 
@@ -571,5 +601,56 @@ class PlazaService:
         crop = self.rng.choice(L.CROP_KEYS)
         n = 2 if item != "fish_golden" else 10
         rec["seeds"][crop] = rec["seeds"].get(crop, 0) + n
+        L.note_act(self.ex, "SHOW", 1)
+        self.ex_dirty = True
         self.dirty.add(me)
         return {"reward": {"kind": "seed", "item": crop, "n": n}, **self._mine(rec)}
+
+    # ---------- 派派鎮民交易所 ----------
+    async def _run_exchange(self, relay) -> None:
+        now = self.now_ms()
+        if L.tick_exchange(self.ex, now, self.rng):
+            self.ex_dirty = True
+        due = L.dividend_due(self.ex, now)
+        if not due:
+            return
+        self.ex["divDay"] = due
+        self.ex["divMid"] = dict(self.ex["mid"])
+        self.ex_dirty = True
+        mids = self.ex["divMid"]
+        for uid, rec in list(self.players.items()):
+            if rec.get("divDay") == due:
+                continue
+            gold = L.pay_dividend(rec, mids)
+            rec["divDay"] = due
+            self.dirty.add(uid)
+            if gold:
+                await self._notify(relay, uid, "sys", "妮可", "sysdiv", {"gold": gold})
+                await self._push_me(relay, uid)
+
+    def _pay_div_for(self, uid: str, rec: dict[str, Any]) -> int:
+        due = self.ex.get("divDay")
+        if not due or rec.get("divDay") == due:
+            return 0
+        gold = L.pay_dividend(rec, self.ex.get("divMid") or self.ex["mid"])
+        rec["divDay"] = due
+        self.dirty.add(uid)
+        return gold
+
+    async def op_quote(self, relay, conn, me, rec, p):
+        await self._run_exchange(relay)
+        div = self._pay_div_for(me, rec)
+        view = L.quote_view(self.ex, rec, self.now_ms())
+        if div:
+            view["div"] = div
+            await self._notify(relay, me, "sys", "妮可", "sysdiv", {"gold": div})
+        return view
+
+    async def op_trade(self, relay, conn, me, rec, p):
+        await self._run_exchange(relay)
+        self._pay_div_for(me, rec)
+        r = L.apply_trade(rec, self.ex, p.get("side"), p.get("ticker"), p.get("n"), self.now_ms())
+        if not r["ok"]:
+            raise GameError(r["code"], r["msg"])
+        self.dirty.add(me)
+        return {**r, **L.quote_view(self.ex, rec, self.now_ms()), **self._mine(rec)}

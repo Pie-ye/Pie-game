@@ -16,16 +16,20 @@ export function buildTown() {
   const objects = [], warps = [], signs = [];
   const base = roadY * 16 - 1;                                   // 店面底部貼著主街
   for (const s of SHOPS) {
-    const b = building(s.k, s.cx, base, `shop:${s.id}`, null, s.title);
+    const south = !!s.south;
+    const y = south ? laneY * 16 - 1 : base;
+    const road = south ? laneY : roadY;
+    const b = building(s.k, s.cx, y, `shop:${s.id}`, null, s.title);
     b.warp.entry = 'door';
     objects.push(b.building); warps.push(b.warp);
     const sx = b.doorX + (b.doorX < s.cx ? 26 : -26);
-    objects.push(obj('signSmall', sx, base + 12, { foot: [10, 5] }));
-    signs.push({ x: sx, y: base + 12, title: s.title, lines: [`【${s.title}】`, '營業時間：早上 9 點到傍晚 5 點。', '面向門口按 ↑ 就能進去。'] });
-    g.rect(Math.floor((b.doorX - 8) / 16), roadY - 1, Math.floor((b.doorX + 7) / 16), roadY - 1, KIND.DIRT);
+    objects.push(obj('signSmall', sx, y + 12, { foot: [10, 5] }));
+    const hours = south ? '用金幣買賣五檔鎮民指數。營業 09:00–16:00（台北）。' : '營業時間：早上 9 點到傍晚 5 點。';
+    signs.push({ x: sx, y: y + 12, title: s.title, lines: [`【${s.title}】`, hours, '面向門口按 ↑ 就能進去。'] });
+    g.rect(Math.floor((b.doorX - 8) / 16), road - 1, Math.floor((b.doorX + 7) / 16), road - 1, KIND.DIRT);
   }
-  // 南邊住宅（門朝下，面向住宅巷）
-  const homes = [['houseOrange', 104], ['houseOrange2', 232], ['houseChimney', 680], ['houseSmall', 792], ['houseWood', 600]];
+  // 南邊住宅（門朝下，面向住宅巷；木造那棟已改成交易所）
+  const homes = [['houseOrange', 104], ['houseOrange2', 232], ['houseChimney', 680], ['houseSmall', 792]];
   for (const [k, cx] of homes) objects.push(obj(k, cx, laneY * 16 - 1));
   // 北邊樹林（店面後方）與四周邊界
   for (let x = 32; x < w * 16; x += 64) { objects.push(obj(x % 128 ? 'treeClump' : 'pineClump', x, 64)); objects.push(obj(x % 192 ? 'treeClump2' : 'treeClump', x + 32, 128, { foot: [60, 10] })); }

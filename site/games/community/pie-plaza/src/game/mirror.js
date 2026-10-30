@@ -8,15 +8,16 @@ export function fieldFromPacked(packed, owner) {
 }
 /** 自己的完整資料（load 的 me）→ 農場物件（和舊格式相同的欄位，給畫面與 HUD 用）。 */
 export function playerFarm(me, owner) {
-  return { ...fieldFromPacked(me.farm, owner), inv: { ...(me.inv || {}) }, seeds: { ...(me.seeds || {}) }, seedSel: me.seedSel || 'wheat', gold: me.gold | 0 };
+  return { ...fieldFromPacked(me.farm, owner), inv: { ...(me.inv || {}) }, seeds: { ...(me.seeds || {}) }, seedSel: me.seedSel || 'wheat', gold: me.gold | 0, shares: { ...(me.shares || {}) } };
 }
-/** 伺服器的「自己」欄位（背包、金幣、種子）覆蓋到農場物件上。 */
+/** 伺服器的「自己」欄位（背包、金幣、種子、持股）覆蓋到農場物件上。 */
 export function applyMine(farm, r) {
   if (!r) return;
   if (r.inv) farm.inv = { ...r.inv };
   if (r.seeds) farm.seeds = { ...r.seeds };
   if (r.seedSel) farm.seedSel = r.seedSel;
   if (Number.isFinite(r.gold)) farm.gold = r.gold;
+  if (r.shares) farm.shares = { ...r.shares };
 }
 /** 一格或多格的修補：{ "x,y": { d, t, c } }，null 表示沒有。 */
 export function applyTiles(farm, tiles) {

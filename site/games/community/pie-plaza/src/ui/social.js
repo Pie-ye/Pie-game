@@ -119,6 +119,9 @@ export function openMailbox(items, opts) {
     } else if (m.kind === 'coop') {
       card.append(el('b', null, `🤝 ${m.from.name} 邀請你共同耕作`), el('p', null, '你可以在他的農場使用所有農具。'));
       card.append(btn('去看看', () => { opts.onRead([m]); opts.onVisit(m.from.id, m.from.name); }), btn('知道了', () => { opts.onRead([m]); card.remove(); }));
+    } else if (m.kind === 'div') {
+      card.append(el('b', null, `📈 週一股息`), el('p', null, `${m.gold} G 已經入帳。`));
+      card.append(btn('知道了', () => { opts.onRead([m]); card.remove(); }));
     }
     body.append(card);
   }

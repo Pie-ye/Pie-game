@@ -17,6 +17,7 @@ import { openDecor, openHouseDesign, openSeedShop, openEventBoard, closePanel, p
 import { openCreator, creatorOpen } from './ui/creator.js';
 import { showFishing, hideFishing, drawFishing } from './ui/fishingUI.js';
 import { openMarket } from './ui/market.js';
+import { openExchange } from './ui/exchange.js';
 import { openVisitPanel, openVisitorMenu, openMailbox, openPlayerCard, openEmotes } from './ui/social.js';
 import { TOOLS, CROPS, useTool, debrisLeft, CROP_KEYS } from './farm/state.js';
 import { furniture, canPlace, placeAt, itemAt, sanitizeDecor } from './house/catalog.js';
@@ -272,6 +273,7 @@ function doAction(action) {
   if (action === 'shop') openSeedShop('皮爺爺雜貨店', () => farm.gold, (k, n, p) => buyAt(k, n, p, false), 1);
   else if (action === 'market') openSeedShop('山姆的早市攤（八折）', () => farm.gold, (k, n, p) => buyAt(k, n, p, true), 0.8);
   else if (action === 'flea') openFlea();
+  else if (action === 'exchange') openXchg();
   else if (action === 'houseDesign') openDesign();
   else if (action === 'events') openEventBoard(Date.now());
   else if (action === 'visitor') openVisitor();
@@ -311,6 +313,22 @@ function openFlea() {
     sell: async (item, n, price) => { const r = await api.call('sell', { item, n, price }); applyMine(farm, r); refreshHud(); audio.tool('plant'); },
     unlist: async (id) => { const r = await api.call('unlist', { id }); applyMine(farm, r); refreshHud(); },
   }, { id: myId, farm });
+}
+
+function openXchg() {
+  openExchange({
+    quote: async () => {
+      const r = await call('quote', {}, { quiet: true });
+      applyMine(farm, r); refreshHud();
+      return r;
+    },
+    trade: async (side, ticker, n) => {
+      const r = await call('trade', { side, ticker, n });
+      applyMine(farm, r); refreshHud();
+      audio.tool(side === 'buy' ? 'plant' : 'harvest');
+      return r;
+    },
+  }, { guest: !api.server });
 }
 
 // ---------- 地標：菲比女神噴水池、瑞吉海獅秀 ----------
@@ -601,7 +619,7 @@ async function connect() {
       },
       mail(m) {
         loadMail();
-        const t = { syslike: '👍 有人稱讚了你的家園', sysgift: '🎁 有人送你禮物，打開信箱看看', syssold: '💰 你的東西在跳蚤市場賣掉了！', syscoop: '🤝 有人邀請你共同耕作' }[m.kind] || '✉ 收到新的留言';
+        const t = { syslike: '👍 有人稱讚了你的家園', sysgift: '🎁 有人送你禮物，打開信箱看看', syssold: '💰 你的東西在跳蚤市場賣掉了！', syscoop: '🤝 有人邀請你共同耕作', sysdiv: '📈 交易所週一股息入帳了' }[m.kind] || '✉ 收到新的留言';
         hud.toast(t, 2500);
       },
       game: onGame,

@@ -12,9 +12,12 @@ const loadImg = (name) => new Promise((resolve, reject) => {
   img.src = assetUrl(name);
 });
 
-export const NPC_SPRITES = ['oldman2', 'hunter', 'woman', 'villager4', 'cavegirl2', 'oldman', 'noble', 'child', 'oldwoman', 'villager3'];
+export const NPC_SPRITES = ['oldman2', 'hunter', 'woman', 'villager4', 'cavegirl2', 'oldman', 'noble', 'child', 'oldwoman', 'villager3', 'inspector'];
+const NPC_DIR = { inspector: 'ninja/body' };
+export const npcSheet = (n) => `${NPC_DIR[n] || 'ninja/npc'}/${n}.png`;
+export const npcFace = (n) => `${NPC_DIR[n] || 'ninja/npc'}/${n}_face.png`;
 const EXTRA = ['sprout/grass.png', 'sprout/water.png', 'sprout/dirt.png', 'sprout/tilled.png', 'ninja/dialog.png', 'ninja/interior_floor.png',
-  ...NPC_SPRITES.map((n) => `ninja/npc/${n}.png`)];
+  ...NPC_SPRITES.map(npcSheet)];
 
 export async function loadImages() {
   const imgs = {};

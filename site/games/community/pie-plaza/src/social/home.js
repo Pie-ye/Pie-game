@@ -76,6 +76,10 @@ export function readMail(m) {
     const n = d.n | 0, price = d.price | 0;
     return GIFTABLE_ANY(d.item) && n >= 1 && price >= 1 ? { id: m.id, kind: 'sold', from, item: d.item, n, price, at: m.createdAt, sys: true } : null;
   }
+  if (m.kind === 'sysdiv') {
+    const gold = d.gold | 0;
+    return gold >= 1 ? { id: m.id, kind: 'div', from, gold, at: m.createdAt, sys: true } : null;
+  }
   if (m.kind === 'sysgift' || m.kind === 'gift') {
     const n = d.n | 0;
     if (m.kind === 'gift') return null;                      // 舊版玩家互寄的禮物不再有效：禮物只能由伺服器發

@@ -4,6 +4,7 @@ import { defaultDecor, sanitizeDecor } from '../house/catalog.js';
 import { sanitizeLook } from '../avatar/look.js';
 import { FISH, FISH_PRICES, rollFish, fishSize } from '../fish/fishing.js';
 import { taipei } from '../events/schedule.js';
+import { guestQuotes } from './exchange.js';
 
 /** 伺服器版：net.game(op, data)。 */
 export function createServerApi(net) {
@@ -17,13 +18,13 @@ export function createLocalApi(name = '訪客') {
   const farm = F.newFarm('guest');
   const rec = {
     name, farm: { debris: farm.debris, tilled: farm.tilled, crops: farm.crops }, inv: farm.inv, seeds: farm.seeds, seedSel: farm.seedSel, gold: farm.gold,
-    decor: defaultDecor(), look: null, social: { open: true, friends: [], coop: [], likes: 0, liked: {} },
+    shares: {}, decor: defaultDecor(), look: null, social: { open: true, friends: [], coop: [], likes: 0, liked: {} },
   };
   let cast = null;
   const mine = () => ({ inv: rec.inv, gold: rec.gold, seeds: rec.seeds, seedSel: rec.seedSel });
   const state = () => ({ ...rec.farm, inv: rec.inv, seeds: rec.seeds, get seedSel() { return rec.seedSel; }, set seedSel(v) { rec.seedSel = v; }, gold: rec.gold });
   const ops = {
-    load: () => ({ me: { ...rec, farm: F.packFarm({ ...rec.farm, inv: {}, seeds: {}, gold: 0 }), now: Date.now() } }),
+    load: () => ({ me: { ...rec, farm: F.packFarm({ ...rec.farm, inv: {}, seeds: {}, gold: 0 }), shares: rec.shares, now: Date.now() } }),
     view: () => ({ role: 'owner', home: { owner: 'guest', name: rec.name, look: rec.look, decor: rec.decor, farm: F.packFarm({ ...rec.farm, inv: {}, seeds: {}, gold: 0 }), likes: 0, coop: false, online: true, now: Date.now() } }),
     leave: () => ({}),
     tool: ({ tool, x, y }) => {
@@ -74,6 +75,8 @@ export function createLocalApi(name = '訪客') {
     sandboxGive: ({ item, n }) => { rec.inv[item] = (rec.inv[item] || 0) + n; return mine(); },
     directory: () => ({ items: [] }),
     market: () => ({ items: [] }),
+    quote: () => ({ ...guestQuotes(Date.now(), rec.shares), gold: rec.gold, shares: rec.shares }),
+    trade: () => { throw err('login_required', '登入後才能買賣指數'); },
   };
   const offline = () => { throw err('login_required', '登入後才能使用'); };
   return {

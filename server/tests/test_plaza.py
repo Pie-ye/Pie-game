@@ -4,6 +4,7 @@ import asyncio
 import json
 import random
 import subprocess
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -279,3 +280,68 @@ async def test_persistence_import_and_directory(aiohttp_client, tmp_path) -> Non
     rows = again._read_directory()
     assert [u for u, _ in rows] == ["bob", "alice"] and rows[0][1]["likes"] == 9
     store.close()
+
+
+TPE = timezone(timedelta(hours=8))
+
+
+def taipei_ts(y, m, d, h, mi=0) -> float:
+    return datetime(y, m, d, h, mi, tzinfo=TPE).timestamp()
+
+
+def test_exchange_spread_hours_trade_and_dividend() -> None:
+    assert L.spread(100) == (101, 99) and L.spread(50) == (51, 49)
+    open_ms = taipei_ts(2026, 11, 2, 10) * 1000       # 週一 10:00
+    shut_ms = taipei_ts(2026, 11, 2, 16) * 1000
+    assert L.market_open(open_ms) and not L.market_open(shut_ms)
+    rec = L.new_player("a", "A")
+    rec["gold"] = 1000
+    ex = L.new_exchange(open_ms)
+    bought = L.apply_trade(rec, ex, "buy", "GROC", 2, open_ms)
+    assert bought["ok"] and bought["paid"] == 202 and rec["shares"] == {"GROC": 2} and rec["gold"] == 798
+    sold = L.apply_trade(rec, ex, "sell", "GROC", 1, open_ms)
+    assert sold["ok"] and sold["got"] == 99 and rec["shares"] == {"GROC": 1} and rec["gold"] == 897
+    assert L.apply_trade(rec, ex, "sell", "GROC", 9, open_ms)["code"] == "no_shares"
+    assert L.apply_trade(rec, ex, "buy", "GROC", 1, shut_ms)["code"] == "closed"
+    assert L.apply_trade(rec, ex, "buy", "AAPL", 1, open_ms)["code"] == "bad_ticker"
+    L.note_act(ex, "GROC", 40)
+    rng = random.Random(1)
+    assert L.tick_exchange(ex, open_ms, rng) is False          # 第一次只鎖定時段
+    later = taipei_ts(2026, 11, 2, 10, 5) * 1000
+    assert L.tick_exchange(ex, later, rng) is True
+    assert ex["mid"]["GROC"] > 100 and ex["act"]["GROC"] == 0
+    rec["shares"] = {"GROC": 10}
+    gold0 = rec["gold"]
+    assert L.pay_dividend(rec, {"GROC": 100}) == 10 and rec["gold"] == gold0 + 10
+
+
+@pytest.mark.asyncio
+async def test_exchange_ops_activity_and_persist(aiohttp_client, tmp_path) -> None:
+    client, plaza, store, clock = await make(aiohttp_client, tmp_path)
+    clock.value = taipei_ts(2026, 11, 2, 10)
+    plaza.ex = L.new_exchange(clock.value * 1000)
+    alice = await connect_and_auth(client, "alice", G)
+    await call(alice, "load")
+    plaza.players["alice"]["gold"] = 1000
+    q = await call(alice, "quote")
+    assert q["open"] and len(q["quotes"]) == 5 and q["quotes"][0]["id"] == "GROC"
+    buy = await call(alice, "trade", side="buy", ticker="GROC", n=3)
+    assert buy["shares"]["GROC"] == 3 and buy["gold"] == 1000 - 3 * 101
+    sell = await call(alice, "trade", side="sell", ticker="GROC", n=1)
+    assert sell["shares"]["GROC"] == 2 and sell["gold"] == buy["gold"] + 99
+    assert (await call(alice, "trade", side="buy", ticker="MSFT", n=1))["code"] == "bad_ticker"
+    # 買種子推升雜貨指數
+    plaza.ex["slot"] = L.slot_key(clock.value * 1000)
+    plaza.ex["act"] = {k: 0 for k in L.TICKER_IDS}
+    await call(alice, "buy", crop="wheat", n=5)
+    assert plaza.ex["act"]["GROC"] == 5
+    clock.value = taipei_ts(2026, 11, 2, 10, 5)
+    await plaza._run_exchange(None)
+    assert plaza.ex["mid"]["GROC"] != 100 or plaza.ex["act"]["GROC"] == 0
+    await plaza.flush()
+    again = PlazaService(store, clock=clock, rng=random.Random(1))
+    assert again.ex["mid"]["GROC"] == plaza.ex["mid"]["GROC"]
+    # 收盤不能買
+    clock.value = taipei_ts(2026, 11, 2, 16)
+    assert (await call(alice, "trade", side="buy", ticker="FISH", n=1))["code"] == "closed"
+    await alice.close()

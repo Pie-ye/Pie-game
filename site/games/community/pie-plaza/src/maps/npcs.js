@@ -1,5 +1,5 @@
 // 商店街的居民：店主（站在店內櫃台後）與在街上走動的路人。
-// sprite 對應 assets/ninja/npc/<sprite>.png 與 <sprite>_face.png（Ninja Adventure）。
+// sprite 對應 ninja/npc/ 或 ninja/body/（inspector）的走路圖與頭像。
 export const SHOPS = [
   { id: 'general', title: '皮爺爺雜貨店', k: 'shopRed', cx: 72, floor: 'tan', wall: 'cream',
     npc: { name: '皮爺爺', sprite: 'oldman2', lines: ['歡迎光臨！我是皮爺爺。', '種子、肥料、日用品，雜貨店什麼都有。', '聽說你在西邊有一塊地？先把雜草清一清，春天才好播種喔。', '要買點種子嗎？'], action: 'shop' },
@@ -19,6 +19,9 @@ export const SHOPS = [
   { id: 'clinic', title: '哈醫生診所', k: 'houseAngle', cx: 808, floor: 'cream', wall: 'cream',
     npc: { name: '哈醫生', sprite: 'oldman', lines: ['我是哈醫生。身體不舒服嗎？', '在田裡工作別忘了休息，體力用完會暈倒的。', '（看診功能準備中。）'] },
     props: [['bedBlue', 40, 160], ['bedBlue', 60, 160], ['bedBlue', 280, 160], ['plantN', 26, 50], ['cabinetN', 290, 50], ['drawerN', 270, 50], ['vase', 160, 186], ['bookcase', 60, 50]] },
+  { id: 'exchange', title: '派派鎮民交易所', k: 'houseWood', cx: 600, south: true, floor: 'tan', wall: 'sage',
+    npc: { name: '妮可', sprite: 'inspector', lines: ['我是妮可，鎮長的侄女。這裡是派派鎮民交易所。', '五檔指數都用鎮上的金幣買賣，沒有槓桿，也不能放空。', '營業時間早上 9 點到下午 4 點（台北），買價賣價差 2%。', '週一開盤會發股息。要看看行情嗎？'], action: 'exchange' },
+    props: [['bookcaseBig', 40, 50], ['bookcase', 80, 50], ['bulletinBoard', 160, 50], ['clockRound', 220, 50], ['plantN', 250, 50], ['cabinetN', 290, 50], ['tableLong', 70, 170], ['chairN', 40, 170], ['tableLong', 250, 170], ['chestN', 290, 186]] },
 ];
 
 export const TOWNSFOLK = [

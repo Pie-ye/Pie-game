@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import json
+import math
 import random
 import re
 import time
@@ -100,7 +101,7 @@ def new_farm(owner: str) -> dict[str, Any]:
 def new_player(owner: str, name: str) -> dict[str, Any]:
     return {
         "v": 1, "name": name, "farm": new_farm(owner), "inv": {}, "seeds": dict(FARM["starterSeeds"]), "seedSel": "wheat",
-        "gold": FARM["starterGold"], "decor": default_decor(), "look": None,
+        "gold": FARM["starterGold"], "decor": default_decor(), "look": None, "shares": {},
         "social": {"open": True, "friends": [], "coop": [], "liked": {}, "likes": 0}, "at": 0,
     }
 
@@ -370,6 +371,201 @@ def import_saves(owner: str, name: str, saves: dict[str, Any]) -> dict[str, Any]
         rec["social"]["friends"] = [{"id": str(f["id"])[:64], "name": str(f.get("name") or "鎮民")[:20]}
                                     for f in (s.get("friends") or [])[:100] if isinstance(f, dict) and f.get("id")]
     return rec
+
+
+# ---------- 派派鎮民交易所（虛擬指數，只用遊戲金幣） ----------
+TICKERS = (
+    {"id": "GROC", "name": "雜貨", "why": "鎮民買種子會推升"},
+    {"id": "BAKE", "name": "麵包", "why": "出貨小麥會推升"},
+    {"id": "SHOW", "name": "劇場", "why": "餵瑞吉會推升"},
+    {"id": "WISH", "name": "許願", "why": "向噴水池許願會推升"},
+    {"id": "FISH", "name": "漁獲", "why": "釣魚或出貨魚會推升"},
+)
+TICKER_IDS = tuple(t["id"] for t in TICKERS)
+X_HOURS = (9, 16)          # 台北時間，含 9 不含 16
+X_MID0 = 100
+X_MIN, X_MAX = 20, 400
+X_SHARE_MAX = 9999
+X_ACT = {"seed": "GROC", "wheat": "BAKE", "feed": "SHOW", "wish": "WISH", "fish": "FISH"}
+
+
+def shares_of(rec: dict[str, Any]) -> dict[str, int]:
+    raw = rec.get("shares")
+    out: dict[str, int] = {}
+    if isinstance(raw, dict):
+        for k in TICKER_IDS:
+            n = raw.get(k, 0)
+            if isinstance(n, int) and not isinstance(n, bool) and 0 < n <= X_SHARE_MAX:
+                out[k] = n
+    rec["shares"] = out
+    return out
+
+
+def market_open(ms: float | None) -> bool:
+    t = taipei(ms)
+    return X_HOURS[0] <= t.tm_hour < X_HOURS[1]
+
+
+def slot_key(ms: float) -> str:
+    t = taipei(ms)
+    return f"{t.tm_year:04d}-{t.tm_mon:02d}-{t.tm_mday:02d}T{t.tm_hour:02d}:{t.tm_min // 5 * 5:02d}"
+
+
+def week_monday(ms: float) -> str:
+    t = taipei(ms)
+    epoch = ms / 1000 + TZ_OFFSET - t.tm_wday * 86400
+    mt = time.gmtime(epoch)
+    return f"{mt.tm_year:04d}-{mt.tm_mon:02d}-{mt.tm_mday:02d}"
+
+
+def spread(mid: int) -> tuple[int, int]:
+    """買價 / 賣價：中間價上下各約 1%，合計 2% 價差。買一定比賣貴。"""
+    mid = int(mid)
+    buy = max(mid + 1, (mid * 101 + 99) // 100)
+    sell = min(mid - 1, mid * 99 // 100)
+    return buy, sell
+
+
+def new_exchange(ms: float | None = None) -> dict[str, Any]:
+    mids = {k: X_MID0 for k in TICKER_IDS}
+    now = time.time() * 1000 if ms is None else ms
+    return {
+        "mid": dict(mids), "prev": dict(mids), "open": dict(mids),
+        "act": {k: 0 for k in TICKER_IDS}, "slot": None, "day": None,
+        "divDay": week_monday(now), "divMid": dict(mids),
+    }
+
+
+def sanitize_exchange(raw: Any, ms: float) -> dict[str, Any]:
+    base = new_exchange(ms)
+    if not isinstance(raw, dict):
+        return base
+    def mids(src: Any) -> dict[str, int]:
+        out = dict(base["mid"])
+        if isinstance(src, dict):
+            for k in TICKER_IDS:
+                v = src.get(k)
+                if isinstance(v, int) and not isinstance(v, bool) and X_MIN <= v <= X_MAX:
+                    out[k] = v
+        return out
+    act = {k: 0 for k in TICKER_IDS}
+    if isinstance(raw.get("act"), dict):
+        for k in TICKER_IDS:
+            v = raw["act"].get(k, 0)
+            if isinstance(v, int) and not isinstance(v, bool) and 0 < v <= 9999:
+                act[k] = v
+    slot = raw.get("slot") if isinstance(raw.get("slot"), str) and len(raw["slot"]) <= 20 else None
+    day = raw.get("day") if isinstance(raw.get("day"), str) and len(raw["day"]) <= 12 else None
+    div = raw.get("divDay") if isinstance(raw.get("divDay"), str) and len(raw["divDay"]) <= 12 else base["divDay"]
+    return {
+        "mid": mids(raw.get("mid")), "prev": mids(raw.get("prev")), "open": mids(raw.get("open")),
+        "act": act, "slot": slot, "day": day, "divDay": div, "divMid": mids(raw.get("divMid") or raw.get("mid")),
+    }
+
+
+def note_act(ex: dict[str, Any], ticker: str, n: int = 1) -> None:
+    if ticker in TICKER_IDS and isinstance(n, int) and not isinstance(n, bool) and n > 0:
+        ex["act"][ticker] = min(9999, ex["act"].get(ticker, 0) + n)
+
+
+def tick_exchange(ex: dict[str, Any], ms: float, rng: random.Random) -> bool:
+    """開盤中每 5 分鐘跳一次。第一次只鎖定時段、不改價。回傳是否改了中間價。"""
+    if not market_open(ms):
+        return False
+    key = slot_key(ms)
+    if ex.get("slot") is None:
+        t = taipei(ms)
+        ex["slot"] = key
+        ex["day"] = f"{t.tm_year:04d}-{t.tm_mon:02d}-{t.tm_mday:02d}"
+        return False
+    if ex.get("slot") == key:
+        return False
+    t = taipei(ms)
+    day = f"{t.tm_year:04d}-{t.tm_mon:02d}-{t.tm_mday:02d}"
+    new_day = ex.get("day") != day
+    ex["prev"] = dict(ex["mid"])
+    for k in TICKER_IDS:
+        mid = ex["mid"][k]
+        impulse = math.tanh(ex["act"].get(k, 0) / 8.0) * 0.05
+        noise = rng.uniform(-0.012, 0.012)
+        nxt = mid * (1 + impulse + noise) + (X_MID0 - mid) * 0.008
+        ex["mid"][k] = max(X_MIN, min(X_MAX, int(round(nxt))))
+        ex["act"][k] = 0
+    ex["slot"] = key
+    if new_day:
+        ex["day"] = day
+        ex["open"] = dict(ex["mid"])
+    return True
+
+
+def dividend_due(ex: dict[str, Any], ms: float) -> str | None:
+    """本週一 09:00（台北）之後，若還沒發過這週股息就回傳該週一日期。"""
+    t = taipei(ms)
+    monday = week_monday(ms)
+    if t.tm_wday == 0 and t.tm_hour < X_HOURS[0]:
+        return None
+    if ex.get("divDay") == monday:
+        return None
+    return monday
+
+
+def pay_dividend(rec: dict[str, Any], mids: dict[str, int]) -> int:
+    gold = 0
+    for k, n in shares_of(rec).items():
+        gold += n * int(mids.get(k, X_MID0)) // 100
+    if gold:
+        rec["gold"] += gold
+    return gold
+
+
+def apply_trade(rec: dict[str, Any], ex: dict[str, Any], side: Any, ticker: Any, n: Any, ms: float) -> dict[str, Any]:
+    if not market_open(ms):
+        return {"ok": False, "code": "closed", "msg": "交易所休息中，營業時間早上 9 點到下午 4 點（台北）"}
+    if ticker not in TICKER_IDS:
+        return {"ok": False, "code": "bad_ticker", "msg": "沒有這檔指數"}
+    if not isinstance(n, int) or isinstance(n, bool) or not 1 <= n <= 99:
+        return {"ok": False, "code": "bad_message", "msg": "數量 1–99"}
+    buy, sell = spread(ex["mid"][ticker])
+    shares = shares_of(rec)
+    if side == "buy":
+        cost = buy * n
+        if rec["gold"] < cost:
+            return {"ok": False, "code": "no_gold", "msg": "金幣不夠"}
+        have = shares.get(ticker, 0)
+        if have + n > X_SHARE_MAX:
+            return {"ok": False, "code": "too_many", "msg": f"一檔最多持有 {X_SHARE_MAX} 股"}
+        rec["gold"] -= cost
+        shares[ticker] = have + n
+        rec["shares"] = shares
+        return {"ok": True, "side": "buy", "ticker": ticker, "n": n, "price": buy, "paid": cost}
+    if side == "sell":
+        have = shares.get(ticker, 0)
+        if have < n:
+            return {"ok": False, "code": "no_shares", "msg": "持股不夠"}
+        gain = sell * n
+        rec["gold"] += gain
+        if have - n:
+            shares[ticker] = have - n
+        else:
+            shares.pop(ticker, None)
+        rec["shares"] = shares
+        return {"ok": True, "side": "sell", "ticker": ticker, "n": n, "price": sell, "got": gain}
+    return {"ok": False, "code": "bad_message", "msg": "只能買進或賣出"}
+
+
+def quote_view(ex: dict[str, Any], rec: dict[str, Any], ms: float) -> dict[str, Any]:
+    shares = shares_of(rec)
+    quotes = []
+    for t in TICKERS:
+        mid = ex["mid"][t["id"]]
+        buy, sell = spread(mid)
+        prev, day = ex["prev"].get(t["id"], mid), ex["open"].get(t["id"], mid)
+        quotes.append({
+            "id": t["id"], "name": t["name"], "why": t["why"],
+            "mid": mid, "buy": buy, "sell": sell,
+            "chg": mid - prev, "day": mid - day, "hold": shares.get(t["id"], 0),
+        })
+    return {"open": market_open(ms), "hours": list(X_HOURS), "quotes": quotes, "shares": shares, "gold": rec["gold"]}
 
 
 def pack_farm(farm: dict[str, Any]) -> dict[str, Any]:

@@ -1,5 +1,5 @@
 // 對話框：頭像、名字、逐字顯示；點擊或按 E／空白／Enter 下一句。
-import { assetUrl } from '../engine/sprites.js';
+import { assetUrl, npcFace } from '../engine/sprites.js';
 
 export function createDialog() {
   const box = document.getElementById('dialog'), face = document.getElementById('dialog-face');
@@ -26,7 +26,7 @@ export function createDialog() {
     show(who, ls, done) {
       lines = ls; idx = 0; onDone = done || null;
       nameEl.textContent = who.name;
-      if (who.sprite) { face.src = assetUrl(`ninja/npc/${who.sprite}_face.png`); face.parentElement.hidden = false; }
+      if (who.sprite) { face.src = assetUrl(npcFace(who.sprite)); face.parentElement.hidden = false; }
       else face.parentElement.hidden = true;
       box.hidden = false; type();
     },

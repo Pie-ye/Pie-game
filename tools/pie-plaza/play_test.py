@@ -200,6 +200,26 @@ def main() -> int:
         pg.evaluate(f"(() => {{ const n = {P}.map.npcs[0]; Object.assign({P}.me, {{ x: n.x, y: n.y + 30, dir: 1 }}); }})()")
         pg.keyboard.press("e"); pg.wait_for_timeout(500)
         check(pg.is_visible("#dialog") and "瑪莉" in pg.inner_text("#dialog-name"), "隔著櫃台和麵包店老闆對話")
+        for _ in range(6):
+            if not pg.is_visible("#dialog"): break
+            pg.keyboard.press("e"); pg.wait_for_timeout(150)
+
+        # 8. 派派鎮民交易所：妮可、五檔行情、訪客不能買
+        pg.evaluate(f"{P}.warp('shop:exchange', 'door')"); pg.wait_for_timeout(400)
+        check(pg.evaluate(f"{P}.area") == "shop:exchange", "走進派派鎮民交易所")
+        pg.evaluate(f"(() => {{ const n = {P}.map.npcs[0]; Object.assign({P}.me, {{ x: n.x, y: n.y + 30, dir: 1 }}); }})()")
+        pg.keyboard.press("e"); pg.wait_for_timeout(500)
+        check(pg.is_visible("#dialog") and "妮可" in pg.inner_text("#dialog-name"), "隔著櫃台和妮可對話")
+        check(pg.evaluate("document.getElementById('dialog-face').naturalWidth") > 0, "妮可頭像載入")
+        for _ in range(8):
+            if not pg.is_visible("#dialog"): break
+            pg.keyboard.press("e"); pg.wait_for_timeout(250)
+        check(pg.is_visible("#panel") and "交易所" in pg.inner_text("#panel-title"), "對話結束後開啟交易所面板")
+        body = pg.inner_text("#panel-body")
+        check("GROC" in body and "BAKE" in body and "SHOW" in body and "WISH" in body and "FISH" in body, "五檔指數都列出來")
+        check(pg.locator("#panel-body button", has_text="買").first.is_disabled(), "訪客不能買賣")
+        pg.locator(".frame").screenshot(path=str(OUT / "exchange.png"))
+        pg.click("#panel-close")
         b.close()
     srv.shutdown()
     check(not errors, "console 無錯誤" + ("" if not errors else "：" + "; ".join(errors[:3])))

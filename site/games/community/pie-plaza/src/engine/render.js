@@ -2,7 +2,7 @@
 import { TILE, VIEW } from '../logic.js';
 import { ATLAS } from './atlas.js';
 import { buildGround, buildTilled } from './ground.js';
-import { lookSheet, walkFrame } from './sprites.js';
+import { lookSheet, walkFrame, npcSheet } from './sprites.js';
 import { defaultLook, rgbToHsl, hslToRgb } from '../avatar/look.js';
 import { ROOF, WALL } from '../house/exterior.js';
 import { canvas } from './sprites.js';
@@ -72,7 +72,7 @@ function drawNight(ctx, cam, light, lights, now, S) {
 }
 
 function drawPerson(ctx, scene, p, now) {
-  const sheet = p.npc ? scene.imgs[`ninja/npc/${p.sprite}.png`] : lookSheet(scene, p.look || defaultLook(p.id));
+  const sheet = p.npc ? scene.imgs[npcSheet(p.sprite)] : lookSheet(scene, p.look || defaultLook(p.id));
   if (!sheet) return;
   const f = p.acting && now < p.acting ? 4 : walkFrame(p.moving, now);
   ctx.fillStyle = 'rgba(40,30,20,.25)'; ctx.beginPath(); ctx.ellipse(Math.round(p.x), Math.round(p.y) - 1, 6, 2.5, 0, 0, 7); ctx.fill();

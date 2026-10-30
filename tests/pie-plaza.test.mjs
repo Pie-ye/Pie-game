@@ -16,6 +16,8 @@ const FI = await import(`${SRC}/fish/fishing.js`);
 const EV = await import(`${SRC}/events/schedule.js`);
 const { eventObjects } = await import(`${SRC}/events/effects.js`);
 const EX = await import(`${SRC}/house/exterior.js`);
+const X = await import(`${SRC}/game/exchange.js`);
+const { createLocalApi } = await import(`${SRC}/game/api.js`);
 
 // ---------- 聊天與基本邏輯 ----------
 test('cleanText strips controls, bidi marks and collapses spaces', () => {
@@ -119,6 +121,28 @@ test('every shop has a building with a door, an interior and a shopkeeper', () =
     assert.ok(maps.town.warps.some((w) => w.to === `shop:${s.id}`));
   }
   assert.equal(maps.town.npcs.length, TOWNSFOLK.length);
+});
+test('south-lane houseWood is the exchange with 妮可', () => {
+  const s = SHOPS.find((x) => x.id === 'exchange');
+  assert.ok(s.south && s.k === 'houseWood' && s.npc.sprite === 'inspector' && s.npc.action === 'exchange');
+  assert.equal(s.npc.name, '妮可');
+  assert.ok(maps.town.warps.some((w) => w.to === 'shop:exchange'));
+  assert.equal(maps['shop:exchange'].title, '派派鎮民交易所');
+  assert.equal(maps['shop:exchange'].npcs[0].name, '妮可');
+  assert.equal(maps.town.objects.filter((o) => o.k === 'houseWood').length, 1);
+});
+test('exchange spread is 2 percent; guest can see quotes and cannot trade', async () => {
+  assert.deepEqual(X.spread(100), { buy: 101, sell: 99 });
+  assert.deepEqual(X.spread(50), { buy: 51, sell: 49 });
+  const open = Date.UTC(2026, 10, 2, 2, 0);   // 台北 10:00
+  const shut = Date.UTC(2026, 10, 2, 8, 0);   // 台北 16:00
+  assert.equal(X.marketOpen(open), true);
+  assert.equal(X.marketOpen(shut), false);
+  const api = createLocalApi();
+  const q = await api.call('quote');
+  assert.equal(q.quotes.length, 5);
+  assert.deepEqual(q.quotes.map((t) => t.id), ['GROC', 'BAKE', 'SHOW', 'WISH', 'FISH']);
+  await assert.rejects(() => api.call('trade', { side: 'buy', ticker: 'GROC', n: 1 }), /登入/);
 });
 test('NPCs and signs can be talked to from an adjacent walkable spot', () => {
   for (const m of [maps.town, ...SHOPS.map((s) => maps[`shop:${s.id}`]), maps.plaza, maps['farm:u1']]) {
