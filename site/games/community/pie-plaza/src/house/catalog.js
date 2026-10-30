@@ -73,5 +73,6 @@ export function sanitizeDecor(d) {
     const tx = it.tx | 0, ty = it.ty | 0;
     if (canPlace(out.items, it.k, tx, ty)) out.items.push(placeAt(furniture(it.k), tx, ty));
   }
+  out.at = Number(d.at) || 0;
   return out;
 }

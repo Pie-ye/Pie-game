@@ -7,6 +7,7 @@ import asyncio
 import json
 import mimetypes
 import os
+import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 from stat import S_ISREG
@@ -18,6 +19,7 @@ from aiohttp import web
 from . import __version__
 from . import boot
 from .relay import Relay
+from .saves import SaveStore
 
 DEFAULT_SHELL_PORT = 54460
 DEFAULT_CONTENT_PORT = 54461
@@ -39,6 +41,7 @@ class Settings:
     site_dir: Path
     content_dir: Path
     dev: bool = False
+    save_db: str | None = None
 
     @classmethod
     def from_env(cls, *, dev: bool = False) -> "Settings":
@@ -71,7 +74,21 @@ class Settings:
             site_dir=site_dir,
             content_dir=content_dir,
             dev=dev,
+            # 雲端存檔：正式環境由 compose 指到掛載的資料目錄；開發預設放 repo 的 .data/（不進版控）
+            save_db=os.environ.get("PG_SAVE_DB") or (str(repository_root / ".data" / "saves.sqlite3") if dev else None),
         )
+
+
+def _open_saves(settings: "Settings") -> SaveStore | None:
+    """雲端存檔資料庫；沒設定路徑或打不開時停用（遊戲退回本機存檔）。"""
+    path = settings.save_db
+    if not path:
+        return None
+    try:
+        return SaveStore(path)
+    except (OSError, sqlite3.Error) as err:
+        print(f"雲端存檔停用：{err}", flush=True)
+        return None
 
 
 def shell_csp(settings: Settings) -> str:
@@ -229,7 +246,7 @@ def create_content_app(settings: Settings, *, relay: Relay | None = None) -> web
     app = web.Application()
     _add_security_headers(app, content_csp(settings))
 
-    relay_service = relay or Relay(settings.content_origin, retire_base=settings.retire_base)
+    relay_service = relay or Relay(settings.content_origin, retire_base=settings.retire_base, saves=_open_saves(settings))
     app[RELAY_KEY] = relay_service
 
     async def healthz(_: web.Request) -> web.Response:

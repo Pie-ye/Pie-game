@@ -6,6 +6,7 @@ import asyncio
 import contextlib
 import inspect
 import json
+import re
 import secrets
 import time
 from collections import defaultdict, deque
@@ -15,6 +16,7 @@ from typing import Any, Awaitable, Callable
 from aiohttp import WSMsgType, web
 
 from . import retire_client
+from .saves import MAX_VALUE_BYTES, SaveError, SaveStore
 
 MAX_MESSAGE_BYTES = 16 * 1024
 MAX_MESSAGES_PER_SECOND = 20
@@ -32,6 +34,10 @@ EMPTY_ROOM_TTL_SECONDS = 60
 LOBBY_PUSH_DELAY_SECONDS = 0.05
 PING_INTERVAL_SECONDS = 25
 IDLE_TIMEOUT_SECONDS = 75
+# 存檔訊息可以比一般訊息大（一般訊息會被廣播，存檔只到伺服器）；另外限制每分鐘寫入次數
+MAX_SAVE_MESSAGE_BYTES = MAX_VALUE_BYTES + 1024
+MAX_SAVE_WRITES_PER_MINUTE = 30
+REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
 
 PRIVATE_CODE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
 
@@ -50,6 +56,7 @@ class Connection:
     room_id: str | None = None
     message_times: deque[float] = field(default_factory=deque)
     lobby_subscribed: bool = False
+    save_times: deque[float] = field(default_factory=deque)
     heartbeat_task: asyncio.Task[None] | None = None
 
     @property
@@ -108,6 +115,7 @@ class Relay:
         max_players_per_room: int = MAX_PLAYERS_PER_ROOM,
         max_connections_per_user: int = MAX_CONNECTIONS_PER_USER,
         max_connections: int = MAX_CONNECTIONS,
+        saves: SaveStore | None = None,
     ) -> None:
         self.content_origin = content_origin.rstrip("/")
         self._redeem = redeem
@@ -123,6 +131,7 @@ class Relay:
         self.max_players_per_room = max_players_per_room
         self.max_connections_per_user = max_connections_per_user
         self.max_connections = max_connections
+        self.saves = saves
 
         self.rooms: dict[str, Room] = {}
         self.connections_by_user: dict[Any, set[Connection]] = defaultdict(set)
@@ -156,6 +165,8 @@ class Relay:
                 *(socket.close(code=1001, message=b"server shutdown") for socket in sockets),
                 return_exceptions=True,
             )
+        if self.saves is not None:
+            self.saves.close()
 
     async def websocket_handler(self, request: web.Request) -> web.StreamResponse:
         if request.headers.get("Origin") != self.content_origin:
@@ -167,7 +178,9 @@ class Relay:
 
         # max_msg_size 比應用層上限多 1 byte，讓剛好等於上限的訊息（預設 16384）
         # 走到應用層的 `>` 判斷，而不是在協定層就被砍掉。
-        ws = web.WebSocketResponse(autoping=True, max_msg_size=self.max_message_bytes + 1)
+        # 有存檔功能時協定層上限放寬到存檔大小，一般訊息仍由應用層以 max_message_bytes 擋下
+        limit = max(self.max_message_bytes, MAX_SAVE_MESSAGE_BYTES) if self.saves is not None else self.max_message_bytes
+        ws = web.WebSocketResponse(autoping=True, max_msg_size=limit + 1)
         connection: Connection | None = None
 
         try:
@@ -288,7 +301,11 @@ class Relay:
         return connection
 
     async def _handle_text(self, connection: Connection, raw_message: str) -> None:
-        if len(raw_message.encode("utf-8")) > self.max_message_bytes:
+        size = len(raw_message.encode("utf-8"))
+        # 超過一般上限的只接受 save:put（存檔不會被廣播），其他一律拒絕
+        if size > self.max_message_bytes and (
+            size > MAX_SAVE_MESSAGE_BYTES or not raw_message.lstrip().startswith('{"type":"save:put"')
+        ):
             await self._send_error(connection, "message_too_large")
             return
 
@@ -323,6 +340,8 @@ class Relay:
             "kick": self._kick,
             "ping": self._client_ping,
             "pong": self._client_pong,
+            "save:get": self._save_get,
+            "save:put": self._save_put,
         }
         handler = handlers.get(message_type)
         if handler is None:
@@ -616,6 +635,65 @@ class Relay:
                 "state": dict(room.state),
             }
         )
+
+    # ---------- 雲端存檔：身分取自已驗證的連線，只能讀寫自己在這款遊戲的資料 ----------
+    @staticmethod
+    def _request_id(payload: dict[str, Any]) -> str | None:
+        rid = payload.get("rid")
+        return rid if isinstance(rid, str) and REQUEST_ID_RE.match(rid) else None
+
+    async def _save_reply(self, connection: Connection, payload: dict[str, Any]) -> None:
+        if not connection.ws.closed:
+            with contextlib.suppress(ConnectionError, RuntimeError):
+                await connection.ws.send_json(payload)
+
+    async def _save_get(self, connection: Connection, payload: dict[str, Any]) -> None:
+        rid = self._request_id(payload)
+        if self.saves is None:
+            await self._save_reply(connection, {"type": "error", "code": "save_unavailable", "rid": rid})
+            return
+        try:
+            found = await self.saves.get(connection.game_id, connection.user_id, payload.get("key"))
+        except SaveError as err:
+            await self._save_reply(connection, {"type": "error", "code": err.code, "rid": rid})
+            return
+        reply: dict[str, Any] = {"type": "save", "rid": rid, "key": payload.get("key"), "value": None, "rev": 0, "updatedAt": None}
+        if found:
+            reply.update(found)
+        await self._save_reply(connection, reply)
+
+    async def _save_put(self, connection: Connection, payload: dict[str, Any]) -> None:
+        rid = self._request_id(payload)
+        if self.saves is None:
+            await self._save_reply(connection, {"type": "error", "code": "save_unavailable", "rid": rid})
+            return
+        now = self.clock()
+        window = connection.save_times
+        while window and now - window[0] >= 60:
+            window.popleft()
+        if len(window) >= MAX_SAVE_WRITES_PER_MINUTE:
+            await self._save_reply(connection, {"type": "error", "code": "save_rate_limited", "rid": rid})
+            return
+        if_rev = payload.get("ifRev")
+        if if_rev is not None and (not isinstance(if_rev, int) or isinstance(if_rev, bool) or if_rev < 0):
+            await self._save_reply(connection, {"type": "error", "code": "bad_message", "rid": rid})
+            return
+        if "value" not in payload:
+            await self._save_reply(connection, {"type": "error", "code": "bad_message", "rid": rid})
+            return
+        window.append(now)
+        try:
+            saved = await self.saves.put(connection.game_id, connection.user_id, payload.get("key"), payload["value"], if_rev)
+        except SaveError as err:
+            reply: dict[str, Any] = {"type": "error", "code": err.code, "rid": rid}
+            if err.current is not None:
+                reply["current"] = err.current
+            await self._save_reply(connection, reply)
+            return
+        except (TypeError, ValueError):
+            await self._save_reply(connection, {"type": "error", "code": "bad_message", "rid": rid})
+            return
+        await self._save_reply(connection, {"type": "saved", "rid": rid, "key": payload.get("key"), **saved})
 
     async def _send_error(self, connection: Connection, code: str) -> None:
         await self._send_ws_error(connection.ws, code)

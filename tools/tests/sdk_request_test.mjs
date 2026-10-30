@@ -132,6 +132,40 @@ try {
   assert(err.code === 'timeout', `expected timeout, got ${err.code}`);
 }
 
+// ---------- 雲端存檔：靠 rid 配對，不干擾房間請求 ----------
+const getPromise = client.storage.get('farm');
+const getMsg = ws.sent[ws.sent.length - 1];
+assert(getMsg.type === 'save:get' && getMsg.key === 'farm' && /^s\d+$/.test(getMsg.rid), 'storage.get sends save:get with rid');
+const putPromise = client.storage.put('farm', { gold: 5 }, { ifRev: 0 });
+const putMsg = ws.sent[ws.sent.length - 1];
+assert(JSON.stringify(putMsg).startsWith('{"type":"save:put"'), 'save:put must start with its type');
+assert(putMsg.ifRev === 0 && putMsg.value.gold === 5, 'put carries value and ifRev');
+const roomWhileSaving = client.list();
+// 存檔錯誤（有 rid）不能拿去拒絕排隊中的 list
+ws.peer({ type: 'error', code: 'save_conflict', rid: putMsg.rid, current: { value: { gold: 9 }, rev: 3 } });
+ws.peer({ type: 'save', rid: getMsg.rid, key: 'farm', value: null, rev: 0, updatedAt: null });
+ws.peer({ type: 'rooms', rooms: [{ id: 'r9' }] });
+const got = await getPromise;
+assert(got.value === null && got.rev === 0, 'get resolves empty save');
+try {
+  await putPromise;
+  throw new Error('put should reject with conflict');
+} catch (err) {
+  assert(err.code === 'save_conflict' && err.current.rev === 3, `expected save_conflict with current, got ${err.code}`);
+}
+assert((await roomWhileSaving)[0].id === 'r9', 'room request unaffected by save error');
+const ok = client.storage.put('look', [1, 2]);
+ws.peer({ type: 'saved', rid: ws.sent[ws.sent.length - 1].rid, key: 'look', rev: 1, updatedAt: 5 });
+assert((await ok).rev === 1, 'put resolves with new rev');
+const pendingSave = client.storage.get('farm');
+ws.close();
+try {
+  await pendingSave;
+  throw new Error('pending save should reject on disconnect');
+} catch (err) {
+  assert(err.code === 'disconnected', `expected disconnected, got ${err.code}`);
+}
+
 fromParent({ type: 'pg:init', gameId: 'demo', user: { id: 'u1', displayName: 'U1' }, ticket: 't' });
 const init = await PieGame.ready();
 assert(init.gameId === 'demo', 'ready should resolve from pg:init');

@@ -75,6 +75,8 @@ export async function connectPlaza(cb) {
   setInterval(merge, MERGE_MS);
   return {
     me,
+    /** 雲端存檔（SDK client.storage）；舊版 SDK 沒有時為 null。 */
+    storage: client.storage || null,
     get online() { return others.size + 1; },
     nameOf: (id) => others.get(String(id)) || '訪客',
     sendPose(p, to) { if (client.room) client.send({ k: 'p', p: [Math.round(p.x * 10) / 10, Math.round(p.y * 10) / 10], a: p.area }, to); },

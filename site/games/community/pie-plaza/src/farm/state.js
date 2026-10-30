@@ -64,6 +64,7 @@ export function sanitizeFarm(s, owner) {
     out.gold = cap(s.gold);
     out.seedSel = CROPS[s.seedSel] ? s.seedSel : 'wheat';
   }
+  out.at = Number(s.at) || 0;
   return out;
 }
 
@@ -160,3 +161,31 @@ export function grow(state, now) {
 }
 
 export const debrisLeft = (state) => Object.keys(state.debris).length;
+
+// ---------- 雲端存檔用的精簡格式 ----------
+// 一般格式的鍵是 "x,y" 字串、時間是毫秒，整塊田翻滿土時會超過 40 KB；
+// 打包成數字陣列、時間改成秒，最壞情況約 23 KB（伺服器上限 48 KB）。
+const DEBRIS_KEYS = Object.keys(DEBRIS);
+const sec = (ms) => (ms ? Math.round(ms / 1000) : 0);
+export function packFarm(s) {
+  const xy = (k) => k.split(',').map(Number);
+  return {
+    v: 'p1', at: s.at || 0,
+    d: Object.entries(s.debris).map(([k, d]) => [...xy(k), DEBRIS_KEYS.indexOf(d.t), d.hp, d.look]),
+    t: Object.entries(s.tilled).map(([k, t]) => [...xy(k), sec(t.w)]),
+    c: Object.entries(s.crops).map(([k, c]) => [...xy(k), CROP_KEYS.indexOf(c.t), c.s, sec(c.w)]),
+    inv: s.inv, seeds: s.seeds, sel: s.seedSel, gold: s.gold,
+  };
+}
+/** 解包後一律再經過 sanitizeFarm（雲端資料也不信任）。 */
+export function unpackFarm(p, owner) {
+  if (!p || p.v !== 'p1') return null;
+  const arr = (a) => (Array.isArray(a) ? a.filter(Array.isArray) : []);
+  const out = { v: 2, debris: {}, tilled: {}, crops: {}, inv: p.inv, seeds: p.seeds, seedSel: p.sel, gold: p.gold };
+  for (const [x, y, ti, hp, look] of arr(p.d)) if (DEBRIS_KEYS[ti]) out.debris[`${x},${y}`] = { t: DEBRIS_KEYS[ti], hp, look };
+  for (const [x, y, w] of arr(p.t)) out.tilled[`${x},${y}`] = { w: (Number(w) || 0) * 1000 };
+  for (const [x, y, ci, st, w] of arr(p.c)) if (CROP_KEYS[ci]) out.crops[`${x},${y}`] = { t: CROP_KEYS[ci], s: st, w: (Number(w) || 0) * 1000 };
+  const s = sanitizeFarm(out, owner);
+  s.at = Number(p.at) || 0;
+  return s;
+}

@@ -15,11 +15,14 @@ services:
       PG_API_ORIGIN: https://coinpilet.win
       PG_RETIRE_BASE: http://127.0.0.1:54432
       PG_CONTENT_DIR: /srv/pie-content/live/site
+      # 投稿遊戲的雲端存檔（SQLite）。資料在主機 Pie-game/.data/prod（不進版控，含在每日 rsync 備份）
+      PG_SAVE_DB: /srv/pie-data/saves.sqlite3
     volumes:
       # 掛整個 content 根目錄，不是 live 連結本身：Docker 只在容器啟動時解析一次
       # bind 來源，綁連結的話之後的原子切換永遠進不來。live 是 releases/<sha> 的
       # 相對連結，伺服器每個請求重新解析。
       - /home/pieye/pie-game-content:/srv/pie-content:ro
+      - /home/pieye/Container/Pie-game/.data/prod:/srv/pie-data
     healthcheck:
       test:
         - CMD

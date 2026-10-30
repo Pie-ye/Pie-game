@@ -44,7 +44,7 @@
 作物澆水後 45 秒長一階，每階都要再澆水，第 4 階成熟。雜物分布由帳號 id 決定。
 小屋旁的「小屋設計」告示牌可換五種外觀。在小屋裡選第 8 格（槌子）進入裝潢模式。
 
-農場、金幣、外觀與小屋存在瀏覽器 localStorage（SDK 沒有雲端存檔），換瀏覽器不會帶過去。金幣是遊戲內的，和股票大亂鬥的金幣無關。升級工具、看診還沒有功能。
+農場、金幣、外觀與小屋登入後存在雲端（平台的 SDK `client.storage`，伺服器依帳號存放），換裝置會自動載入；本機 localStorage 是快取與離線備援。登入時雲端與本機比較最後修改時間，新的贏；兩台同時修改時以版本號偵測衝突，較新的留下。右上角 ☁ 顯示同步狀態。金幣是遊戲內的，和股票大亂鬥的金幣無關。升級工具、看診還沒有功能。
 
 ## 多人
 
@@ -65,7 +65,8 @@
 src/main.js            輸入、區域切換、主迴圈
 src/logic.js           移動、鏡頭、聊天檢查（純函式）
 src/net.js             單一大廳連線、位置與聊天
-src/store.js           localStorage 存檔
+src/store.js           localStorage 存檔（本機快取）
+src/cloud.js           雲端存檔同步（比對、延遲上傳、衝突處理）
 src/audio.js           音樂、環境音、腳步聲、工具聲
 src/engine/atlas.js    圖集（由 tools/pie-plaza/build_atlas.py 產生，含門口位置）
 src/engine/grid.js     地形格
@@ -90,6 +91,7 @@ src/engine/bodies.js   捏臉底版各區域顏色（由 build_bodies.py 產生�
 - `python3 tools/pie-plaza/harness.py`：雙人連線與聊天（假 SDK）。
 - `python3 tools/pie-plaza/play_test.py`：農場工具、進出門、對話、小屋樣式、裝潢。
 - `python3 tools/pie-plaza/tour.py`：各地區截圖。
+- `python3 tools/pie-plaza/cloud_e2e.py`：雲端存檔端到端（真的開發伺服器＋SQLite＋SDK，兩個瀏覽器當兩台裝置）。
 - `python3 -I tools/pie-plaza/build_atlas.py` 重產圖集；`atlas_sheet.py` 印目錄圖檢查裁切。
 - `build_bodies.py` 產生捏臉底版；`process_art.py` 處理 grok 生成圖（簡報在 `tools/pie-plaza/art/`）。
 

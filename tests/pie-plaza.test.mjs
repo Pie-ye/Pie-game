@@ -329,3 +329,77 @@ test('house yard decorations never block the door or the farm path', () => {
     for (const t of m.signs) assert.ok([[0, 14], [14, 0], [-14, 0]].some(([dx, dy]) => !m.blocked(t.x + dx, t.y + dy)), `${style}: ${t.title}`);
   }
 });
+
+// ---------- 雲端存檔 ----------
+const { createCloud } = await import(`${SRC}/cloud.js`);
+test('packFarm / unpackFarm round trip and worst-case size', () => {
+  const s = F.newFarm('u1');
+  s.gold = 1234; s.inv = { wheat: 3, fish_carp: 2 }; s.seeds = { tomato: 4 }; s.seedSel = 'tomato'; s.at = 1790000000000;
+  const k = Object.keys(s.debris)[0]; s.debris[k].hp = 1;
+  s.tilled['22,12'] = { w: 1790000000000 }; s.crops['22,12'] = { t: 'pumpkin', s: 2, w: 1790000000000 };
+  const back = F.unpackFarm(JSON.parse(JSON.stringify(F.packFarm(s))), 'u1');
+  assert.deepEqual(back, s);
+  // 最壞：整塊田翻土並種滿南瓜
+  const full = F.newFarm('u1'); full.debris = {};
+  for (let y = F.FARM.field.y0; y <= F.FARM.field.y1; y++) for (let x = F.FARM.field.x0; x <= F.FARM.field.x1; x++) {
+    full.tilled[`${x},${y}`] = { w: 1790000123456 }; full.crops[`${x},${y}`] = { t: 'strawberry', s: 3, w: 1790000123456 };
+  }
+  const bytes = Buffer.byteLength(JSON.stringify(F.packFarm(full)));
+  assert.ok(bytes < 40 * 1024, `packed full farm is ${bytes} bytes`);
+  assert.equal(F.unpackFarm({ v: 'p1', d: [[1, 1, 99, 1, 0]], gold: -5 }, 'u1').gold, 0, 'unpacked data is sanitised');
+  assert.equal(F.unpackFarm({ v: 'nope' }, 'u1'), null);
+});
+
+function fakeStorage(initial = {}) {
+  const db = { ...initial }; const calls = [];
+  return {
+    db, calls,
+    async get(key) { calls.push(['get', key]); return db[key] ? { ...db[key] } : { value: null, rev: 0 }; },
+    async put(key, value, { ifRev } = {}) {
+      calls.push(['put', key]);
+      const cur = db[key] || { value: null, rev: 0 };
+      if (ifRev != null && ifRev !== cur.rev) throw Object.assign(new Error('save_conflict'), { code: 'save_conflict', current: db[key] ? { ...cur } : null });
+      db[key] = { value, rev: cur.rev + 1 }; return { rev: cur.rev + 1 };
+    },
+  };
+}
+const slot = (state) => ({ local: () => state.v, at: (d) => d.at, pack: (d) => d, unpack: (v) => v, apply: (d, src) => { state.v = d; state.src = src; } });
+const tick = () => new Promise((r) => setTimeout(r, 0));
+
+test('cloud: newer cloud copy wins on start, newer local copy is uploaded', async () => {
+  const st = fakeStorage({ a: { value: { at: 50, n: 'cloud' }, rev: 2 }, b: { value: { at: 10, n: 'old' }, rev: 1 } });
+  const a = { v: { at: 20, n: 'local' } }, b = { v: { at: 30, n: 'newer local' } }, c = { v: null };
+  const cloud = createCloud(st, { a: slot(a), b: slot(b), c: slot(c) });
+  const r = await cloud.start();
+  assert.deepEqual(r, { a: 'cloud', b: 'local', c: 'empty' });
+  assert.equal(a.v.n, 'cloud');
+  await new Promise((res) => setTimeout(res, 260));
+  assert.equal(st.db.b.value.n, 'newer local'); assert.equal(st.db.b.rev, 2);
+  assert.equal(st.db.c, undefined, 'nothing to upload for empty slots');
+});
+test('cloud: conflict adopts a newer remote copy, otherwise retries with the server revision', async () => {
+  const st = fakeStorage({ a: { value: { at: 1 }, rev: 1 } });
+  const a = { v: { at: 1 } };
+  const cloud = createCloud(st, { a: slot(a) });
+  await cloud.start();
+  // 另一台裝置先存了較新的版本
+  st.db.a = { value: { at: 999, n: 'other device' }, rev: 5 };
+  a.v = { at: 500, n: 'mine' };
+  cloud.changed('a');
+  await new Promise((res) => setTimeout(res, 3100));
+  assert.equal(a.v.n, 'other device'); assert.equal(a.src, 'conflict');
+  // 這次我們比較新：拿到伺服器版本號後重送
+  st.db.a = { value: { at: 100 }, rev: 9 };
+  a.v = { at: 2000, n: 'mine newer' };
+  cloud.changed('a');
+  await new Promise((res) => setTimeout(res, 3200));
+  assert.equal(st.db.a.value.n, 'mine newer'); assert.equal(st.db.a.rev, 10);
+});
+test('cloud: without storage it stays local and never throws', async () => {
+  const statuses = [];
+  const cloud = createCloud(null, { a: slot({ v: { at: 1 } }) }, (s) => statuses.push(s));
+  assert.deepEqual(await cloud.start(), {});
+  cloud.changed('a'); cloud.resume();
+  assert.equal(statuses.at(-1), '本機');
+  await tick();
+});

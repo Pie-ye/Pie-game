@@ -21,6 +21,9 @@ import { FISH, FISH_PRICES, rollFish, fishSize, newMinigame, stepMinigame, fishN
 import { activeEvents, eventById, daylight, taipei } from './events/schedule.js';
 import { eventObjects } from './events/effects.js';
 import * as store from './store.js';
+import { createCloud } from './cloud.js';
+import { packFarm, unpackFarm } from './farm/state.js';
+import { sanitizeDecor } from './house/catalog.js';
 
 const $ = (id) => document.getElementById(id);
 const infoEl = $('room-info'), titleEl = $('room-title'), logEl = $('log'), canvas = $('world'), ctx = canvas.getContext('2d');
@@ -38,7 +41,7 @@ const me = { id: 'guest', x: 240, y: 150, dir: 0, moving: false, bubble: '', bub
 let farm = null, decor = null;
 let tool = 0, edit = null, hover = null, fishing = null, holding = false;
 let target = null, warpLock = 0, warping = false, lastChat = -1e9, lastSent = null, lastSentAt = 0, lastArea = null;
-let events = [];
+let events = [], cloud = null, lookAt = 0;
 const people = new Map();      // 其他玩家：id -> { id, name, look, x, y, tx, ty, area, dir, moving, movedAt, bubble, bubbleAt, seen, lastStep }
 
 // ---------- 聊天紀錄（一律 textContent，不吃 HTML） ----------
@@ -60,7 +63,10 @@ function refreshHud() {
   if (!farm) return;
   hud.inventory(farm.inv); hud.gold(farm.gold); hud.seed(farm.seedSel, farm.seeds[farm.seedSel] || 0);
 }
-const saveFarm = () => { store.saveFarm(myId, farm); refreshHud(); };
+const saveFarm = () => { farm.at = Date.now(); store.saveFarm(myId, farm); refreshHud(); if (cloud) cloud.changed('farm'); };
+const saveDecor = () => { decor.at = Date.now(); store.saveDecor(myId, decor); if (cloud) cloud.changed('decor'); };
+const cloudEl = $('cloud');
+const cloudStatus = (t) => { if (cloudEl) cloudEl.textContent = t ? `☁ ${t}` : ''; };
 
 // ---------- 畫面大小：整數倍放大 ----------
 function fit() {
@@ -222,7 +228,7 @@ function openDesign() {
     if (p.roof != null) decor.ext.roof = p.roof;
     if (p.wall != null) decor.ext.wall = p.wall;
     if (p.yard) decor.ext.yard[p.yard[0]] = p.yard[1];
-    store.saveDecor(myId, decor);
+    saveDecor();
     if (map.farm) rebuildHere(); else hud.toast('改好了，回農場看看吧！');
   }, null);
 }
@@ -289,8 +295,8 @@ function startEdit() {
   edit = { sel: 'remove' };
   openDecor(decor, {
     pickItem: (k) => { edit && (edit.sel = k); },
-    pickFloor: (k) => { decor.floor = k; store.saveDecor(myId, decor); rebuildHere(); },
-    pickWall: (k) => { decor.wall = k; store.saveDecor(myId, decor); rebuildHere(); },
+    pickFloor: (k) => { decor.floor = k; saveDecor(); rebuildHere(); },
+    pickWall: (k) => { decor.wall = k; saveDecor(); rebuildHere(); },
   }, () => { edit = null; });
   hud.toast('裝潢模式：點房間擺放或拿起家具');
 }
@@ -308,14 +314,15 @@ function editClick(tx, ty) {
     decor.items.push(placeAt(f, ox, oy));
     audio.tool('plant');
   }
-  store.saveDecor(myId, decor);
+  saveDecor();
   rebuildHere();
 }
 
 // ---------- 捏臉 ----------
 function openLook(first) {
   openCreator(scene, me.look || defaultLook(myId), (l) => {
-    me.look = l; store.saveLook(myId, l);
+    me.look = l; lookAt = Date.now(); store.saveLook(myId, l, lookAt);
+    if (cloud) cloud.changed('look');
     if (net) net.send({ k: 'l', l });
     hud.toast(first ? '歡迎來到派派鎮！' : '換好造型了！');
   }, { first });
@@ -361,18 +368,49 @@ async function connect() {
           if (f && !f.junk && Number.isInteger(d.s) && d.s > 0 && d.s < 300) sys(`🎣 ${p.name} 釣到了 ${f.name}（${d.s} 公分）`);
         }
       },
-      status(t) { updateInfo(t || undefined); },
+      status(t) { updateInfo(t || undefined); if (!t && cloud) cloud.resume(); },
     });
-    if (net.offline) { sys(net.reason); net = null; updateInfo(); return; }
+    if (net.offline) { sys(net.reason); net = null; updateInfo(); cloudStatus('本機（未登入）'); return; }
     myId = net.me.id; myName = net.me.name; me.id = myId;
-    farm = store.loadFarm(myId); decor = store.loadDecor(myId); me.look = sanitizeLook(store.loadLook(myId));
+    farm = store.loadFarm(myId); decor = store.loadDecor(myId);
+    const le = store.loadLookEntry(myId); me.look = le && sanitizeLook(le.l); lookAt = le ? le.at : 0;
     refreshHud();
     if (area.startsWith('farm:') || area.startsWith('house:')) loadArea(personal(area.split(':')[0]), null);
     updateInfo();
+    await startCloud();
     if (!me.look && !creatorOpen()) openLook(true); else sendLook();
     setInterval(() => sendPose(), POS_TICK_MS);
   } catch (err) { net = null; updateInfo(`連線失敗：${errText(err)}（單機模式）`); }
 }
+/** 雲端存檔：登入後比對雲端與本機，之後的修改自動上傳。 */
+async function startCloud() {
+  const here = () => area.startsWith('farm:') || area.startsWith('house:');
+  cloud = createCloud(net.storage, {
+    farm: {
+      local: () => farm, at: (f) => f.at || 0, pack: packFarm, unpack: (v) => unpackFarm(v, myId),
+      apply(f, src) {
+        farm = f; store.saveFarm(myId, farm); refreshHud();
+        if (map && map.farm) syncFarm(map, farm);
+        if (src === 'conflict') hud.toast('已載入另一台裝置較新的農場進度', 3000);
+      },
+    },
+    decor: {
+      local: () => decor, at: (d) => d.at || 0, pack: store.decorData, unpack: (v) => sanitizeDecor(v),
+      apply(d) { decor = d; store.saveDecor(myId, decor); if (here()) rebuildHere(); },
+    },
+    look: {
+      local: () => (me.look ? { l: me.look, at: lookAt } : null), at: (e) => e.at || 0, pack: (e) => e,
+      unpack: (v) => { const l = v && sanitizeLook(v.l); return l ? { l, at: Number(v.at) || 0 } : null; },
+      apply(e) { me.look = e.l; lookAt = e.at; store.saveLook(myId, e.l, e.at); sendLook(); },
+    },
+  }, cloudStatus);
+  try {
+    const r = await cloud.start();
+    if (r.farm === 'cloud' || r.decor === 'cloud') sys('☁ 已從雲端載入你的農場與小屋。');
+    if (Object.values(r).includes('error')) sys('☁ 雲端存檔暫時連不上，先用本機進度，稍後會自動補傳。');
+  } catch (_e) { cloudStatus('本機'); }
+}
+
 function sendChat(raw) {
   const text = cleanText(raw);
   if (!text) return false;
@@ -522,7 +560,7 @@ function frame(now) {
     if (now - lastEvents > 5000) { checkEvents(false); lastEvents = now; }
     if (farm && now - lastGrow > 1000) {
       lastGrow = now;
-      if (grow(farm, Date.now())) { store.saveFarm(myId, farm); if (map.farm) syncFarm(map, farm); }
+      if (grow(farm, Date.now())) { saveFarm(); if (map.farm) syncFarm(map, farm); }
     }
   }
   requestAnimationFrame(frame);
@@ -545,7 +583,8 @@ start();
 // 測試用：讓瀏覽器測試能讀到目前狀態
 window.__plaza = {
   get area() { return area; }, get me() { return me; }, get farm() { return farm; }, get decor() { return decor; }, get map() { return map; },
-  get fishing() { return fishing; }, get events() { return events; }, people,
+  get fishing() { return fishing; }, get events() { return events; }, get cloud() { return cloud; }, people,
   warp: (to, entry) => loadArea(to === 'farm' || to === 'house' ? personal(to) : to, entry),
   setEvents: (ids) => { events = ids; applyEvents(map); },
+  touch: () => saveFarm(),
 };

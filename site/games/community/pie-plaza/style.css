@@ -141,3 +141,4 @@ button:disabled { opacity:.5; cursor:default; }
 .hud-btns { position:absolute; left:12px; bottom:12px; display:flex; flex-direction:column; gap:4px; }
 .hud-btns button { min-height:32px; padding:0 8px; font-size:.8rem; }
 #toolbar button em.count { position:absolute; right:2px; bottom:0; font-style:normal; font-size:.65rem; line-height:1; color:var(--wood-dark); }
+#cloud { color:var(--muted); font-size:.8rem; white-space:nowrap; }

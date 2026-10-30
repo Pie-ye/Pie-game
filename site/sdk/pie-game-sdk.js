@@ -284,6 +284,52 @@ export class MultiplayerClient {
     this._backoff = SDK.reconnectMinMs;
     this._reconnectTimer = null;
     this._openPromise = null;
+    this._saves = new Map();
+    this._rid = 0;
+  }
+
+  /**
+   * 雲端存檔（每位玩家在這款遊戲自己的資料，跨裝置）：
+   *   const { value, rev } = await client.storage.get('farm');      // 沒有存過時 value 為 null、rev 為 0
+   *   await client.storage.put('farm', data, { ifRev: rev });       // 帶 ifRev 時若別台裝置先存過會丟 save_conflict（err.current 是伺服器上的版本）
+   * 鍵：小寫英數、- 和 _，最多 32 字；每個值 48 KB 內；每人每款遊戲最多 16 個鍵；每分鐘最多寫 30 次。
+   */
+  get storage() {
+    return {
+      get: (key) => this._saveRequest({ type: 'save:get', key }),
+      put: (key, value, opts = {}) => {
+        const body = { type: 'save:put', key, value };
+        if (opts.ifRev != null) body.ifRev = opts.ifRev;
+        return this._saveRequest(body);
+      },
+    };
+  }
+
+  _saveRequest(body) {
+    return new Promise((resolve, reject) => {
+      if (!this._ws || this._ws.readyState !== WebSocket.OPEN) {
+        reject(Object.assign(new Error('not_connected'), { code: 'not_connected' }));
+        return;
+      }
+      const rid = `s${++this._rid}`;
+      const timer = setTimeout(() => {
+        this._saves.delete(rid);
+        reject(Object.assign(new Error('timeout'), { code: 'timeout' }));
+      }, SDK.requestTimeoutMs);
+      this._saves.set(rid, { resolve, reject, timer });
+      // type 一定要在最前面：伺服器靠開頭判斷超過一般大小的訊息是不是存檔
+      this._send({ ...body, rid });
+    });
+  }
+
+  _settleSave(msg) {
+    const entry = msg && msg.rid ? this._saves.get(msg.rid) : null;
+    if (!entry) return false;
+    this._saves.delete(msg.rid);
+    clearTimeout(entry.timer);
+    if (msg.type === 'error') entry.reject(Object.assign(new Error(msg.code || 'error'), { code: msg.code, current: msg.current }));
+    else entry.resolve({ value: msg.value === undefined ? null : msg.value, rev: msg.rev || 0, updatedAt: msg.updatedAt == null ? null : msg.updatedAt });
+    return true;
   }
 
   get isHost() {
@@ -445,6 +491,11 @@ export class MultiplayerClient {
   }
 
   _rejectAll(code) {
+    for (const [rid, entry] of this._saves) {
+      clearTimeout(entry.timer);
+      entry.reject(Object.assign(new Error(code), { code }));
+      this._saves.delete(rid);
+    }
     const pending = this._queue.splice(0, this._queue.length);
     pending.forEach((entry) => {
       clearTimeout(entry.timer);
@@ -460,6 +511,11 @@ export class MultiplayerClient {
       return;
     }
     if (msg.type === 'pong' || msg.type === 'welcome') return;
+    // 存檔的回覆與錯誤靠 rid 配對，不能拿去結算房間請求
+    if (msg.type === 'save' || msg.type === 'saved' || (msg.type === 'error' && msg.rid)) {
+      this._settleSave(msg);
+      return;
+    }
     if (msg.type === 'error') {
       this._emit('error', msg);
       const waiting = this._takeQueued(null);
