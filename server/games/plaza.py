@@ -27,6 +27,7 @@ from . import town as TW
 from . import pets as PT
 from . import hunt as HU
 from . import friends as FR
+from . import orders as OR
 
 GAME_ID = "pie-plaza"
 log = logging.getLogger("pie.plaza")
@@ -39,6 +40,16 @@ MAX_COOP = 20
 WISH_COST = 10
 WISH_DAILY = 10            # 每天許願次數（期望值接近打平，避免刷錢）
 PARTY_DAILY_PAID = 12     # 九個廣場派對合計，每天前幾場有獎金
+MARKET_TAX = 0.10         # 跳蚤市場成交稅（鎮政稅）
+MARKET_PRICE = (0.5, 3.0) # 上架單價要在基礎價的這個範圍
+NPC_BUY_AFTER = 2 * 3600  # 掛超過兩小時、價格合理的東西，路過的鎮民會買走
+NPC_BUY_MAX = 1.2
+MATERIAL_BASE = {"wood": 6, "stone": 6, "fiber": 4}
+NPC_BUYERS = ["艾芙琳奶奶", "皮爺爺", "瑪莉", "阿胖", "小傑", "山姆", "蘿蘋"]
+
+
+def base_value(item: str) -> int:
+    return int(L.SELL.get(item) or MATERIAL_BASE.get(item) or 10)
 
 SCHEMA = (
     """
@@ -126,12 +137,15 @@ class PlazaService:
             row = store._db.execute("SELECT v FROM plaza_exchange WHERE k='state'").fetchone()
             trow = store._db.execute("SELECT v FROM plaza_exchange WHERE k='town'").fetchone()
             wrow = store._db.execute("SELECT v FROM plaza_exchange WHERE k='weekly'").fetchone()
+            orow = store._db.execute("SELECT v FROM plaza_exchange WHERE k='orders'").fetchone()
         self.ex = L.sanitize_exchange(json.loads(row[0]) if row else None, self.now_ms())
         self.town = TW.sanitize(json.loads(trow[0]) if trow else None)
         self.town_dirty = False
         self._apply_town_effects()
         self.weekly: dict[str, Any] = json.loads(wrow[0]) if wrow else {}
         self._week_check = 0
+        self.orders: dict[str, Any] | None = json.loads(orow[0]) if orow else None
+        self._npc_buy_check = 0
         self._rank_cache: tuple[int, str, dict[str, Any]] | None = None
 
     def now_ms(self) -> int:
@@ -319,6 +333,7 @@ class PlazaService:
         s = rec["social"]
         return {"name": rec["name"], "farm": L.pack_farm(rec["farm"]), "inv": rec["inv"], "seeds": rec["seeds"], "seedSel": rec["seedSel"],
                 "gold": rec["gold"], "shares": L.shares_of(rec), "decor": rec["decor"], "look": rec["look"], "pet": PT.state(rec)["on"],
+                "tools": rec.get("tools") or {},
                 "social": {"open": s["open"], "friends": s["friends"], "coop": s["coop"], "likes": s["likes"], "liked": s["liked"]},
                 "now": self.now_ms()}
 
@@ -546,10 +561,17 @@ class PlazaService:
         L.grow(orec["farm"], now)
         r = L.use_tool(orec, rec, tool, x, y, now)
         k = f"{x},{y}"
-        out = {"result": r, "tile": {k: L.tile(orec["farm"], k)}, **self._mine(rec)}
+        keys = [k]
+        if r["ok"] and tool == "wateringcan" and (rec.get("tools") or {}).get("can", 0) >= 2:   # 金澆水壺：3×3
+            for dx in (-1, 0, 1):
+                for dy in (-1, 0, 1):
+                    nk = f"{x + dx},{y + dy}"
+                    if (dx or dy) and nk in orec["farm"]["tilled"] and L.use_tool(orec, rec, tool, x + dx, y + dy, now)["ok"]:
+                        keys.append(nk)
+        out = {"result": r, "tile": {kk: L.tile(orec["farm"], kk) for kk in keys}, **self._mine(rec)}
         if r["ok"]:
             self.dirty.update({owner, me})
-            await self._broadcast_patch(relay, owner, [k], by=None if owner == me else rec["name"], kind=tool)
+            await self._broadcast_patch(relay, owner, keys, by=None if owner == me else rec["name"], kind=tool)
             if owner != me and (r.get("cleared") or r.get("harvest")):
                 await self._push_me(relay, owner)             # 掉落物進了主人的背包
             ev: list[tuple[str, Any]] = []
@@ -635,6 +657,9 @@ class PlazaService:
         price = self._int(p.get("price"), 1, 99999)
         if item not in L.ITEMS or rec["inv"].get(item, 0) < n:
             raise GameError("no_item", "背包裡的數量不夠")
+        lo, hi = (max(1, int(base_value(item) * MARKET_PRICE[0] * n)), int(base_value(item) * MARKET_PRICE[1] * n))
+        if not lo <= price <= hi:
+            raise GameError("bad_price", f"{n} 個的總價要在 {lo}–{hi} G 之間")
         if sum(1 for x in self.market.values() if x["seller"] == me) >= MAX_LISTINGS_PER_USER:
             raise GameError("too_many_listings", f"一個人最多同時上架 {MAX_LISTINGS_PER_USER} 筆")
         rec["inv"][item] -= n
@@ -674,11 +699,12 @@ class PlazaService:
         del self.market[lid]
         rec["gold"] -= listing["price"]
         rec["inv"][listing["item"]] = rec["inv"].get(listing["item"], 0) + listing["n"]
-        seller["gold"] += listing["price"]
+        tax = int(listing["price"] * MARKET_TAX)
+        seller["gold"] += listing["price"] - tax
         self.dirty.update({me, listing["seller"]})
         await asyncio.to_thread(self._delete_listing, lid)
         await self._notify(relay, listing["seller"], me, rec["name"], "syssold",
-                           {"item": listing["item"], "n": listing["n"], "price": listing["price"]})
+                           {"item": listing["item"], "n": listing["n"], "price": listing["price"] - tax, "tax": tax})
         await self._push_me(relay, listing["seller"])
         await self._progress(relay, me, rec, [("buy", 1)])
         await self._progress(relay, listing["seller"], seller, [("sell", 1)])
@@ -1544,6 +1570,7 @@ class PlazaService:
             self._fw_sec = now // 1000
             await self._fireworks_step(relay, now)
             await self._weekly_step(relay, now)
+            await self._npc_market_step(relay, now)
         await self._boss_step(relay, now, min(0.25, max(0.0, (now - self._arena_last) / 1000)) if self._arena_last else ARENA_SECONDS)
         dt = min(0.25, max(0.0, (now - self._arena_last) / 1000)) if self._arena_last else ARENA_SECONDS
         self._arena_last = now
@@ -1716,6 +1743,18 @@ class PlazaService:
                                      "top": done["rewards"][0]["name"] if done["rewards"] else ""})
 
     # ---------- 烘焙與鎮民好感 ----------
+    async def op_upgrade(self, relay, conn, me, rec, p):
+        if p.get("act") == "view":
+            lv = (rec.get("tools") or {}).get("can", 0)
+            return {"tools": rec.get("tools") or {}, "next": L.UPGRADES["can"][lv] if lv < len(L.UPGRADES["can"]) else None,
+                    "names": L.UPGRADE_NAMES["can"]}
+        r = L.upgrade(rec, p.get("tool"))
+        if not r["ok"]:
+            raise GameError(r["code"], r["msg"])
+        self.dirty.add(me)
+        await self._progress(relay, me, rec, [("upgrade_best", r["level"])])
+        return {**r, "tools": rec["tools"], **self._mine(rec)}
+
     async def op_bake(self, relay, conn, me, rec, p):
         pie = p.get("pie")
         n = self._int(p.get("n"), 1, 99)
@@ -1816,6 +1855,47 @@ class PlazaService:
         return {"week": wk, "boards": [{"key": k, "title": t, "top": [[n, v] for n, v, _ in boards[k]], "mine": int((mine or {}).get(k, 0))}
                                        for k, t in Q.WEEK_BOARDS],
                 "gold": Q.WEEK_GOLD, "last": self.weekly.get("champs") or []}
+
+    async def _npc_market_step(self, relay, now: int) -> None:
+        """路過的鎮民：掛了兩小時以上、價格合理的東西會被買走（人少時市場也有成交）。"""
+        if now - self._npc_buy_check < 60_000:
+            return
+        self._npc_buy_check = now
+        t = self.clock()
+        for lid, it in list(self.market.items()):
+            if t - it["at"] < NPC_BUY_AFTER or it["price"] > base_value(it["item"]) * it["n"] * NPC_BUY_MAX:
+                continue
+            seller = await self.load(it["seller"], create=False)
+            if lid not in self.market or seller is None:
+                continue
+            del self.market[lid]
+            tax = int(it["price"] * MARKET_TAX)
+            seller["gold"] += it["price"] - tax
+            self.dirty.add(it["seller"])
+            buyer = self.rng.choice(NPC_BUYERS)
+            await asyncio.to_thread(self._delete_listing, lid)
+            await self._notify(relay, it["seller"], "npc", buyer, "syssold", {"item": it["item"], "n": it["n"], "price": it["price"] - tax, "tax": tax})
+            await self._push_me(relay, it["seller"])
+            await self._progress(relay, it["seller"], seller, [("sell", 1)])
+
+    # ---------- 鎮民急徵 ----------
+    def _orders_today(self) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+        day = L.taipei_day(self.now_ms())
+        self.orders = OR.state(self.orders, day)
+        pool = sorted(list(L.CROPS) + list(L.PIES) + [f"fish_{f['id']}" for f in L.FISH if not f.get("junk") and f["id"] != "golden"])
+        return self.orders, OR.today(day, pool, {k: base_value(k) for k in pool})
+
+    async def op_orders(self, relay, conn, me, rec, p):
+        st, orders = self._orders_today()
+        if p.get("act") == "fill":
+            r = OR.fill(st, orders, rec, me, p.get("i"))
+            if not r["ok"]:
+                raise GameError(r["code"], r["msg"])
+            self.dirty.add(me)
+            await asyncio.to_thread(self._write_kv, "orders", json.dumps(st, ensure_ascii=False))
+            await self._progress(relay, me, rec, [("order", 1)])
+            return {**r, "orders": OR.view(st, orders, me), **self._mine(rec)}
+        return {"orders": OR.view(st, orders, me)}
 
     async def _weekly_step(self, relay, now: int) -> None:
         """每分鐘看一次：換週了就結算上週，前三名發金幣與系統信。"""

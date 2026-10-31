@@ -2,6 +2,12 @@
 import { openPanel } from './panels.js';
 import { atlasIcon } from './icon.js';
 import { itemName, marketable } from '../social/home.js';
+import { CROPS, PIES } from '../farm/state.js';
+import { FISH_PRICES } from '../fish/fishing.js';
+
+/** 基礎價（和伺服器 base_value 一致）：上架單價要在 50%–300%。 */
+export const baseValue = (k) => (CROPS[k] && CROPS[k].sell) || (PIES[k] && PIES[k].sell) || FISH_PRICES[k] || { wood: 6, stone: 6, fiber: 4 }[k] || 10;
+export const priceRange = (k, n) => [Math.max(1, Math.floor(baseValue(k) * 0.5 * n)), Math.floor(baseValue(k) * 3 * n)];
 
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const btn = (text, fn, cls) => { const b = el('button', cls, text); b.type = 'button'; b.addEventListener('click', fn); return b; };
@@ -20,7 +26,7 @@ export function openMarket(api, me, tab = 'buy') {
   const paintGold = () => { gold.textContent = `你的金幣：${me.farm.gold} G`; };
   const say = (t, bad) => { msg.textContent = t || ''; msg.style.color = bad ? '#c0392b' : ''; };
   const show = (t) => { tabs.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.t === t)); render(t); };
-  for (const [t, label] of [['buy', '購買'], ['sell', '上架'], ['mine', '我的攤位']]) { const b = btn(label, () => show(t)); b.dataset.t = t; tabs.append(b); }
+  for (const [t, label] of [['buy', '購買'], ['orders', '鎮民急徵'], ['sell', '上架'], ['mine', '我的攤位']]) { const b = btn(label, () => show(t)); b.dataset.t = t; tabs.append(b); }
   body.append(gold, tabs, msg, view);
   paintGold();
 
@@ -28,6 +34,7 @@ export function openMarket(api, me, tab = 'buy') {
     view.textContent = '';
     say('');
     if (t === 'sell') return renderSell();
+    if (t === 'orders') return renderOrders();
     view.append(el('p', 'note', '讀取中…'));
     let items;
     try { items = await api.list(); } catch (e) { view.textContent = ''; say(e.msg || '市場暫時連不上', true); return; }
@@ -58,7 +65,10 @@ export function openMarket(api, me, tab = 'buy') {
     const sel = el('select'); sel.setAttribute('aria-label', '要賣的東西');
     for (const [k, n] of items) { const o = el('option', null, `${itemName(k)}（有 ${n}）`); o.value = k; sel.append(o); }
     const num = el('input'); num.type = 'number'; num.min = '1'; num.value = '1'; num.setAttribute('aria-label', '數量');
-    const price = el('input'); price.type = 'number'; price.min = '1'; price.max = '99999'; price.value = '50'; price.setAttribute('aria-label', '總價');
+    const price = el('input'); price.type = 'number'; price.min = '1'; price.max = '99999'; price.setAttribute('aria-label', '總價');
+    const hint = el('p', 'note');
+    const suggest = () => { const n = Math.max(1, Math.floor(Number(num.value)) || 1), [lo, hi] = priceRange(sel.value, n); price.value = String(baseValue(sel.value) * n); hint.textContent = `可以定 ${lo}–${hi} G。成交收 10% 稅；掛兩小時以上、價格不超過 ${Math.floor(baseValue(sel.value) * 1.2 * n)} G 的話，路過的鎮民會買走。`; };
+    sel.addEventListener('change', suggest); num.addEventListener('input', suggest);
     const form = el('div', 'sell-form');
     form.append(el('label', null, '物品'), sel, el('label', null, '數量'), num, el('label', null, '總價（G）'), price);
     const go = btn('上架', async () => {
@@ -68,7 +78,27 @@ export function openMarket(api, me, tab = 'buy') {
       try { await api.sell(sel.value, n, p); say(`已上架 ${itemName(sel.value)} ×${n}，${p} G`); view.textContent = ''; renderSell(); } catch (e) { say(e.msg || '上架失敗', true); }
       go.disabled = false;
     }, 'primary');
-    view.append(form, go, el('p', 'note', '一個人最多同時上架 10 筆。有人買下時，錢會直接進你的帳戶，不在線上也一樣，信箱會通知你。'));
+    suggest();
+    view.append(form, go, hint, el('p', 'note', '一個人最多同時上架 10 筆。有人買下時，錢會直接進你的帳戶，不在線上也一樣，信箱會通知你。'));
+  }
+  async function renderOrders() {
+    if (!api.orders) return;
+    let list;
+    try { list = await api.orders(); } catch (e) { say(e.msg || '讀不到', true); return; }
+    view.append(el('p', 'note', '鎮民今天急著要這些東西，出 1.4 倍價收購。每張限 3 位鎮民交貨，每人一次。'));
+    for (const o of list) {
+      const row = el('div', 'shop-row');
+      const info = el('span');
+      info.append(atlasIcon(itemIcon(o.item), 32), document.createTextNode(` ${o.npc}：${itemName(o.item)} ×${o.n}　${o.unit * o.n} G`));
+      row.append(info, el('small', null, o.done ? '你交過了' : `還收 ${o.left} 份（你有 ${me.farm.inv[o.item] || 0}）`));
+      const b = btn('交貨', async () => {
+        b.disabled = true;
+        try { const r = await api.fill(o.i); paintGold(); say(`${r.npc}：謝謝你！+${r.reward} G`); view.textContent = ''; renderOrders(); } catch (e) { say(e.msg || '交不了', true); b.disabled = false; }
+      });
+      b.disabled = o.done || o.left <= 0 || (me.farm.inv[o.item] || 0) < o.n;
+      row.append(b);
+      view.append(row);
+    }
   }
   show(tab);
 }

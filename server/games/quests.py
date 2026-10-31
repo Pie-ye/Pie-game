@@ -26,6 +26,7 @@ STAMPS: list[tuple[str, str, str, str, str, int, int]] = [
     ("farm_all", "farm", "六色菜園", "六種作物都收成過", "uniq:crop", 6, 120),
     ("farm_clear", "farm", "開墾者", "累計清除 100 個雜物", "clear", 100, 60),
     ("farm_bake", "farm", "烘焙師", "五種派都烤過", "uniq:pie", 5, 100),
+    ("farm_tool", "farm", "好工具", "把澆水壺升級成金澆水壺", "upgrade_best", 2, 120),
     ("farm_ship", "farm", "出貨大戶", "累計出貨 1000 G", "ship_gold", 1000, 80),
     ("fish_first", "fish", "第一條魚", "釣到任何一條魚", "fish", 1, 20),
     ("fish_30", "fish", "老練釣手", "累計釣到 30 條魚", "fish", 30, 60),
@@ -64,6 +65,7 @@ STAMPS: list[tuple[str, str, str, str, str, int, int]] = [
     ("town_trade", "town", "初次交易", "在交易所完成一筆交易", "trade", 1, 30),
     ("town_sell5", "town", "攤販", "在跳蚤市場賣出 5 筆", "sell", 5, 60),
     ("town_buy3", "town", "愛逛市場", "在跳蚤市場買 3 筆", "buy", 3, 40),
+    ("town_order5", "town", "鎮民的好幫手", "交 5 張鎮民急徵", "order", 5, 80),
     ("town_builder", "town", "新區功臣", "出力蓋好一棟全鎮工程", "town_build", 1, 60),
     ("town_top", "town", "工程總監", "在一期全鎮工程貢獻最多", "town_top", 1, 120),
 ]

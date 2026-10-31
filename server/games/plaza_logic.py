@@ -192,6 +192,8 @@ def use_tool(owner_rec: dict[str, Any], actor_rec: dict[str, Any], tool: str, x:
         farm["tilled"][k]["w"] = now_ms
         if crop:
             crop["w"] = now_ms
+            if (actor_rec.get("tools") or {}).get("can", 0) >= 1:
+                crop["wl"] = 2
         return {"ok": True, "msg": "", "water": True}
     if tool == "seed":
         t = actor_rec["seedSel"]
@@ -221,9 +223,14 @@ def grow(farm: dict[str, Any], now_ms: int) -> list[str]:
     for k, c in farm["crops"].items():
         if c["s"] < 3 and c.get("w") and now_ms - c["w"] >= GROW_MS * CROPS[c["t"]]["grow"] / GROW_SPEED:
             c["s"] += 1
-            c["w"] = 0
-            if k in farm["tilled"]:
-                farm["tilled"][k]["w"] = 0
+            if c.get("wl", 1) > 1 and c["s"] < 3:          # 升級過的澆水壺：水分撐到下一階
+                c["wl"] -= 1
+                c["w"] = now_ms
+            else:
+                c["w"] = 0
+                c.pop("wl", None)
+                if k in farm["tilled"]:
+                    farm["tilled"][k]["w"] = 0
             changed.append(k)
     for k, t in farm["tilled"].items():
         if t.get("w") and now_ms - t["w"] > GROW_MS * 2 and k not in farm["crops"]:
@@ -242,6 +249,31 @@ def rain(farm: dict[str, Any], now_ms: int) -> list[str]:
                 farm["tilled"][k]["w"] = now_ms
             out.append(k)
     return out
+
+
+# 工具升級（克林鐵匠鋪）：等級 → 費用
+UPGRADES = {"can": [{"gold": 500, "stone": 20}, {"gold": 1500, "stone": 50, "wood": 50}]}
+UPGRADE_NAMES = {"can": ["澆水壺", "銅澆水壺", "金澆水壺"]}
+
+
+def upgrade(rec: dict[str, Any], tool: Any) -> dict[str, Any]:
+    if tool not in UPGRADES:
+        return {"ok": False, "code": "bad_tool", "msg": "這個不能升級"}
+    tools = rec.setdefault("tools", {})
+    lv = int(tools.get(tool, 0))
+    if lv >= len(UPGRADES[tool]):
+        return {"ok": False, "code": "max", "msg": "已經是最好的了"}
+    cost = UPGRADES[tool][lv]
+    if rec["gold"] < cost.get("gold", 0) or any(rec["inv"].get(k, 0) < v for k, v in cost.items() if k != "gold"):
+        return {"ok": False, "code": "no_item", "msg": "材料或金幣不夠"}
+    rec["gold"] -= cost.get("gold", 0)
+    for k, v in cost.items():
+        if k != "gold":
+            rec["inv"][k] -= v
+            if not rec["inv"][k]:
+                del rec["inv"][k]
+    tools[tool] = lv + 1
+    return {"ok": True, "level": lv + 1, "name": UPGRADE_NAMES[tool][lv + 1]}
 
 
 def next_seed(rec: dict[str, Any]) -> str:

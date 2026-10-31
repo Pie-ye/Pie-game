@@ -182,3 +182,23 @@ def test_party_rain_waters_unwatered_crops_only():
     f["crops"].update({"1,1": {"t": "wheat", "s": 1, "w": 0, "at": 0}, "2,2": {"t": "wheat", "s": 1, "w": 5, "at": 0},
                        "3,3": {"t": "wheat", "s": 3, "w": 0, "at": 0}})
     assert L.rain(f, 99) == ["1,1"] and f["crops"]["1,1"]["w"] == 99 and f["tilled"]["1,1"]["w"] == 99
+
+
+def test_watering_can_upgrade_keeps_crops_wet_two_stages():
+    rec = L.new_player("u8", "x")
+    rec["gold"] = 3000
+    rec["inv"].update(stone=100, wood=100)
+    f = rec["farm"]
+    f["debris"].clear()
+    assert L.upgrade(rec, "can")["level"] == 1 and rec["gold"] == 2500 and rec["inv"]["stone"] == 80
+    for t in ("hoe", "seed", "wateringcan"):
+        assert L.use_tool(rec, rec, t, 22, 12, 1000)["ok"]
+    c = f["crops"]["22,12"]
+    assert c["wl"] == 2
+    L.grow(f, 1000 + L.GROW_MS + 1)
+    assert c["s"] == 1 and c["w"] > 0, "長一階後還是濕的"
+    L.grow(f, 1000 + 2 * L.GROW_MS + 10)
+    assert c["s"] == 2 and c["w"] == 0, "第二階後要再澆"
+    assert L.upgrade(rec, "can")["level"] == 2
+    assert L.upgrade(rec, "can")["code"] == "max"
+    assert L.upgrade({"gold": 0, "inv": {}}, "can")["code"] == "no_item"

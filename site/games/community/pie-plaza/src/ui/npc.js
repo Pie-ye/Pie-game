@@ -52,6 +52,27 @@ export function openNpcMenu(id, fv, inv, actions, gift) {
   paint(fv);
 }
 
+/** 克林的鐵匠鋪：升級澆水壺。data：伺服器 upgrade view；up() → Promise<回覆>。 */
+export function openSmith(data, inv, gold, up) {
+  const body = openPanel('克林鐵匠鋪');
+  const paint = (d, msgText) => {
+    body.replaceChildren();
+    const lv = (d.tools && d.tools.can) || 0;
+    body.append(el('h3', null, `💧 你的澆水壺：${d.names[lv]}`));
+    body.append(el('p', 'note', '銅澆水壺：澆一次水，作物連續長兩階都是濕的（去玩派對也安心）。金澆水壺：再加上一次澆 3×3 九格。'));
+    if (!d.next) body.append(el('p', null, '已經是最好的澆水壺了。'));
+    else {
+      const card = el('div', 'event quest');
+      card.append(el('b', null, `升級成 ${d.names[lv + 1]}`));
+      card.append(el('p', null, Object.entries(d.next).map(([k, n]) => (k === 'gold' ? `金幣 ${gold()}/${n}` : `${itemName(k)} ${inv()[k] || 0}/${n}`)).join('　')));
+      card.append(btn('升級', async () => { try { const r = await up(); paint({ ...d, tools: r.tools, next: r.next }, `完成！拿到${r.name}。`); } catch (e) { paint(d, e.msg || '不夠'); } }));
+      body.append(card);
+    }
+    body.append(el('p', 'note', msgText || ''));
+  };
+  paint(data);
+}
+
 /** 瑪莉的烤派面板。inv() 背包；bake(pie, n) → Promise<回覆>。 */
 export function openBake(inv, bake) {
   const body = openPanel('瑪莉麵包店・烤派');

@@ -36,7 +36,7 @@ import { drawFireworks, fireworksTime } from './ui/fireworks.js';
 import { openPets } from './ui/pets.js';
 import { cleanPet, followStep } from './game/pets.js';
 import { huntHere } from './game/hunt.js';
-import { openNpcMenu, openBake } from './ui/npc.js';
+import { openNpcMenu, openBake, openSmith } from './ui/npc.js';
 import { BY_NAME, tierLine, REACTION, FRIENDS } from './game/friends.js';
 import { obj } from './engine/world.js';
 import { throwDir, ARENA } from './game/arena.js';
@@ -379,6 +379,7 @@ function doAction(action) {
   else if (action === 'town') openTownPanel();
   else if (action === 'pets') openPetsPanel();
   else if (action === 'bake') openBakePanel();
+  else if (action === 'smith') openSmithPanel();
   else if (action === 'arenaBoard') arenaBoard();
 }
 async function ship() {
@@ -413,6 +414,8 @@ function openFlea() {
     buy: async (id) => { const r = await api.call('purchase', { id }); applyMine(farm, r); refreshHud(); audio.tool('harvest'); sys(`🛒 買到 ${itemName(r.bought.item)} ×${r.bought.n}（${r.bought.price} G，賣家 ${r.bought.sellerName}）`); },
     sell: async (item, n, price) => { const r = await api.call('sell', { item, n, price }); applyMine(farm, r); refreshHud(); audio.tool('plant'); },
     unlist: async (id) => { const r = await api.call('unlist', { id }); applyMine(farm, r); refreshHud(); },
+    orders: async () => (await call('orders', {}, { quiet: true })).orders,
+    fill: async (i) => { const r = await api.call('orders', { act: 'fill', i }); applyMine(farm, r); refreshHud(); audio.tool('harvest'); return r; },
   }, { id: myId, farm });
 }
 
@@ -747,7 +750,7 @@ const arenaThrowing = () => map && map.id === 'arena' && arena.inShow() && arena
 
 // ---------- 鎮民好感與烤派 ----------
 let friendsView = null;
-const ACTION_LABEL = { shop: '🌱 買種子', market: '🧺 早市特賣', houseDesign: '🏠 改造小屋', exchange: '📈 看行情', pets: '🐾 領養寵物', town: '🏗️ 看工程', bake: '🥧 烤派' };
+const ACTION_LABEL = { smith: '💧 升級澆水壺', shop: '🌱 買種子', market: '🧺 早市特賣', houseDesign: '🏠 改造小屋', exchange: '📈 看行情', pets: '🐾 領養寵物', town: '🏗️ 看工程', bake: '🥧 烤派' };
 async function refreshFriends() {
   if (!api.server) return;
   try { friendsView = (await call('npc', { act: 'view' }, { quiet: true })).friends; } catch (_e) { /* 下次再說 */ }
@@ -767,6 +770,18 @@ async function openNpc(fid, action) {
     audio.tool(r.taste === 'love' || r.up ? 'fanfare' : 'harvest');
     return { ...r, message };
   });
+}
+async function openSmithPanel() {
+  if (!api.server) { hud.toast('登入後才能升級工具'); return; }
+  try {
+    const v = await call('upgrade', { act: 'view' });
+    openSmith(v, () => farm.inv, () => farm.gold, async () => {
+      const r = await call('upgrade', { tool: 'can' });
+      applyMine(farm, r); refreshHud(); audio.tool('fanfare');
+      const nv = await call('upgrade', { act: 'view' });
+      return { ...r, next: nv.next };
+    });
+  } catch (_e) { /* 已提示 */ }
 }
 function openBakePanel() {
   if (!api.server) { hud.toast('登入後才能烤派'); return; }

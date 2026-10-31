@@ -11,7 +11,7 @@ export const SHOPS = [
     npc: { name: '阿胖', sprite: 'villager4', lines: ['歡迎來到星星餐館！今天的特餐是甜菜湯。', '晚上大家都會來這裡聊天，很熱鬧的。', '（點餐功能準備中，先坐一下吧。）'] },
     props: [['redTable', 60, 150], ['chairN', 44, 150], ['chairN', 76, 150], ['redTable', 260, 150], ['chairN', 244, 150], ['chairN', 276, 150], ['redTableLong', 160, 186], ['jarRed', 280, 50], ['shelfN', 40, 50], ['plantN', 300, 186]] },
   { id: 'smith', title: '克林鐵匠鋪', k: 'shopDark', cx: 616, floor: 'dark', wall: 'sage',
-    npc: { name: '克林', sprite: 'hunter', lines: ['……要升級工具？', '十字鎬敲久了會鈍，拿石頭和礦石來，我幫你打一把更好的。', '（升級功能之後開放。）'] },
+    npc: { name: '克林', sprite: 'hunter', lines: ['……要升級工具？', '澆水壺我可以幫你打一把更好的：銅的水分撐得久，金的一次澆一大片。', '帶金幣和石頭來。'], action: 'smith' },
     props: [['barrel', 30, 186], ['crate', 46, 186], ['crate', 46, 170], ['cauldron', 270, 50], ['shelfN', 40, 50], ['shelfBig', 80, 50], ['chestN', 290, 186]] },
   { id: 'carpenter', title: '蘿蘋木匠屋', k: 'houseBeige', cx: 712, floor: 'tan', wall: 'orange',
     npc: { name: '蘿蘋', sprite: 'cavegirl2', lines: ['嗨！我是木匠蘿蘋。', '想換小屋的樣子嗎？在你的農場對著小屋旁的告示牌按 E 就能改。', '要我幫你改造小屋嗎？'], action: 'houseDesign' },

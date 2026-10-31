@@ -201,14 +201,15 @@ async def test_economy_market_and_offline_seller(aiohttp_client, tmp_path) -> No
     assert plaza.players[buyer]["gold"] == 200 and plaza.players[buyer]["inv"]["pumpkin"] == 2
     gold_before = plaza.players["alice"]["gold"]
     await plaza.flush()
-    assert gold_before == 100 - 60 + 360 + 300
+    assert gold_before == 100 - 60 + 360 + 300 - 30          # 成交收 10% 稅
     alice2 = await connect_and_auth(client, "alice", G)
     me = (await call(alice2, "load"))["me"]
     assert me["gold"] == gold_before
     sold = [m for m in store.mail_list_sync(G, "alice") if m["kind"] == "syssold"]
-    assert sold and sold[0]["data"]["price"] == 300
+    assert sold and sold[0]["data"]["price"] == 270 and sold[0]["data"]["tax"] == 30
     # 下架
-    l2 = await call(alice2, "sell", item="pumpkin", n=1, price=5)
+    assert (await call(alice2, "sell", item="pumpkin", n=1, price=5))["code"] == "bad_price"     # 太便宜（防洗錢）
+    l2 = await call(alice2, "sell", item="pumpkin", n=1, price=150)
     assert (await call(bob, "unlist", id=l2["listing"]["id"]))["code"] == "sold_out"
     assert (await call(alice2, "unlist", id=l2["listing"]["id"]))["inv"]["pumpkin"] == 3
     for ws in (alice2, bob, carol):
@@ -1712,4 +1713,33 @@ async def test_special_pie_throw_consumes_inventory(aiohttp_client, tmp_path) ->
     plaza.boss.p["alice"]["cool"] = 0
     r = await call(alice, "boss", act="throw", dx=0, dy=-1, pie="pie_tomato")   # 沒有了：當普通派
     assert r["ok"] and r["pie"] is None
+    await alice.close()
+
+
+
+@pytest.mark.asyncio
+async def test_npc_buys_old_fair_listing_and_daily_orders(aiohttp_client, tmp_path) -> None:
+    from server.games import plaza as PZ
+    client, plaza, store, clock = await make(aiohttp_client, tmp_path)
+    alice = await connect_and_auth(client, "alice", G)
+    await call(alice, "load")
+    plaza.players["alice"]["inv"] = {"wheat": 10, "carrot": 1}
+    fair = await call(alice, "sell", item="wheat", n=2, price=55)        # 單價 27.5 ≤ 25 × 1.2
+    pricey = await call(alice, "sell", item="wheat", n=2, price=140)     # 太貴，鎮民不買
+    g0 = plaza.players["alice"]["gold"]
+    relay = type("FakeRelay", (), {"connections": []})()
+    clock.advance(PZ.NPC_BUY_AFTER + 10)
+    await plaza._npc_market_step(relay, plaza.now_ms())
+    assert fair["listing"]["id"] not in plaza.market and pricey["listing"]["id"] in plaza.market
+    assert plaza.players["alice"]["gold"] == g0 + 55 - 5
+    assert any(m["kind"] == "syssold" for m in store.mail_list_sync(G, "alice"))
+    # 鎮民急徵：交一張，拿 1.4 倍
+    v = (await call(alice, "orders"))["orders"]
+    assert len(v) == 3 and all(o["left"] == 3 for o in v)
+    o = v[0]
+    plaza.players["alice"]["inv"][o["item"]] = o["n"]
+    g1 = plaza.players["alice"]["gold"]
+    r = await call(alice, "orders", act="fill", i=o["i"])
+    assert r["ok"] and r["reward"] == o["n"] * o["unit"] and plaza.players["alice"]["gold"] == g1 + r["reward"]
+    assert (await call(alice, "orders", act="fill", i=o["i"]))["code"] == "done"
     await alice.close()
