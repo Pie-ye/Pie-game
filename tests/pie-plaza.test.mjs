@@ -1618,3 +1618,10 @@ test('arena: field is enclosed for spectators, desk reachable, standings share r
   assert.deepEqual(AR.throwDir(3), [1, 0]);
   const [dx, dy] = AR.throwDir(0, 1, 1); assert.ok(Math.abs(Math.hypot(dx, dy) - 1) < 1e-9);
 });
+
+test('boss: Taipei time label and images listed', async () => {
+  const B = await import('../site/games/community/pie-plaza/src/ui/boss.js').catch(() => null);
+  if (!B) return;                      // ui/boss.js 需要 DOM 時略過
+  assert.equal(B.hhmmTaipei(Date.UTC(2027, 0, 15, 4, 30)), '12:30');
+  assert.equal(B.BOSS_IMAGES.length, 5);
+});

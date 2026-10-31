@@ -30,7 +30,7 @@ def main() -> int:
         A.locator(".frame").screenshot(path=str(OUT / "01_daily.png"))
         # 在農場收成第一個作物：伺服器發章、前端跳提示
         A.evaluate(f"{P}.warp('farm', 'door')"); A.wait_for_timeout(400)
-        gold0 = A.evaluate(f"{P}.farm.gold")
+        gold0 = A.evaluate(f"{P}.call('load').then((r) => r.me.gold)")
         for tool in ("hoe", "seed", "wateringcan"):
             A.evaluate(f"{P}.call('tool', {{ tool: '{tool}', x: 22, y: 12 }})")
         # 測試用：伺服器時間不能快轉，直接把作物改成熟（只有開發伺服器的資料庫）
@@ -50,8 +50,11 @@ def main() -> int:
         r = A.evaluate(f"{P}.call('quests')")
         wish = next(s for s in r["quests"]["stamps"] if s["id"] == "town_wish10")
         check(wish["have"] == 1 and wish["need"] == 10, "許願進度 1/10 記在集章")
-        gold1 = A.evaluate(f"{P}.farm.gold")
-        check(gold1 <= gold0, "許願花了 10 G（沒有誤發獎金）")
+        gold1 = A.evaluate(f"{P}.call('load').then((r) => r.me.gold)")
+        daily_wish = any("許一次願" in d["text"] and d["done"] for d in r["quests"]["daily"])
+        expect = {-10, 40, 10, 60, 70, 120} if daily_wish else {-10, 40}
+        check(gold1 - gold0 in expect,
+              f"許願花了 10 G，只有今日委託剛好是許願才多 20 G（{gold0} → {gold1}）")
         errs = [e for e in env.errors if "favicon" not in e]
         check(not errs, f"沒有前端錯誤 {errs[:3]}")
         print("log tail:", logs[-200:])

@@ -60,7 +60,8 @@ addEventListener('message', (e) => {{
 
 
 class E2E:
-    def __init__(self):
+    def __init__(self, env=None):
+        self.extra_env = dict(env or {})
         self.tmp = Path(tempfile.mkdtemp())
         self.db = self.tmp / "saves.sqlite3"
 
@@ -72,7 +73,7 @@ class E2E:
         for s in (self.redeem, self.parent):
             threading.Thread(target=s.serve_forever, daemon=True).start()
         env = {**os.environ, "PG_SHELL_PORT": str(free_port()), "PG_CONTENT_PORT": str(self.cport), "PG_SHELL_ORIGIN": self.shell,
-               "PG_CONTENT_ORIGIN": self.content, "PG_RETIRE_BASE": f"http://127.0.0.1:{rport}", "PG_SAVE_DB": str(self.db)}
+               "PG_CONTENT_ORIGIN": self.content, "PG_RETIRE_BASE": f"http://127.0.0.1:{rport}", "PG_SAVE_DB": str(self.db), **self.extra_env}
         self.srv = subprocess.Popen([sys.executable, "-m", "server.app", "--dev"], cwd=REPO, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         for _ in range(80):
             try:

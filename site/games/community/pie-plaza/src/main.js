@@ -30,6 +30,7 @@ import { openSmash } from './ui/smash.js';
 import { openVase } from './ui/vase.js';
 import { createArena } from './ui/arena.js';
 import { openBook, questLine } from './ui/book.js';
+import { createBoss } from './ui/boss.js';
 import { throwDir, ARENA } from './game/arena.js';
 import { openVisitPanel, openVisitorMenu, openMailbox, openPlayerCard, openEmotes } from './ui/social.js';
 import { TOOLS, CROPS, useTool, debrisLeft, CROP_KEYS } from './farm/state.js';
@@ -83,6 +84,7 @@ function addLog(text, who, cls) {
 }
 const sys = (t) => addLog(t, '', 'sys');
 const arena = createArena({ myId: () => myId, audio, hud, sys, onCall: () => { if (area !== 'arena') goArea('arena', 'south'); } });
+const boss = createBoss({ myId: () => myId, audio, hud, sys, onCall: () => { if (area !== 'plaza') goArea('plaza', 'center'); } });
 arena.onTeleport((x, y) => { me.x = x; me.y = y; target = null; keys.clear(); sendPose(undefined, true); });
 function updateInfo(extra) {
   titleEl.textContent = map ? map.title : '派派鎮';
@@ -186,6 +188,7 @@ function loadArea(a, entry, opts = {}) {
   updateInfo();
   sendPose(undefined, true);
   arena.setVisible(a === 'arena');
+  boss.setVisible(a === 'plaza');
   if (moved && a === 'arena') enterArena();
   else if (moved && wasArena) leaveArena();
   // 伺服器推播只送給「正在看」這塊地的人
@@ -694,6 +697,20 @@ async function throwPie(dx, dy) {
   audio.tool('throw');
   try { await api.call('arena', { act: 'throw', dx: Math.round(ux * 100) / 100, dy: Math.round(uy * 100) / 100 }); } catch (_e) { /* 太快或暈了 */ }
 }
+let lastBossThrow = 0;
+async function throwAtBoss(dx, dy) {
+  const now = performance.now();
+  if (now - lastBossThrow < 250) return;
+  if (!boss.canThrow()) { if (boss.stunned()) hud.toast('暈了，等一下…', 700); return; }
+  if (boss.ammo <= 0) { hud.toast('派餅補充中…', 800); return; }
+  lastBossThrow = now;
+  if (dx == null) { const s = boss.snap; dx = s.x - me.x; dy = (s.y - 24) - (me.y - 6); }
+  const n = Math.hypot(dx, dy) || 1;
+  me.dir = dirOf(dx, dy, me.dir); me.acting = now + 220;
+  audio.tool('throw'); boss.spend();
+  try { const r = await api.call('boss', { act: 'throw', dx: Math.round(dx / n * 100) / 100, dy: Math.round(dy / n * 100) / 100 }); boss.setAmmo(r.ammo); } catch (e) { if (e && e.code === 'no_ammo') boss.setAmmo(0); }
+}
+const bossThrowing = () => map && map.id === 'plaza' && api.server && boss.canThrow();
 const arenaThrowing = () => map && map.id === 'arena' && arena.inShow() && arena.snap.ph === 'live' && arena.snap.kind === 'pie';
 
 // ---------- 鎮民手冊：每日委託與集章 ----------
@@ -1109,6 +1126,12 @@ function onGame(m) {
   else if (m.op === 'vase' && m.vase) lastVase = m.vase;
   else if (m.op === 'arena' && m.arena) arena.apply(m.arena, true);
   else if (m.op === 'arenaCall') arena.call(m);
+  else if (m.op === 'boss' && m.boss) boss.apply(m.boss, true);
+  else if (m.op === 'bossCall') boss.call(m);
+  if (m.op === 'me' && m.bossFull != null) {
+    const gift = m.bossGift ? `，還有 ${CROPS[m.bossGift.item] ? CROPS[m.bossGift.item].name : ''}種子 ×${m.bossGift.n}` : '';
+    hud.toast(m.bossGold ? `🐸 ${m.bossFull ? '牠吃飽了！' : '牠逃走了，'}你丟中 ${m.bossHits} 次，獲得 ${m.bossGold} G${gift}` : `🐸 你丟中 ${m.bossHits} 次（今天的獎勵次數用完了）`, 4000);
+  }
   if (m.op === 'me' && Array.isArray(m.quest) && m.quest.length) setTimeout(() => onQuest(m.quest), Number.isFinite(m.arenaRank) ? 3800 : 0);
   if (m.op === 'me' && Number.isFinite(m.arenaRank)) {
     hud.toast(m.arenaGold ? `🎪 第 ${m.arenaRank} 名！獲得 ${m.arenaGold} G` : `🎪 第 ${m.arenaRank} 名！（今天的獎金場次用完了）`, 3500);
@@ -1237,6 +1260,7 @@ addEventListener('keydown', (e) => {
     e.preventDefault();
     if (e.repeat) return;
     holding = true;
+    if (map.id === 'plaza' && api.server && boss.on()) { throwAtBoss(); return; }   // 頭目在場：空白鍵只丟派
     if (arenaThrowing()) { throwPie((keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0), (keys.has('s') || keys.has('arrowdown') ? 1 : 0) - (keys.has('w') || keys.has('arrowup') ? 1 : 0)); return; }
     if (fishingPress()) return;
     if (!interact()) { const f = facingTile(me); act(f.tx, f.ty); }
@@ -1276,6 +1300,7 @@ canvas.addEventListener('pointerdown', (e) => {
   const w = worldAt(e), t = tileOf(w.x, w.y);
   if (edit) { editClick(t.tx, t.ty); return; }
   if (arenaThrowing()) { throwPie(w.x - me.x, w.y - 6 - me.y); return; }
+  if (bossThrowing() && !(e.target && e.target.closest && e.target.closest('button'))) { throwAtBoss(w.x - me.x, w.y - 6 - me.y); return; }
   // 點到同一區的其他玩家：名片（拜訪、打招呼、好友、共耕）
   const other = [...people.values()].find((p) => p.area === area && Math.hypot(p.x - w.x, p.y - 8 - w.y) < 10);
   if (other) {
@@ -1326,7 +1351,8 @@ function frame(now) {
   const dt = Math.min(0.05, (now - prev) / 1000); prev = now;
   if (map && scene && farm) {
     const inArena = map.id === 'arena';
-    const lock = dialog.open || warping || creatorOpen() || (fishing && fishing.phase !== 'wait' && fishing.phase !== 'casting') || (inArena && arena.frozen());
+    const inPlaza = map.id === 'plaza' && boss.on();
+    const lock = dialog.open || warping || creatorOpen() || (fishing && fishing.phase !== 'wait' && fishing.phase !== 'casting') || (inArena && arena.frozen()) || (inPlaza && boss.stunned());
     const blocked = inArena ? arena.blocker(map.blocked) : map.blocked;
     if (inArena && arena.rescue(me)) sendPose(undefined, true);
     const dx = lock ? 0 : (keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0);
@@ -1345,6 +1371,7 @@ function frame(now) {
     const list = fell ? [] : [{ ...me, name: myName, self: true }];
     const inShow = inArena ? arena.participants() : null;
     if (inArena) { list.push(...arena.people(now, dt)); arena.tick(); }
+    if (map.id === 'plaza') { list.push(...boss.people(now, dt)); boss.tick(); }
     for (const p of people.values()) {
       const k = 1 - Math.exp(-dt * 12); p.x += (p.tx - p.x) * k; p.y += (p.ty - p.y) * k;
       p.moving = now - p.movedAt < MOVING_MS;
@@ -1355,6 +1382,11 @@ function frame(now) {
     }
     for (const n of map.npcs) { n.near = Math.hypot(n.x - me.x, n.y - me.y) < 56; list.push(n); }
     const opts = { light: map.base === 'void' ? null : daylight() };
+    if (inPlaza || (map.id === 'plaza' && boss.snap && boss.snap.ph === 'leave')) {
+      opts.under = (c, t) => boss.drawUnder(c, t, scene);
+      opts.over = (c, t) => boss.drawOver(c, t, scene);
+      opts.top = (c, cam, S, t) => boss.drawTop(c, cam, S, t);
+    }
     if (inArena) {
       opts.under = (c, t) => arena.drawUnder(c, t, scene);
       opts.over = (c, t) => arena.drawOver(c, t, scene, me);
@@ -1381,7 +1413,7 @@ function frame(now) {
     if (fishing && fishing.phase === 'bite') opts.hint = { x: me.x, y: me.y - 26, text: '空白鍵 提竿！' };
     if (!canvas.width) fit();
     const cam = cameraFor(me.x, me.y, map.pw, map.ph);
-    if (inArena && arena.shaking()) { cam.x += Math.round(Math.random() * 4 - 2); cam.y += Math.round(Math.random() * 4 - 2); }
+    if ((inArena && arena.shaking()) || (inPlaza && boss.shaking())) { cam.x += Math.round(Math.random() * 4 - 2); cam.y += Math.round(Math.random() * 4 - 2); }
     drawWorld(ctx, scene, map, list, cam, now, BUBBLE_MS, opts);
     if (now - lastClock > 10000) { hud.clock(); lastClock = now; }
     if (now - lastEvents > 5000) { checkEvents(false); lastEvents = now; }
@@ -1408,7 +1440,7 @@ start();
 window.__plaza = {
   get area() { return area; }, get me() { return me; }, get farm() { return farm; }, get decor() { return decor; }, get map() { return map; },
   get fishing() { return fishing; }, get events() { return events; }, get social() { return social; }, get mails() { return mails; }, get server() { return api.server; },
-  get ready() { return ready; }, get party() { return lastParty; }, get contest() { return lastContest; }, get seek() { return lastSeek; }, get hot() { return lastHot; }, get tug() { return lastTug; }, get haul() { return lastHaul; }, get light() { return lastLight; }, get hill() { return lastHill; }, get smash() { return lastSmash; }, get vase() { return lastVase; }, arena, marks: () => partyMarks(), people, visits,
+  get ready() { return ready; }, get party() { return lastParty; }, get contest() { return lastContest; }, get seek() { return lastSeek; }, get hot() { return lastHot; }, get tug() { return lastTug; }, get haul() { return lastHaul; }, get light() { return lastLight; }, get hill() { return lastHill; }, get smash() { return lastSmash; }, get vase() { return lastVase; }, arena, boss, marks: () => partyMarks(), people, visits,
   warp: (to, entry) => loadArea(to === 'farm' || to === 'house' ? personal(to) : to, entry),
   setEvents: (ids) => { events = ids; applyEvents(map); },
   setLook: (l) => { const s = sanitizeLook(l); if (!s) return false; me.look = s; sendLook(); return true; },

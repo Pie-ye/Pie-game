@@ -115,6 +115,11 @@ export function openEventBoard(ms, close, snaps) {
     const p = document.createElement('p'); p.textContent = `${e.desc}（地點：${e.area === 'town' ? '商店街' : '廣場'}）`;
     card.append(h, tag, p); body.append(card);
   }
+  const frog = document.createElement('div'); frog.className = 'event';
+  const fb = document.createElement('b'); fb.textContent = '🐸 大胃王蛙';
+  const ft = document.createElement('span'); ft.className = 'tag'; ft.textContent = '每小時 :30';
+  const fp = document.createElement('p'); fp.textContent = '每小時 30 分闖進廣場偷吃派，停留 6 分鐘。大家一起把派丟進牠嘴裡（張嘴時 ×3），餵飽就有金幣和種子。登入才能參加。';
+  frog.append(fb, ft, fp); body.append(frog);
   const all = document.createElement('p'); all.className = 'note'; all.textContent = '每天：早市 07–10、瑞吉海獅秀 10–11／15–16／19–20、釣魚大賽 12–13 與 18–19、營火晚會 20–23；週末另有花祭 09–21。常駐派對隨時可湊人。';
   body.append(all);
 }

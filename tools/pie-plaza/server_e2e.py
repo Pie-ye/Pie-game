@@ -167,7 +167,8 @@ def main() -> int:
             if not B.is_visible("#dialog"): break
             env.key(pb, B, "e"); B.wait_for_timeout(250)
         B.wait_for_timeout(600)
-        check(B.evaluate(f"{P}.farm.gold") in (gold_b - 10, gold_b + 40), "在噴水池前許願（扣 10 G，可能得到回應）")
+        check(B.evaluate(f"{P}.farm.gold") - gold_b in {base + quest for base in (-10, 40) for quest in (0, 20, 80)},
+              "在噴水池前許願（扣 10 G，可能得到回應；今日委託剛好是許願時另有 20／+60 G）")
         pb.screenshot(path=str(OUT / "fountain.png"))
 
         # ---- 7. 伺服器資料 ----

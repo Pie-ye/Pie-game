@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import logging
 import random
 import re
 import time
@@ -21,8 +22,10 @@ from . import plaza_logic as L
 from . import arena as AR
 from . import quests as Q
 from . import party_bots as PB
+from . import boss as BS
 
 GAME_ID = "pie-plaza"
+log = logging.getLogger("pie.plaza")
 USER_RE = re.compile(r"^[A-Za-z0-9_.@:-]{1,64}$")
 FLUSH_SECONDS = 2.0
 TICK_SECONDS = 5.0
@@ -96,6 +99,9 @@ class PlazaService:
         self.smash: dict[str, Any] = L.new_smash()
         self.vase: dict[str, Any] = L.new_vase()
         self.arena = AR.Arena(self.rng)
+        self.boss = BS.Boss(self.rng)
+        self._boss_started = 0
+        self._boss_warned = 0
         self._arena_seen = 0
         self._arena_last = 0
         self._arena_called = False
@@ -1290,15 +1296,24 @@ class PlazaService:
         pos = data.get("p")
         if conn.area == "arena" and isinstance(pos, list) and len(pos) == 2:
             self.arena.pose(str(conn.user_id), pos[0], pos[1], self.now_ms())
+        elif conn.area == "plaza" and self.boss.active and isinstance(pos, list) and len(pos) == 2:
+            self.boss.pose(str(conn.user_id), conn.display_name or conn.username, pos[0], pos[1], self.now_ms())
 
     def _arena_conns(self, relay) -> list:
         return [c for c in list(relay.connections) if c.game_id == GAME_ID and c.area == "arena"]
 
     async def _arena_loop(self, relay) -> None:
+        last_err = 0.0
         while True:
             await asyncio.sleep(ARENA_SECONDS)
-            with contextlib.suppress(Exception):
+            try:
                 await self._arena_step(relay)
+            except asyncio.CancelledError:
+                raise
+            except Exception:                      # 不讓一次錯誤停掉即時遊戲；每分鐘最多記一次
+                if self.clock() - last_err > 60:
+                    last_err = self.clock()
+                    log.exception("arena/boss/party-bots step failed")
 
     async def _party_bots(self, relay) -> None:
         """九個廣場派對：等太久就讓鎮民來湊人數，開場後鎮民照規則行動。"""
@@ -1332,11 +1347,92 @@ class PlazaService:
             if changed:
                 await getattr(self, f"_broadcast_{kind}")(relay)
 
+    async def _boss_step(self, relay, now: int, dt: float) -> None:
+        """大胃王蛙：排程出現、預告、模擬、推播、發獎。"""
+        bs = self.boss
+        start, until = BS.window(now)
+        if not bs.active and start <= now < until and self._boss_started != start:
+            self._boss_started = start
+            humans = len({str(c.user_id) for c in relay.connections if c.game_id == GAME_ID and c.area == "plaza"})
+            bs.start(now, until, humans)
+            await self._game_all(relay, {"type": "game", "op": "bossCall", "k": "arrive", "at": start, "until": until, "now": now})
+        nxt = BS.next_start(now)
+        if not bs.active and nxt - BS.WARN_MS <= now < nxt and self._boss_warned != nxt:
+            self._boss_warned = nxt
+            await self._game_all(relay, {"type": "game", "op": "bossCall", "k": "warn", "at": nxt, "now": now})
+        if not bs.active and not bs.events:
+            return
+        if bs.active:
+            here = {str(c.user_id) for c in relay.connections if c.game_id == GAME_ID and c.area == "plaza"}
+            for uid in [u for u, pl in bs.p.items() if not pl["bot"] and u not in here and now - pl["seen"] > 3000]:
+                bs.leave(uid)
+            bs.tick(now, dt)
+        if bs.reward_due is not None:
+            due, bs.reward_due = bs.reward_due, None
+            await self._boss_pay(relay, due)
+        snap = bs.snapshot(now)
+        bs.take_events()
+        payload = {"type": "game", "op": "boss", "boss": snap}
+        for c in list(relay.connections):
+            if c.game_id == GAME_ID and c.area == "plaza":
+                await self._send(c, payload)
+
+    async def _game_all(self, relay, payload: dict[str, Any]) -> None:
+        for c in list(relay.connections):
+            if c.game_id == GAME_ID:
+                await self._send(c, payload)
+
+    async def _boss_pay(self, relay, due: list[dict[str, Any]]) -> None:
+        day = L.taipei_day(self.now_ms())
+        for r in due:
+            rec = await self.load(r["id"], create=False)
+            if rec is None:
+                continue
+            st = rec.setdefault("boss", {"day": "", "n": 0, "fed": 0})
+            if st.get("day") != day:
+                st["day"], st["n"] = day, 0
+            gift = None
+            gold = r["gold"] if st["n"] < BS.DAILY_REWARDS else 0
+            if gold:
+                st["n"] += 1
+                rec["gold"] += gold
+                if r["full"]:
+                    crop = self.rng.choice(L.CROP_KEYS)
+                    rec["seeds"][crop] = rec["seeds"].get(crop, 0) + 3
+                    gift = {"item": crop, "n": 3}
+            if r["full"]:
+                st["fed"] = st.get("fed", 0) + 1
+            self.dirty.add(r["id"])
+            await self._push_me(relay, r["id"], bossGold=gold, bossGift=gift, bossFull=r["full"], bossHits=r["hits"])
+            ev: list[tuple[str, Any]] = [("boss_hit", r["hits"])]
+            if r["full"] and r["hits"] >= 1:
+                ev.append(("boss_feed", 1))
+            if r.get("top"):
+                ev.append(("boss_top", 1))
+            await self._progress(relay, r["id"], rec, ev)
+
+    async def op_boss(self, relay, conn, me, rec, p):
+        act = p.get("act")
+        now = self.now_ms()
+        if act == "throw":
+            if conn.area != "plaza":
+                raise GameError("too_far", "要在廣場才能丟")
+            err = self.boss.throw(me, rec["name"], p.get("dx"), p.get("dy"), now)
+            if err:
+                raise GameError(err, {"no_ammo": "派餅補充中", "stunned": "被震暈了", "not_live": "大胃王蛙不在", "too_far": "先走進廣場"}.get(err, err))
+            return {"ammo": self.boss.ammo_of(me)}
+        if act != "view":
+            raise GameError("bad_message", "無效的動作")
+        st = rec.get("boss") or {}
+        left = BS.DAILY_REWARDS - (st.get("n", 0) if st.get("day") == L.taipei_day(now) else 0)
+        return {"boss": self.boss.snapshot(now), "next": BS.next_start(now), "rewardsLeft": max(0, left), "fedTotal": st.get("fed", 0)}
+
     async def _arena_step(self, relay) -> None:
         ar, now = self.arena, self.now_ms()
         if now - self._bots_at >= 400:
             self._bots_at = now
             await self._party_bots(relay)
+        await self._boss_step(relay, now, min(0.25, max(0.0, (now - self._arena_last) / 1000)) if self._arena_last else ARENA_SECONDS)
         dt = min(0.25, max(0.0, (now - self._arena_last) / 1000)) if self._arena_last else ARENA_SECONDS
         self._arena_last = now
         if ar.phase != "idle":

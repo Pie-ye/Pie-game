@@ -40,6 +40,9 @@ STAMPS: list[tuple[str, str, str, str, str, int, int]] = [
     ("arena_hit10", "party", "神射手", "派餅大戰單回合打中 10 次", "arena_hit_best", 10, 60),
     ("arena_survivor", "party", "最後站著的人", "落地板撐到最後", "arena_floor_survive", 1, 60),
     ("arena_crowd", "party", "熱鬧的一場", "和另外兩位以上的真人一起打派派大作戰", "arena_humans3", 1, 80),
+    ("boss_first", "party", "餵飽大胃王", "大胃王蛙被餵飽時你有丟中", "boss_feed", 1, 40),
+    ("boss_10", "party", "蛙蛙保母", "大胃王蛙被餵飽 10 次（你都有份）", "boss_feed", 10, 150),
+    ("boss_top", "party", "最佳餵食員", "在一次餵食中丟進最多", "boss_top", 1, 80),
     ("social_like5", "social", "熱情鄰居", "稱讚 5 次別人的家園", "like", 5, 40),
     ("social_gift3", "social", "送禮達人", "送出 3 份禮物", "gift", 3, 40),
     ("social_visit10", "social", "串門子", "拜訪 10 個不同的家園", "uniq:visit", 10, 60),
@@ -73,6 +76,8 @@ DAILY_POOL: list[tuple[str, str, int, int, str]] = [
     ("town", "wish", 1, 20, "在噴水池許一次願"),
     ("town", "feed", 1, 30, "帶魚去餵瑞吉"),
     ("town", "sell", 1, 30, "在跳蚤市場賣出一筆"),
+    # 新的只能加在最後：玩家存檔裡的今日委託記的是索引
+    ("party", "boss_hit", 10, 40, "丟中大胃王蛙 10 次"),
 ]
 DAILY_N = 3
 DAILY_BONUS = 60
