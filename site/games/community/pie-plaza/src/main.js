@@ -33,6 +33,8 @@ import { openBook, questLine } from './ui/book.js';
 import { createBoss } from './ui/boss.js';
 import { openTown } from './ui/town.js';
 import { drawFireworks, fireworksTime } from './ui/fireworks.js';
+import { openPets } from './ui/pets.js';
+import { cleanPet, followStep } from './game/pets.js';
 import { throwDir, ARENA } from './game/arena.js';
 import { openVisitPanel, openVisitorMenu, openMailbox, openPlayerCard, openEmotes } from './ui/social.js';
 import { TOOLS, CROPS, useTool, debrisLeft, CROP_KEYS } from './farm/state.js';
@@ -67,7 +69,8 @@ const hud = createHud({ onSelect: (i) => selectTool(i) });
 let scene = null, net = null, api = createLocalApi(), myId = 'guest', myName = '我';
 let map = null, area = 'plaza';
 let townPub = { done: [], cur: 'greenhouse', p: 0 };   // 全鎮工程（伺服器公開狀態）
-const me = { id: 'guest', x: 240, y: 200, dir: 0, moving: false, bubble: '', bubbleAt: 0, acting: 0, look: null };
+const me = { id: 'guest', x: 240, y: 200, dir: 0, moving: false, bubble: '', bubbleAt: 0, acting: 0, look: null, pet: 'cat' };
+const petPos = new Map();      // 寵物位置：主人 id -> { x, y, flip, moving }
 let farm = null, decor = null, social = { open: true, friends: [], coop: [], likes: 0, liked: {} };
 let tool = 0, edit = null, hover = null, fishing = null, holding = false;
 let target = null, warpLock = 0, warping = false, lastChat = -1e9, lastSent = null, lastSentAt = 0, lastArea = null;
@@ -354,6 +357,7 @@ function doAction(action) {
   else if (action === 'vase') openVasePanel();
   else if (action === 'arenaDesk') arenaDesk();
   else if (action === 'town') openTownPanel();
+  else if (action === 'pets') openPetsPanel();
   else if (action === 'arenaBoard') arenaBoard();
 }
 async function ship() {
@@ -718,6 +722,33 @@ async function throwAtBoss(dx, dy) {
 }
 const bossThrowing = () => map && map.id === 'plaza' && api.server && boss.canThrow();
 const arenaThrowing = () => map && map.id === 'arena' && arena.inShow() && arena.snap.ph === 'live' && arena.snap.kind === 'pie';
+
+// ---------- 寵物 ----------
+async function openPetsPanel() {
+  if (!api.server) { dialog.show({ name: '哈醫生', sprite: 'oldman' }, ['登入後就能在這裡領養寵物。', '現在先讓小花貓陪你逛逛吧！']); return; }
+  const done = (r) => { me.pet = r.pets.on; applyMine(farm, r); refreshHud(); sendLook(); return r.pets; };
+  try {
+    const r = await call('pets', { act: 'view' });
+    openPets(r.pets, {
+      adopt: async (id) => { const v = done(await call('pets', { act: 'adopt', pet: id })); audio.tool('fanfare'); return v; },
+      choose: async (id) => done(await call('pets', { act: 'choose', pet: id })),
+    });
+  } catch (_e) { /* 已提示 */ }
+}
+/** 這一幀要畫的寵物（同區、沒在比賽場內）。 */
+function petsInView(dt, inShowIds) {
+  const out = [];
+  const owners = [{ id: myId, x: me.x, y: me.y, dir: me.dir, pet: me.pet, here: true }];
+  for (const p of people.values()) if (p.area === area && p.pet && !(inShowIds && inShowIds.has(p.id))) owners.push({ id: p.id, x: p.x, y: p.y, dir: p.dir, pet: p.pet, here: true });
+  for (const o of owners) {
+    if (!o.pet) continue;
+    let q = petPos.get(o.id);
+    if (!q || q.area !== area) { q = { x: o.x, y: o.y + 8, flip: false, area }; petPos.set(o.id, q); }
+    q.moving = followStep(q, o, dt);
+    out.push({ isPet: true, id: `pet:${o.id}`, k: o.pet, x: q.x, y: q.y, flip: q.flip, moving: q.moving });
+  }
+  return out;
+}
 
 // ---------- 全鎮工程（派派新區） ----------
 function setTown(t) {
@@ -1184,7 +1215,7 @@ function person(id, name) {
   if (!people.has(id)) people.set(id, { id, name: name || (net && net.nameOf(id)) || '訪客', look: null, x: 0, y: 0, tx: 0, ty: 0, area: '', dir: 0, moving: false, movedAt: 0, bubble: '', bubbleAt: 0, seen: false, lastStep: 0 });
   return people.get(id);
 }
-const sendLook = (to) => { if (net && me.look) net.send({ k: 'l', l: me.look }, to); };
+const sendLook = (to) => { if (net && me.look) net.send({ k: 'l', l: me.look, pt: me.pet || 0 }, to); };
 /** 從伺服器載入自己的全部資料（登入、重連時）。 */
 async function loadMe() {
   const r = await api.call('load');
@@ -1192,6 +1223,7 @@ async function loadMe() {
   farm = playerFarm(m, myId);
   decor = sanitizeDecor({ v: 1, ...m.decor });
   me.look = sanitizeLook(m.look);
+  if (m.pet !== undefined) me.pet = cleanPet(m.pet);
   social = m.social;
   refreshHud();
   if (ownerOf(area)) loadArea(area, null, { rebuild: true });
@@ -1225,7 +1257,7 @@ async function connect() {
         const p = person(id);
         if (d.k === 'm') { if (Number.isInteger(d.e) && EMOTES[d.e]) p.emote = { n: EMOTES[d.e], until: performance.now() + 2600 }; return; }
         if (d.k === 'r') { if (map && map.id === 'plaza' && p.area === 'plaza') { reggieReact = performance.now() + 2400; audio.voice('reggie'); } return; }
-        if (d.k === 'l') { const l = sanitizeLook(d.l); if (l) p.look = l; }
+        if (d.k === 'l') { const l = sanitizeLook(d.l); if (l) p.look = l; p.pet = cleanPet(d.pt); }
 
       },
       status(t) { updateInfo(t || undefined); if (!t && api.server) loadMe().catch(() => {}); },
@@ -1275,6 +1307,7 @@ $('btn-mail').addEventListener('click', openMail);
 $('btn-emote').addEventListener('click', () => openEmotes(emote));
 $('btn-market').addEventListener('click', openFlea);
 $('btn-book').addEventListener('click', () => openBookPanel());
+$('btn-pets').addEventListener('click', () => openPetsPanel());
 $('chat-form').addEventListener('submit', (e) => {
   e.preventDefault();
   const input = $('chat-input');
@@ -1414,6 +1447,7 @@ function frame(now) {
       list.push(p);
     }
     for (const n of map.npcs) { n.near = Math.hypot(n.x - me.x, n.y - me.y) < 56; list.push(n); }
+    if (!(inArena && arena.inShow())) list.push(...petsInView(dt, inShow));
     const opts = { light: map.base === 'void' ? null : daylight() };
     if (inPlaza || (map.id === 'plaza' && boss.snap && boss.snap.ph === 'leave')) {
       opts.under = (c, t) => boss.drawUnder(c, t, scene);

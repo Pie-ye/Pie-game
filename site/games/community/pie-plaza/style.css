@@ -138,7 +138,7 @@ button:disabled { opacity:.5; cursor:default; }
 #gold { display:block; margin-top:2px; padding-top:2px; border-top:2px solid var(--paper-dark); text-align:right; font-weight:700; color:#8a5a10; }
 #event-badge { position:absolute; top:76px; right:12px; padding:2px 8px; line-height:1.5; font-size:.8rem; color:#fff3d6; background:rgba(160,60,20,.88); border-radius:4px; }
 #event-badge[hidden] { display:none; }
-.hud-btns { position:absolute; left:12px; bottom:12px; display:flex; flex-direction:column; gap:4px; }
+.hud-btns { position:absolute; left:12px; bottom:12px; display:grid; grid-template-columns:1fr 1fr; gap:4px; }
 .hud-btns button { min-height:32px; padding:0 8px; font-size:.8rem; }
 #toolbar button em.count { position:absolute; right:2px; bottom:0; font-style:normal; font-size:.65rem; line-height:1; color:var(--wood-dark); }
 #cloud { color:var(--muted); font-size:.8rem; white-space:nowrap; }
@@ -195,3 +195,12 @@ button:disabled { opacity:.5; cursor:default; }
 .stamp.got { color:var(--ink); background:#fff1cf; border:2px solid #d0402a; box-shadow:inset 0 0 0 1px #fff; }
 .stamp.got b { color:#b0301e; }
 .event.quest p { margin:0; font-size:.75rem; }
+
+/* ---------- 寵物 ---------- */
+.pets { grid-template-columns:1fr 1fr; }
+.pet-card { display:flex; flex-direction:column; align-items:center; gap:3px; padding:6px 4px; font-size:.78rem; line-height:1.3; text-align:center; background:rgba(255,255,255,.35); border:2px solid rgba(90,58,30,.25); border-radius:4px; }
+.pet-card.owned { background:#fff1cf; }
+.pet-card.on { border-color:#d0402a; }
+.pet-card button { min-height:26px; padding:0 6px; font-size:.75rem; }
+.pet-card small { color:#8a7560; font-size:.68rem; }
+.pet-icon { display:block; image-rendering:pixelated; background-repeat:no-repeat; background-position:0 0; min-height:30px; }

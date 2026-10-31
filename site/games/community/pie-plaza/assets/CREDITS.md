@@ -18,7 +18,7 @@
   `ninja/house.png`（商店與房屋）、`ninja/element.png`（櫃台、書櫃、桶子等）、`ninja/nature.png`（樹、雜草、石頭）、
   `ninja/interior_floor.png`（室內地板與牆紙、市集石板）、`ninja/tools/*.png`（工具圖示）、`ninja/npc/*.png`（居民角色與對話頭像）、
   `audio/village.ogg`（音樂 Village）、`audio/bird.wav`、`audio/send.wav`、`audio/recv.wav`、`audio/join.wav`、
-  `ninja/fx/coin.png`（Items/Treasure/Coin2）、`ninja/fx/goldcup.png`、`ninja/fx/smoke.png`（FX/Smoke/Smoke）、`ninja/fx/spark.png`、`ninja/fx/stamp.png`、`ninja/boss/frog_*.png`（Actor/Boss/GiantFrog）。
+  `ninja/fx/coin.png`（Items/Treasure/Coin2）、`ninja/fx/goldcup.png`、`ninja/fx/smoke.png`（FX/Smoke/Smoke）、`ninja/fx/spark.png`、`ninja/fx/stamp.png`、`ninja/boss/frog_*.png`（Actor/Boss/GiantFrog）、`ninja/pets/*.png`（Actor/Animal 的貓、狗、倉鼠、豬、鸚鵡、青蛙、浣熊、乳牛、猴子、小獅子）。
 - `audio/wind.wav` 由該素材包的 `Ambient/Wind.wav` 截取 12 秒、降取樣為 11 kHz 單聲道並做首尾交叉淡化，腳本見 `tools/pie-plaza/prep_assets.py`。
 
 ## 補畫素材：grok 生成

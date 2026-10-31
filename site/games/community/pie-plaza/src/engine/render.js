@@ -71,6 +71,18 @@ function drawNight(ctx, cam, light, lights, now, S) {
   ctx.restore();
 }
 
+/** 寵物：兩格（坐著、走路側面），往左走時左右翻轉，走路時輕輕跳。 */
+function drawPet(ctx, scene, p, now) {
+  const img = scene.imgs[`ninja/pets/${p.k}.png`];
+  if (!img) return;
+  const fw = img.width / 2, fh = img.height;
+  const f = p.moving ? 1 : 0, hop = p.moving ? Math.abs(Math.sin(now / 90)) * 1.5 : 0;
+  ctx.fillStyle = 'rgba(40,30,20,.22)'; ctx.beginPath(); ctx.ellipse(Math.round(p.x), Math.round(p.y) - 1, 5, 2, 0, 0, 7); ctx.fill();
+  const x = Math.round(p.x - fw / 2), y = Math.round(p.y - fh - hop);
+  if (p.flip && f === 1) { ctx.save(); ctx.translate(x + fw, y); ctx.scale(-1, 1); ctx.drawImage(img, fw, 0, fw, fh, 0, 0, fw, fh); ctx.restore(); }
+  else ctx.drawImage(img, f * fw, 0, fw, fh, x, y, fw, fh);
+}
+
 export function drawPerson(ctx, scene, p, now) {
   const sheet = p.npc ? scene.imgs[npcSheet(p.sprite)] : lookSheet(scene, p.look || defaultLook(p.id));
   if (!sheet) return;
@@ -155,7 +167,7 @@ export function drawWorld(ctx, scene, map, people, cam, now, bubbleMs, opts = {}
   for (const p of people) if (inView(p.x, p.y, 16, 16)) items.push({ y: p.y, p });
   items.sort((a, b) => a.y - b.y);
   const frameOf = (o) => (o.anim ? o.anim[Math.floor(now / (1000 / (o.fps || 6))) % o.anim.length] : o.k);
-  for (const it of items) { if (it.o) sprite(ctx, scene, frameOf(it.o), it.o.x, it.o.y, it.o.tint); else drawPerson(ctx, scene, it.p, now); }
+  for (const it of items) { if (it.o) sprite(ctx, scene, frameOf(it.o), it.o.x, it.o.y, it.o.tint); else if (it.p.isPet) drawPet(ctx, scene, it.p, now); else drawPerson(ctx, scene, it.p, now); }
   for (const o of over) sprite(ctx, scene, o.k, o.x, o.y);
   for (const p of people) if (p.emote && now < p.emote.until && inView(p.x, p.y, 16, 16)) sprite(ctx, scene, `emote${p.emote.n}`, p.x + 1, p.y - 16 - Math.round(Math.abs(Math.sin(now / 160)) * 2));
   if (opts.fishing) drawLine(ctx, opts.fishing, now);
@@ -175,7 +187,7 @@ export function drawWorld(ctx, scene, map, people, cam, now, bubbleMs, opts = {}
   }
   // 文字層：原生座標扣掉鏡頭再乘 SCALE
   ctx.setTransform(1, 0, 0, 1, -cam.x * S, -cam.y * S);
-  for (const p of people) if (inView(p.x, p.y, 16, 16) && !p.self && (!p.npc || p.near)) nameTag(ctx, p.x, p.y + 2, p.name, p.npc);
+  for (const p of people) if (inView(p.x, p.y, 16, 16) && !p.self && !p.isPet && (!p.npc || p.near)) nameTag(ctx, p.x, p.y + 2, p.name, p.npc);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   for (const p of people) if (p.bubble && now - p.bubbleAt < bubbleMs) bubble(ctx, scene, p.x - cam.x, p.y - cam.y - 19, p.bubble, vw);
   if (opts.top) { opts.top(ctx, cam, S, now); ctx.setTransform(1, 0, 0, 1, 0, 0); }

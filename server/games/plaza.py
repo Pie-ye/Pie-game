@@ -24,6 +24,7 @@ from . import quests as Q
 from . import party_bots as PB
 from . import boss as BS
 from . import town as TW
+from . import pets as PT
 
 GAME_ID = "pie-plaza"
 log = logging.getLogger("pie.plaza")
@@ -300,7 +301,7 @@ class PlazaService:
     def private_view(self, rec: dict[str, Any]) -> dict[str, Any]:
         s = rec["social"]
         return {"name": rec["name"], "farm": L.pack_farm(rec["farm"]), "inv": rec["inv"], "seeds": rec["seeds"], "seedSel": rec["seedSel"],
-                "gold": rec["gold"], "shares": L.shares_of(rec), "decor": rec["decor"], "look": rec["look"],
+                "gold": rec["gold"], "shares": L.shares_of(rec), "decor": rec["decor"], "look": rec["look"], "pet": PT.state(rec)["on"],
                 "social": {"open": s["open"], "friends": s["friends"], "coop": s["coop"], "likes": s["likes"], "liked": s["liked"]},
                 "now": self.now_ms()}
 
@@ -389,6 +390,8 @@ class PlazaService:
     # ---------- 自己 ----------
     async def op_load(self, relay, conn, me, rec, p):
         L.grow(rec["farm"], self.now_ms())
+        if L.regrow(rec["farm"], me, L.taipei_day(self.now_ms())):
+            self.dirty.add(me)
         return {"me": self.private_view(rec)}
 
     async def op_look(self, relay, conn, me, rec, p):
@@ -495,6 +498,8 @@ class PlazaService:
             raise GameError("home_closed", f"{orec['name']}的家園沒有開放拜訪")
         conn.viewing = owner
         if L.grow(orec["farm"], self.now_ms()):
+            self.dirty.add(owner)
+        if L.regrow(orec["farm"], owner, L.taipei_day(self.now_ms())):
             self.dirty.add(owner)
         if owner != me:
             await self._progress(relay, me, rec, [(f"uniq:visit={owner}", 0)])
@@ -1611,6 +1616,24 @@ class PlazaService:
             await self._progress(relay, r["id"], rec, ev)
         await self._game_all(relay, {"type": "game", "op": "townDone", "name": done["name"], "effect": done["effect"], "town": self._town_public(),
                                      "top": done["rewards"][0]["name"] if done["rewards"] else ""})
+
+    async def op_pets(self, relay, conn, me, rec, p):
+        act = p.get("act")
+        if act == "adopt":
+            r = PT.adopt(rec, p.get("pet"))
+        elif act == "choose":
+            r = PT.choose(rec, p.get("pet"))
+        elif act == "view":
+            r = {"ok": True}
+        else:
+            raise GameError("bad_message", "無效的動作")
+        if not r["ok"]:
+            raise GameError(r["code"], r["msg"])
+        if act != "view":
+            self.dirty.add(me)
+        if act == "adopt":
+            await self._progress(relay, me, rec, [("pets_best", len(PT.state(rec)["own"]))])
+        return {"pets": PT.view(rec), **self._mine(rec)}
 
     async def op_quests(self, relay, conn, me, rec, p):
         return {"quests": Q.view(rec, me, L.taipei_day(self.now_ms()))}

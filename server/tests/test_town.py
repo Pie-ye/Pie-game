@@ -43,3 +43,46 @@ def test_fish_slot_takes_any_fish_and_sanitize_roundtrip():
     assert TW.sanitize({"done": ["nope"], "cur": "zzz"})["cur"] == "greenhouse"
     v = TW.view(st, "u1")
     assert v["cur"]["id"] == "pier" and v["done"][0]["id"] == "greenhouse" and v["cur"]["mine"] > 0
+
+
+def test_farm_regrow_daily_on_free_tiles_only():
+    f = L.new_farm("u5")
+    f["debris"] = {}
+    f["tilled"]["22,12"] = {"w": 0}
+    f["crops"]["22,12"] = {"t": "wheat", "s": 0, "w": 0, "at": 0}
+    assert L.regrow(f, "u5", "2027-01-01") == []              # 第一次只記日期
+    assert L.regrow(f, "u5", "2027-01-01") == []
+    new = L.regrow(f, "u5", "2027-01-02")
+    assert len(new) == L.REGROW_PER_DAY and "22,12" not in new
+    for k in new:
+        x, y = map(int, k.split(","))
+        assert L.in_field(x, y) and not L.is_path(x, y) and not L.in_pond(x, y)
+    more = L.regrow(f, "u5", "2027-01-20")                      # 離開很久：最多補 5 天
+    assert len(more) == L.REGROW_PER_DAY * L.REGROW_MAX_DAYS
+    f["debris"] = {f"{i},0": {"t": "weed", "hp": 1, "look": 0} for i in range(L.REGROW_CAP)}
+    assert L.regrow(f, "u5", "2027-01-21") == []                # 滿了不長
+
+
+def test_pets_starter_adopt_unlock_and_match_frontend():
+    import json
+    import subprocess
+    from pathlib import Path
+    from server.games import pets as PT
+    rec = {"gold": 250, "stamps": {}, "prog": {}}
+    v = PT.view(rec)
+    assert v["own"] == ["cat"] and v["on"] == "cat"
+    assert PT.adopt(rec, "parrot")["code"] == "no_gold"
+    assert PT.adopt(rec, "frog")["code"] == "locked"
+    assert PT.adopt(rec, "dog")["ok"] and rec["gold"] == 50 and rec["pets"]["on"] == "dog"
+    assert PT.adopt(rec, "dog")["code"] == "owned"
+    rec["stamps"]["boss_first"] = 1
+    assert PT.adopt(rec, "frog")["ok"] and rec["gold"] == 50
+    rec["arena"] = {"wins": 1}
+    assert PT.adopt(rec, "raccoon")["ok"]
+    assert PT.choose(rec, "lion")["code"] == "not_owned"
+    assert PT.choose(rec, None)["ok"] and rec["pets"]["on"] is None
+    repo = Path(__file__).resolve().parents[2]
+    js = json.loads(subprocess.run(["node", "--input-type=module", "-e",
+                                    "const m = await import('./site/games/community/pie-plaza/src/game/pets.js'); console.log(JSON.stringify(m.PETS.map((p) => [p.id, p.name, p.price, p.unlock])))"],
+                                   cwd=repo, capture_output=True, text=True, check=True).stdout)
+    assert js == [[p["id"], p["name"], p["price"], p["unlock"]] for p in PT.PETS]

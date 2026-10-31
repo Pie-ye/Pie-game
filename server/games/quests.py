@@ -51,6 +51,7 @@ STAMPS: list[tuple[str, str, str, str, str, int, int]] = [
     ("social_friend5", "social", "交友廣闊", "有 5 位好友", "friends_best", 5, 60),
     ("social_coop20", "social", "好幫手", "在別人的農場幫忙 20 次", "coop_help", 20, 80),
     ("social_liked10", "social", "人氣家園", "家園被稱讚 10 次", "liked_best", 10, 80),
+    ("town_pets5", "town", "寵物之家", "擁有 5 隻寵物", "pets_best", 5, 80),
     ("town_wish10", "town", "虔誠的人", "在菲比女神噴水池許願 10 次", "wish", 10, 40),
     ("town_feed5", "town", "瑞吉的朋友", "餵瑞吉 5 次", "feed", 5, 40),
     ("town_trade", "town", "初次交易", "在交易所完成一筆交易", "trade", 1, 30),

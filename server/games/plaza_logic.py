@@ -98,6 +98,43 @@ def new_farm(owner: str) -> dict[str, Any]:
     return {"debris": debris, "tilled": {}, "crops": {}}
 
 
+REGROW_PER_DAY = 6        # 每過一天（台北），空地長回幾個雜物
+REGROW_MAX_DAYS = 5
+REGROW_CAP = 45           # 田裡雜物超過這個數就不再長
+
+
+def regrow(farm: dict[str, Any], owner: str, day: str) -> list[str]:
+    """農場空地長回雜草、樹枝、石頭、樹樁（材料才不會只減不增）。同一天只長一次；離開幾天會一次補上（最多 5 天）。"""
+    last = farm.get("regrow")
+    if last == day:
+        return []
+    farm["regrow"] = day
+    if not last:
+        return []
+    try:
+        days = (time.mktime(time.strptime(day, "%Y-%m-%d")) - time.mktime(time.strptime(last, "%Y-%m-%d"))) // 86400
+    except ValueError:
+        days = 1
+    days = int(max(1, min(REGROW_MAX_DAYS, days)))
+    room = REGROW_CAP - len(farm["debris"])
+    n = min(REGROW_PER_DAY * days, room)
+    if n <= 0:
+        return []
+    free = [(x, y) for y in range(FIELD["y0"], FIELD["y1"] + 1) for x in range(FIELD["x0"], FIELD["x1"] + 1)
+            if not (is_path(x, y) or in_pond(x, y) or (abs(x - 20) <= 3 and y <= 13))
+            and f"{x},{y}" not in farm["debris"] and f"{x},{y}" not in farm["tilled"] and f"{x},{y}" not in farm["crops"]]
+    rnd = mulberry(seed_of(f"regrow:{owner}:{day}"))
+    out = []
+    for _ in range(min(n, len(free))):
+        x, y = free.pop(int(rnd() * len(free)))
+        r = rnd()
+        t = "weed" if r < 0.55 else "twig" if r < 0.75 else "stone" if r < 0.9 else "stump"
+        k = f"{x},{y}"
+        farm["debris"][k] = {"t": t, "hp": DEBRIS[t]["hp"], "look": int(rnd() * DEBRIS[t]["looks"])}
+        out.append(k)
+    return out
+
+
 def new_player(owner: str, name: str) -> dict[str, Any]:
     return {
         "v": 1, "name": name, "farm": new_farm(owner), "inv": {}, "seeds": dict(FARM["starterSeeds"]), "seedSel": "wheat",
