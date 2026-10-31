@@ -135,7 +135,7 @@ function applyHunt(m) {
   m.signs = m.signs.filter((t) => t.action !== 'hunt');
   const here = huntHere(hunt, m.id);
   for (const h of here) m.signs.push({ x: h.x, y: h.y, title: hunt.name, lines: [], action: 'hunt', id: h.id, reach: 18, hint: 'E 收下南瓜燈' });
-  return here.map((h) => obj('pumpkinItem', h.x, h.y, { foot: null, light: 24, flicker: true }));
+  return here.map((h) => obj('jackLantern', h.x, h.y, { foot: null, light: 24, flicker: true }));
 }
 function applyEvents(m) {
   const objs = [...eventObjects(m.id, events), ...applyHunt(m)];

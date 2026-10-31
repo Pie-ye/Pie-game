@@ -122,12 +122,13 @@ SPEC.update({
     "arenaPie": ("gen/arena_pie.png", 0, 0, 16, 16), "arenaPieGold": ("gen/arena_pie_gold.png", 0, 0, 16, 16),
     "arenaSplat": ("gen/arena_splat.png", 0, 0, 16, 16), "arenaCrown": ("gen/arena_crown.png", 0, 0, 16, 16),
     "arenaPodium": ("gen/arena_podium.png", 0, 0, 48, 32), "arenaDesk": ("gen/arena_desk.png", 0, 0, 48, 32),
-    # 派派新區的全鎮工程（antigravity 依 art/build/BRIEF.md 生成；第三階段工地暫用第二階段）
+    # 派派新區的全鎮工程（antigravity 依 art/build/BRIEF.md、art/more/BRIEF.md 生成）
     "buildSite0": ("gen/build_site_0.png", 0, 0, 64, 64), "buildSite1": ("gen/build_site_1.png", 0, 0, 64, 64),
-    "buildSite2": ("gen/build_site_1.png", 0, 0, 64, 64), "buildGreenhouse": ("gen/build_greenhouse.png", 0, 0, 64, 64),
+    "buildSite2": ("gen/build_site_2.png", 0, 0, 64, 64), "buildGreenhouse": ("gen/build_greenhouse.png", 0, 0, 64, 64),
     "buildFireworks": ("gen/build_fireworks.png", 0, 0, 48, 64),
-    # 五種派餅（tools/pie-plaza/tint_pies.py 由 arena_pie 換色，之後可換成專屬圖）
+    # 五種派餅、南瓜燈（antigravity 依 art/more/BRIEF.md 生成）
     **{f"pie_{k}Item": (f"gen/pie_{k}.png", 0, 0, 16, 16) for k in ("strawberry", "pumpkin", "tomato", "carrot", "beet")},
+    "jackLantern": ("gen/jack_lantern.png", 0, 0, 16, 16),
 })
 
 

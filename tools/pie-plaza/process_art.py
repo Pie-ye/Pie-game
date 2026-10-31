@@ -52,7 +52,7 @@ def main() -> None:
     import sys
     OUT.mkdir(parents=True, exist_ok=True)
     n = 0
-    lanes = sys.argv[1:] or ("fish", "cropsA", "cropsB", "show", "arena", "build")
+    lanes = sys.argv[1:] or ("fish", "cropsA", "cropsB", "show", "arena", "build", "more")
     for lane in lanes:
         for f in sorted((SRC / lane).glob("*.png")):
             n += 1 if process(f) else 0
