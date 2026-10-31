@@ -1277,6 +1277,7 @@ function onGame(m) {
   else if (m.op === 'bossCall') boss.call(m);
   else if (m.op === 'town' && m.town) { setTown(m.town); if (m.by) sys(`🏗️ ${m.by} 為全鎮工程捐了 ${m.key === 'gold' ? '金幣' : m.key === 'fish' ? '魚' : itemName(m.key)} ×${m.n}`); }
   else if (m.op === 'townDone') { setTown(m.town); sys(`🎉 全鎮工程「${m.name}」完工了！${m.effect}。${m.top ? `貢獻最多的是 ${m.top}。` : ''}`); hud.toast(`🎉 「${m.name}」完工！${m.effect}`, 5000); audio.tool('fanfare'); }
+  if (m.op === 'me' && m.partyCap) { hud.toast(`今天前 ${m.partyCap} 場廣場派對的獎金都領過了，之後還是可以玩、會算集章`, 4000); sys(`🎉 今天的廣場派對獎金場次（${m.partyCap} 場）用完了，明天再來領；之後的派對照樣算集章與週榜。`); }
   if (m.op === 'me' && m.fwGift) { hud.toast(`🎆 看煙火的小禮物：${m.fwGift.gold} G 和種子 ×${m.fwGift.n}`, 3500); sys('🎆 煙火真漂亮！收到看煙火的小禮物。'); }
   if (m.op === 'me' && m.bossFull != null) {
     const gift = m.bossGift ? `，還有 ${CROPS[m.bossGift.item] ? CROPS[m.bossGift.item].name : ''}種子 ×${m.bossGift.n}` : '';

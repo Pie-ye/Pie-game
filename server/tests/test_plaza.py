@@ -1671,3 +1671,23 @@ async def test_weekly_boards_settle_and_friend_bonus(aiohttp_client, tmp_path) -
     assert r["total"] == 10 * L.SELL["wheat"] and r["bonus"] == r["total"] // 10
     for ws in (alice, bob):
         await ws.close()
+
+
+@pytest.mark.asyncio
+async def test_wish_daily_limit_and_party_paid_cap(aiohttp_client, tmp_path) -> None:
+    from server.games import plaza as PZ
+    client, plaza, _, _ = await make(aiohttp_client, tmp_path)
+    alice = await connect_and_auth(client, "alice", G)
+    await call(alice, "load")
+    plaza.players["alice"]["gold"] = 1000
+    for _ in range(PZ.WISH_DAILY):
+        assert (await call(alice, "wish"))["ok"]
+    assert (await call(alice, "wish"))["code"] == "wish_limit"
+    rec = plaza.players["alice"]
+    relay = type("FakeRelay", (), {"connections": []})()
+    g0 = rec["gold"]
+    for _ in range(PZ.PARTY_DAILY_PAID + 3):
+        rec["gold"] += 40                             # _pay_* 先入帳，超過上限的由 _party_progress 退回
+        await plaza._party_progress(relay, "party", "alice", rec, 40)
+    assert rec["gold"] == g0 + 40 * PZ.PARTY_DAILY_PAID
+    await alice.close()

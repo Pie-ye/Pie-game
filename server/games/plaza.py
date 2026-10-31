@@ -37,6 +37,8 @@ ARENA_SECONDS = 0.1
 MAX_LISTINGS_PER_USER = 10
 MAX_COOP = 20
 WISH_COST = 10
+WISH_DAILY = 10            # 每天許願次數（期望值接近打平，避免刷錢）
+PARTY_DAILY_PAID = 12     # 九個廣場派對合計，每天前幾場有獎金
 
 SCHEMA = (
     """
@@ -744,11 +746,19 @@ class PlazaService:
 
     # ---------- 地標：菲比女神噴水池、瑞吉海獅秀 ----------
     async def op_wish(self, relay, conn, me, rec, p):
+        day = L.taipei_day(self.now_ms())
+        ws = rec.get("wishes") if isinstance(rec.get("wishes"), dict) else {}
+        if ws.get("day") != day:
+            ws = {"day": day, "n": 0}
+        if ws["n"] >= WISH_DAILY:
+            raise GameError("wish_limit", f"女神今天已經聽了你 {WISH_DAILY} 個願望，明天再來")
         if rec["gold"] < WISH_COST:
             raise GameError("no_gold", f"許願要投 {WISH_COST} G")
+        ws["n"] += 1
+        rec["wishes"] = ws
         rec["gold"] -= WISH_COST
         r = self.rng.random()
-        if r < 0.05:
+        if r < 0.02:
             rec["inv"]["fish_golden"] = rec["inv"].get("fish_golden", 0) + 1
             reward = {"kind": "fish", "item": "fish_golden", "n": 1}
         elif r < 0.20:
@@ -834,6 +844,18 @@ class PlazaService:
         return paid
 
     async def _party_progress(self, relay, kind: str, uid: str, rec: dict[str, Any], n: int) -> None:
+        day = L.taipei_day(self.now_ms())
+        pp = rec.get("partyPay") if isinstance(rec.get("partyPay"), dict) else {}
+        if pp.get("day") != day:
+            pp = {"day": day, "n": 0}
+        if pp["n"] >= PARTY_DAILY_PAID:                 # 今天的獎金場次用完：退回這一場的金幣
+            rec["gold"] -= n
+            if pp["n"] == PARTY_DAILY_PAID:
+                pp["n"] += 1
+                await self._push_me(relay, uid, partyCap=PARTY_DAILY_PAID)
+        else:
+            pp["n"] += 1
+        rec["partyPay"] = pp
         ev: list[tuple[str, Any]] = [("party_play", 1), (f"uniq:party={kind}", 0)]
         if n >= 40:                                   # 第一名（或贏的隊伍）拿 40 G
             ev.append(("party_win", 1))
