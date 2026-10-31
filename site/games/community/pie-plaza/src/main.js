@@ -45,6 +45,7 @@ import { TOOLS, CROPS, useTool, debrisLeft, CROP_KEYS } from './farm/state.js';
 import { furniture, canPlace, placeAt, itemAt, sanitizeDecor } from './house/catalog.js';
 import { defaultLook, sanitizeLook } from './avatar/look.js';
 import { FISH, newMinigame, stepMinigame, fishName } from './fish/fishing.js';
+import { spotlightAt, ALWAYS_ON } from './events/schedule.js';
 import { activeEvents, eventById, daylight, joinHint, countdownMark, seekLiveMark, seekSpotHint } from './events/schedule.js';
 import { eventObjects } from './events/effects.js';
 import { isFriend, readMail, readCard, today, EMOTES, NOTE_MAX, itemName } from './social/home.js';
@@ -967,8 +968,35 @@ function boardingJoins() {
     [lastVase, VASE_JOIN],
   ];
 }
+const PARTY_JOINS = { party: PARTY_JOIN, seek: SEEK_JOIN, hot: HOT_JOIN, tug: TUG_JOIN, haul: HAUL_JOIN, light: LIGHT_JOIN, hill: HILL_JOIN, smash: SMASH_JOIN, vase: VASE_JOIN };
+const partyName = (k) => (ALWAYS_ON.find((x) => x.id === k) || {}).name || k;
+// 可點的召集橫幅（廣場小派對有人等、焦點派對）
+const callEl = document.createElement('button');
+callEl.type = 'button'; callEl.className = 'arena-call town-call'; callEl.hidden = true;
+document.querySelector('.frame').append(callEl);
+let callTo = null, callUntil = 0;
+callEl.addEventListener('click', () => { callEl.hidden = true; if (callTo) goToParty(callTo); });
+function showCall(text, kind, ms) { callEl.textContent = text; callTo = kind; callUntil = Date.now() + ms; callEl.hidden = false; }
+async function goToParty(kind) {
+  const j = PARTY_JOINS[kind];
+  if (!j) return;
+  if (area !== 'plaza') await goArea('plaza', 'center');
+  me.x = j.x; me.y = j.y + 18; me.dir = 1; target = null; sendPose(undefined, true);
+}
+let lastSpot;            // 第一次只記下，不跳通知
+function checkSpotlight() {
+  const k = spotlightAt();
+  if (k && k !== lastSpot && lastSpot !== undefined) {
+    sys(`🔥 焦點派對換成【${partyName(k)}】：接下來 10 分鐘獎金 ×1.5！`);
+    if (ready) showCall(`🔥 焦點派對：${partyName(k)}（獎金 ×1.5）點這裡過去`, k, 60_000);
+  }
+  lastSpot = k;
+  if (callUntil && Date.now() > callUntil) { callEl.hidden = true; callUntil = 0; }
+}
 function partyMarks() {
   const marks = [];
+  const spot = spotlightAt();
+  if (spot && PARTY_JOINS[spot] && Math.floor(Date.now() / 300) % 2) marks.push({ x: PARTY_JOINS[spot].x, y: PARTY_JOINS[spot].y - 8, color: 'rgba(255,200,40,.95)' });
   const lamp = lightFromPublic(lastLight, Date.now());
   if (lamp) {
     const color = lamp === 'red' ? 'rgba(220,40,40,.95)' : 'rgba(40,200,70,.95)';
@@ -1275,9 +1303,16 @@ function onGame(m) {
   else if (m.op === 'arenaCall') arena.call(m);
   else if (m.op === 'boss' && m.boss) boss.apply(m.boss, true);
   else if (m.op === 'bossCall') boss.call(m);
+  else if (m.op === 'partyCall' && PARTY_JOINS[m.kind]) {
+    const sec = Math.round((m.wait || 12000) / 1000);
+    sys(`🎉 ${m.name} 在【${partyName(m.kind)}】等人，${sec} 秒內沒人來鎮民會補位。`);
+    showCall(`🎉 ${m.name} 在【${partyName(m.kind)}】等人，點這裡一起玩`, m.kind, m.wait || 12000);
+  }
   else if (m.op === 'town' && m.town) { setTown(m.town); if (m.by) sys(`🏗️ ${m.by} 為全鎮工程捐了 ${m.key === 'gold' ? '金幣' : m.key === 'fish' ? '魚' : itemName(m.key)} ×${m.n}`); }
   else if (m.op === 'townDone') { setTown(m.town); sys(`🎉 全鎮工程「${m.name}」完工了！${m.effect}。${m.top ? `貢獻最多的是 ${m.top}。` : ''}`); hud.toast(`🎉 「${m.name}」完工！${m.effect}`, 5000); audio.tool('fanfare'); }
   if (m.op === 'me' && m.partyCap) { hud.toast(`今天前 ${m.partyCap} 場廣場派對的獎金都領過了，之後還是可以玩、會算集章`, 4000); sys(`🎉 今天的廣場派對獎金場次（${m.partyCap} 場）用完了，明天再來領；之後的派對照樣算集章與週榜。`); }
+  if (m.op === 'me' && m.rained) { sys(`🌧️ 你在派對大顯身手時，家裡下了一場及時雨：${m.rained} 格作物都澆好水了。`); setTimeout(() => hud.toast('🌧️ 及時雨！農場作物都澆好水了', 3000), 4500); }
+  if (m.op === 'me' && m.spotlightBonus) hud.toast(`🔥 焦點派對加成 +${m.spotlightBonus} G`, 2500);
   if (m.op === 'me' && m.fwGift) { hud.toast(`🎆 看煙火的小禮物：${m.fwGift.gold} G 和種子 ×${m.fwGift.n}`, 3500); sys('🎆 煙火真漂亮！收到看煙火的小禮物。'); }
   if (m.op === 'me' && m.bossFull != null) {
     const gift = m.bossGift ? `，還有 ${CROPS[m.bossGift.item] ? CROPS[m.bossGift.item].name : ''}種子 ×${m.bossGift.n}` : '';
@@ -1577,7 +1612,7 @@ function frame(now) {
     if ((inArena && arena.shaking()) || (inPlaza && boss.shaking())) { cam.x += Math.round(Math.random() * 4 - 2); cam.y += Math.round(Math.random() * 4 - 2); }
     drawWorld(ctx, scene, map, list, cam, now, BUBBLE_MS, opts);
     if (now - lastClock > 10000) { hud.clock(); lastClock = now; }
-    if (now - lastEvents > 5000) { checkEvents(false); lastEvents = now; }
+    if (now - lastEvents > 5000) { checkEvents(false); checkSpotlight(); lastEvents = now; }
   }
   requestAnimationFrame(frame);
 }

@@ -2,7 +2,7 @@
 import { FURNITURE, FLOORS, WALLS, HOUSE_STYLES } from '../house/catalog.js';
 import { ROOF, ROOF_NAMES, WALL, WALL_NAMES, YARD, YARD_NAMES } from '../house/exterior.js';
 import { CROPS } from '../farm/state.js';
-import { todaySchedule, dayLabel, hhmm, ALWAYS_ON, occupancyLine } from '../events/schedule.js';
+import { todaySchedule, dayLabel, hhmm, ALWAYS_ON, occupancyLine, spotlightAt } from '../events/schedule.js';
 import { hslToRgb } from '../avatar/look.js';
 import { atlasIcon } from './icon.js';
 
@@ -96,13 +96,13 @@ export function openEventBoard(ms, close, snaps) {
   const body = open('派派鎮公告欄', close);
   const d = document.createElement('p'); d.textContent = `今天是 ${dayLabel(ms)}（台北時間）`; body.append(d);
   const stand = document.createElement('h3'); stand.textContent = '常駐派對'; body.append(stand);
-  const how = document.createElement('p'); how.className = 'note'; how.textContent = '走近地標按 E。三個人湊齊開始倒數，最多八人。'; body.append(how);
+  const how = document.createElement('p'); how.className = 'note'; how.textContent = '走近地標按 E。三個人湊齊開始倒數，最多八人；只有你一個時鎮民會來湊。每 10 分鐘換一個焦點派對，獎金 ×1.5。'; body.append(how);
   for (const s of ALWAYS_ON) {
     const snap = snaps && snaps[s.id];
     const st = snap && snap.status;
     const card = document.createElement('div'); card.className = 'event' + (st === 'live' || st === 'countdown' ? ' now' : '');
     const h = document.createElement('b'); h.textContent = `${s.icon} ${s.name}`;
-    const tag = document.createElement('span'); tag.className = 'tag'; tag.textContent = occupancyLine(snap);
+    const tag = document.createElement('span'); tag.className = 'tag'; tag.textContent = (spotlightAt() === s.id ? '🔥 焦點 ×1.5　' : '') + occupancyLine(snap);
     const p = document.createElement('p'); p.textContent = s.where;
     card.append(h, tag, p); body.append(card);
   }

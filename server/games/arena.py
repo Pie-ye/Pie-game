@@ -657,7 +657,8 @@ class Arena:
         if z["stage"] != "ask":
             return
         if pl["goal"] is None and not pl["think"]:
-            pl["think"] = now + self.rng.randint(1200, 5200)          # 想一下
+            pl["think"] = z["until"] - self.rng.randint(2200, 3400)    # 猶豫到最後才走（不讓人跟著抄）
+            pl["wander"] = None
         if pl["goal"] is None and now >= pl["think"]:
             ok = QUESTIONS[z["qs"][z["i"]]][2]
             pick = ok if self.rng.random() < 0.6 else self.rng.randrange(4)
@@ -665,6 +666,11 @@ class Arena:
             pl["goal"] = (cx + self.rng.uniform(-30, 30), cy + self.rng.uniform(-14, 14), pick)
         if pl["goal"]:
             self._move_bot(pl, pl["goal"][0], pl["goal"][1], dt)
+        elif self.rng.random() < 0.04:                                 # 想的時候在中間亂晃
+            cx, cy = (FIELD[0] + FIELD[2]) / 2, (FIELD[1] + FIELD[3]) / 2
+            pl["wander"] = (cx + self.rng.uniform(-50, 50), cy + self.rng.uniform(-30, 30))
+        if not pl["goal"] and pl.get("wander"):
+            self._move_bot(pl, pl["wander"][0], pl["wander"][1], dt * 0.5)
 
     def _floor_done(self) -> bool:
         alive = [u for u in self.order if self.p[u]["out"] is None and not self.p[u]["gone"]]

@@ -39,6 +39,16 @@ export const ALWAYS_ON = [
 ];
 export const STANDING = ALWAYS_ON;
 
+/** 焦點派對：台北時間每 10 分鐘輪一個（獎金 ×1.5），大胃王蛙的 :30–:39 停一輪。和伺服器 party_bots.spotlight_at 一致。 */
+export const SPOTLIGHT_MS = 600_000;
+export function spotlightAt(ms = Date.now()) {
+  const t = ms + TZ_OFFSET_H * 3600_000;
+  const min = Math.floor(t / 60_000) % 60;
+  if (min >= 30 && min < 40) return null;
+  const slot = Math.floor(t / SPOTLIGHT_MS);
+  return ALWAYS_ON[(slot * 7 + 3) % ALWAYS_ON.length].id;
+}
+
 /** 公告欄標籤：這一輪幾個人、開沒開。沒快照就當空場。 */
 export function occupancyLine(snap) {
   const n = (snap && snap.players && snap.players.length) || 0;

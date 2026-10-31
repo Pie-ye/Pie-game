@@ -114,6 +114,8 @@ class PlazaService:
         self._bot_wait: dict[str, int] = {}
         self._bot_next: dict[tuple[str, str], int] = {}
         self._bot_memo: dict[tuple[str, str], dict[str, Any]] = {}
+        self._party_called: dict[str, Any] = {}
+        self._spotlight = PB.spotlight_at
         self._bots_at = 0
         self._fw_sec = 0
         with store._lock:
@@ -855,6 +857,10 @@ class PlazaService:
                 await self._push_me(relay, uid, partyCap=PARTY_DAILY_PAID)
         else:
             pp["n"] += 1
+            if n and self._spotlight(self.now_ms()) == kind:   # 焦點派對獎金 ×1.5
+                extra = int(n * PB.SPOTLIGHT_BONUS)
+                rec["gold"] += extra
+                await self._push_me(relay, uid, spotlightBonus=extra)
         rec["partyPay"] = pp
         ev: list[tuple[str, Any]] = [("party_play", 1), (f"uniq:party={kind}", 0)]
         if n >= 40:                                   # 第一名（或贏的隊伍）拿 40 G
@@ -1380,14 +1386,28 @@ class PlazaService:
     async def _party_bots(self, relay) -> None:
         """九個廣場派對：等太久就讓鎮民來湊人數，開場後鎮民照規則行動。"""
         now = self.now_ms()
+        online = None
         for kind in PB.KINDS:
             rnd = getattr(self, kind)
             if not rnd:
                 continue
             changed = False
-            if rnd.get("status") == "open" and PB.humans(rnd):
+            humans = PB.humans(rnd)
+            if rnd.get("status") == "open" and humans:
+                if online is None:
+                    online = {str(c.user_id) for c in relay.connections if c.game_id == GAME_ID}
+                crowd = bool(online - set(humans))
+                key = (id(rnd), humans[0])
+                if self._party_called.get(kind) != key:      # 有人開始等：全鎮廣播，大家可以一鍵過來
+                    self._party_called[kind] = key
+                    rec0 = self.players.get(humans[0]) or {}
+                    call = {"type": "game", "op": "partyCall", "kind": kind, "name": rec0.get("name") or "鎮民", "n": len(rnd["order"]),
+                            "wait": PB.FILL_MS_CROWD if crowd else PB.FILL_MS, "now": now}
+                    for c in list(relay.connections):
+                        if c.game_id == GAME_ID and str(c.user_id) not in humans:
+                            await self._send(c, call)
                 since = self._bot_wait.setdefault(kind, now)
-                if now - since >= PB.FILL_MS:
+                if now - since >= (PB.FILL_MS_CROWD if crowd else PB.FILL_MS):
                     rnd = PB.fill(kind, rnd, now)
                     setattr(self, kind, rnd)
                     self._bot_wait.pop(kind, None)
@@ -1494,6 +1514,8 @@ class PlazaService:
             if r.get("top"):
                 ev.append(("boss_top", 1))
             await self._progress(relay, r["id"], rec, ev)
+            if r["hits"] >= 1:
+                await self._party_rain(relay, r["id"], rec)
 
     async def op_boss(self, relay, conn, me, rec, p):
         act = p.get("act")
@@ -1553,6 +1575,14 @@ class PlazaService:
             for c in self._arena_conns(relay):
                 await self._send(c, payload)
 
+    async def _party_rain(self, relay, uid: str, rec: dict[str, Any]) -> None:
+        """打完派派大作戰或餵蛙：家裡下了一場及時雨，作物都澆好水了。"""
+        changed = L.rain(rec["farm"], self.now_ms())
+        if changed:
+            self.dirty.add(uid)
+            await self._broadcast_patch(relay, uid, changed, by=None, kind="rain")
+            await self._push_me(relay, uid, rained=len(changed))
+
     async def _arena_pay(self, relay, due: list[dict[str, Any]]) -> None:
         day = L.taipei_day(self.now_ms())
         for r in due:
@@ -1588,6 +1618,7 @@ class PlazaService:
             if r.get("humans", 0) >= 3:
                 ev.append(("arena_humans3", 1))
             await self._progress(relay, r["id"], rec, ev)
+            await self._party_rain(relay, r["id"], rec)
 
     async def op_arena(self, relay, conn, me, rec, p):
         act = p.get("act")

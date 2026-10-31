@@ -232,6 +232,18 @@ def grow(farm: dict[str, Any], now_ms: int) -> list[str]:
     return changed
 
 
+def rain(farm: dict[str, Any], now_ms: int) -> list[str]:
+    """及時雨：把還沒成熟、沒澆水的作物都澆上水（打完派對的獎勵）。回傳有變化的格子。"""
+    out = []
+    for k, c in farm["crops"].items():
+        if c["s"] < 3 and not c.get("w"):
+            c["w"] = now_ms
+            if k in farm["tilled"]:
+                farm["tilled"][k]["w"] = now_ms
+            out.append(k)
+    return out
+
+
 def next_seed(rec: dict[str, Any]) -> str:
     have = [k for k in CROP_KEYS if rec["seeds"].get(k, 0) > 0]
     if have:

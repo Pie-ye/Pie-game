@@ -160,3 +160,25 @@ def test_friends_match_frontend():
     assert js == {k: [f["name"], f["loves"], f["likes"]] for k, f in FR.FRIENDS.items()}
     for f in FR.FRIENDS.values():
         assert all(i in L.ITEMS for i in f["loves"] + f["likes"]), f
+
+
+def test_spotlight_matches_frontend_and_skips_boss_time():
+    import json
+    import subprocess
+    from pathlib import Path
+    from server.games import party_bots as PB
+    repo = Path(__file__).resolve().parents[2]
+    times = [1_800_000_000_000 + i * 137_000 for i in range(60)]
+    js = json.loads(subprocess.run(["node", "--input-type=module", "-e",
+                                    "const m = await import('./site/games/community/pie-plaza/src/events/schedule.js'); console.log(JSON.stringify(JSON.parse(process.argv[1]).map((t) => m.spotlightAt(t))))", json.dumps(times)],
+                                   cwd=repo, capture_output=True, text=True, check=True).stdout)
+    assert js == [PB.spotlight_at(t) for t in times]
+    assert None in js and len({k for k in js if k}) >= 4
+
+
+def test_party_rain_waters_unwatered_crops_only():
+    f = L.new_farm("u3")
+    f["tilled"].update({"1,1": {"w": 0}, "2,2": {"w": 5}})
+    f["crops"].update({"1,1": {"t": "wheat", "s": 1, "w": 0, "at": 0}, "2,2": {"t": "wheat", "s": 1, "w": 5, "at": 0},
+                       "3,3": {"t": "wheat", "s": 3, "w": 0, "at": 0}})
+    assert L.rain(f, 99) == ["1,1"] and f["crops"]["1,1"]["w"] == 99 and f["tilled"]["1,1"]["w"] == 99

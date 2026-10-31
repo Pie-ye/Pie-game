@@ -77,6 +77,7 @@ async def make(aiohttp_client, tmp_path, clock=None, quests=False):
         async def no_progress(*_a, **_k):
             return []
         plaza._progress = no_progress
+        plaza._spotlight = lambda _ms: None
     relay = Relay(ORIGIN, redeem=ticket_redeemer(), saves=store, plaza=plaza, clock=fake, max_messages_per_second=1000)
     app = web.Application()
 

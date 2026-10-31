@@ -14,6 +14,9 @@ from . import plaza_logic as L
 
 BOTS = [("npc:kid", "小傑"), ("npc:granny", "艾芙琳奶奶")]
 FILL_MS = 12000
+FILL_MS_CROWD = 18000      # 有其他真人在線時多等一下，讓他們有時間過來
+SPOTLIGHT_MS = 600_000
+SPOTLIGHT_BONUS = 0.5
 STEP_MS = (700, 2000)
 KINDS = ("party", "seek", "hot", "tug", "haul", "light", "hill", "smash", "vase")
 
@@ -21,6 +24,16 @@ JOIN = {
     "party": L.party_join, "seek": L.seek_join, "hot": L.hot_join, "tug": L.tug_join, "haul": L.haul_join,
     "light": L.light_join, "hill": L.hill_join, "smash": L.smash_join, "vase": L.vase_join,
 }
+
+
+def spotlight_at(ms: int) -> str | None:
+    """焦點派對（和前端 events/schedule.js spotlightAt 一致）。"""
+    t = ms + 8 * 3600_000
+    minute = (t // 60_000) % 60
+    if 30 <= minute < 40:
+        return None
+    slot = t // SPOTLIGHT_MS
+    return KINDS[(slot * 7 + 3) % len(KINDS)]
 
 
 def is_bot(uid: str) -> bool:
