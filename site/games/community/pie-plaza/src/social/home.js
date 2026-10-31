@@ -80,6 +80,10 @@ export function readMail(m) {
     const gold = d.gold | 0;
     return gold >= 1 ? { id: m.id, kind: 'div', from, gold, at: m.createdAt, sys: true } : null;
   }
+  if (m.kind === 'sysrank') {
+    const title = cleanText(d.title, 20), rank = d.rank | 0, gold = Math.max(0, d.gold | 0);
+    return title && rank >= 1 && rank <= 3 ? { id: m.id, kind: 'rank', from, title, rank, gold, week: cleanText(d.week, 10), at: m.createdAt, sys: true } : null;
+  }
   if (m.kind === 'sysbuild') {
     const gold = Math.max(0, d.gold | 0), name = cleanText(d.name, 20);
     return name ? { id: m.id, kind: 'build', from, name, gold, points: Math.max(0, d.points | 0), at: m.createdAt, sys: true } : null;

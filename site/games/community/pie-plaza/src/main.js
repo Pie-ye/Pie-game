@@ -365,8 +365,9 @@ async function ship() {
     const r = await call('ship');
     applyMine(farm, r); refreshHud();
     if (!r.total) { hud.toast('背包裡沒有可以出貨的作物或魚'); return; }
-    audio.tool('harvest'); sys(`出貨 ${r.sold.map(([k, n]) => `${itemName(k)}×${n}`).join('、')}，得到 ${r.total} G`);
-    hud.toast(`+${r.total} G`, 2500);
+    const bonus = r.bonus ? `（好友在線加成 +${r.bonus} G）` : '';
+    audio.tool('harvest'); sys(`出貨 ${r.sold.map(([k, n]) => `${itemName(k)}×${n}`).join('、')}，得到 ${r.total} G${bonus}`);
+    hud.toast(`+${r.total + (r.bonus | 0)} G${r.bonus ? '　🤝 好友加成' : ''}`, 2500);
   } catch (_e) { /* 已提示 */ }
 }
 async function saveDecorToServer() {
@@ -776,7 +777,10 @@ async function openTownPanel() {
 // ---------- 鎮民手冊：每日委託與集章 ----------
 async function openBookPanel(tab) {
   if (!api.server) { openBook(null); return; }
-  try { const r = await call('quests'); openBook(r.quests, tab); } catch (_e) { /* 已提示 */ }
+  try {
+    const [r, rank] = await Promise.all([call('quests'), call('rank', {}, { quiet: true }).catch(() => null)]);
+    openBook({ ...r.quests, rank }, tab);
+  } catch (_e) { /* 已提示 */ }
 }
 function onQuest(list) {
   for (const q of list) { const t = questLine(q); if (t) sys(t); }
@@ -1249,7 +1253,7 @@ async function connect() {
       },
       mail(m) {
         loadMail();
-        const t = { sysbuild: '🏗️ 全鎮工程完工了，回饋金已入帳', syslike: '👍 有人稱讚了你的家園', sysgift: '🎁 有人送你禮物，打開信箱看看', syssold: '💰 你的東西在跳蚤市場賣掉了！', syscoop: '🤝 有人邀請你共同耕作', sysdiv: '📈 交易所週一股息入帳了' }[m.kind] || '✉ 收到新的留言';
+        const t = { sysrank: '🏆 週榜結算：你上榜了，獎金已入帳', sysbuild: '🏗️ 全鎮工程完工了，回饋金已入帳', syslike: '👍 有人稱讚了你的家園', sysgift: '🎁 有人送你禮物，打開信箱看看', syssold: '💰 你的東西在跳蚤市場賣掉了！', syscoop: '🤝 有人邀請你共同耕作', sysdiv: '📈 交易所週一股息入帳了' }[m.kind] || '✉ 收到新的留言';
         hud.toast(t, 2500);
       },
       game: onGame,

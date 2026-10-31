@@ -1628,3 +1628,46 @@ async def test_town_project_donate_finish_effects(aiohttp_client, tmp_path) -> N
     L.GROW_SPEED = 1.0
     for ws in (alice, bob):
         await ws.close()
+
+
+# ---------- 週榜與好友加成 ----------
+@pytest.mark.asyncio
+async def test_weekly_boards_settle_and_friend_bonus(aiohttp_client, tmp_path) -> None:
+    from server.games import quests as Q
+    client, plaza, store, clock = await make(aiohttp_client, tmp_path, quests=True)
+    alice = await connect_and_auth(client, "alice", G)
+    bob = await connect_and_auth(client, "bob", G)
+    await call(alice, "load")
+    await call(bob, "load")
+    now = plaza.now_ms()
+    day = L.taipei_day(now)
+    wk = Q.week_of(day)
+    for uid, wins, fish in (("alice", 3, 1), ("bob", 1, 5)):
+        Q.note(plaza.players[uid], uid, [("arena_win", wins), ("fish", fish)], day, now)
+        plaza.dirty.add(uid)
+    r = await call(alice, "rank")
+    boards = {b["key"]: b for b in r["boards"]}
+    assert r["week"] == wk and boards["arena"]["top"][0] == ["Alice", 3] and boards["fish"]["top"][0] == ["Bob", 5]
+    assert boards["arena"]["mine"] == 3
+    # 換週：上週的紀錄移到 week_prev，結算仍然算得到
+    import datetime
+    nxt_day = (datetime.date.fromisoformat(day) + datetime.timedelta(days=7)).isoformat()
+    Q.note(plaza.players["bob"], "bob", [("fish", 1)], nxt_day, now)            # bob 在新週先動了
+    assert plaza.players["bob"]["week_prev"]["wk"] == wk
+    plaza.weekly = {"last": wk}
+    g_a, g_b = plaza.players["alice"]["gold"], plaza.players["bob"]["gold"]
+    clock.advance(7 * 86400)
+    plaza._week_check = 0
+    await plaza._weekly_step(type("FakeRelay", (), {"connections": []})(), plaza.now_ms())
+    assert plaza.weekly["last"] == Q.week_of(L.taipei_day(plaza.now_ms()))
+    assert plaza.players["alice"]["gold"] >= g_a + Q.WEEK_GOLD[0] and plaza.players["bob"]["gold"] >= g_b + Q.WEEK_GOLD[0]
+    assert "week_champ" in plaza.players["alice"]["stamps"] and "week_champ" in plaza.players["bob"]["stamps"]
+    mails = await asyncio.to_thread(store.mail_list_sync, G, "alice")
+    assert any(m["kind"] == "sysrank" for m in mails)
+    # 好友在線加成：bob 在線，alice 把 bob 加好友，出貨 +10%
+    await call(alice, "social", friend="bob", name="Bob", on=True)
+    plaza.players["alice"]["inv"]["wheat"] = 10
+    r = await call(alice, "ship")
+    assert r["total"] == 10 * L.SELL["wheat"] and r["bonus"] == r["total"] // 10
+    for ws in (alice, bob):
+        await ws.close()

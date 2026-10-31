@@ -119,10 +119,14 @@ class PlazaService:
                 self.market[row[0]] = {"id": row[0], "seller": row[1], "sellerName": row[2], "item": row[3], "n": row[4], "price": row[5], "at": row[6]}
             row = store._db.execute("SELECT v FROM plaza_exchange WHERE k='state'").fetchone()
             trow = store._db.execute("SELECT v FROM plaza_exchange WHERE k='town'").fetchone()
+            wrow = store._db.execute("SELECT v FROM plaza_exchange WHERE k='weekly'").fetchone()
         self.ex = L.sanitize_exchange(json.loads(row[0]) if row else None, self.now_ms())
         self.town = TW.sanitize(json.loads(trow[0]) if trow else None)
         self.town_dirty = False
         self._apply_town_effects()
+        self.weekly: dict[str, Any] = json.loads(wrow[0]) if wrow else {}
+        self._week_check = 0
+        self._rank_cache: tuple[int, str, dict[str, Any]] | None = None
 
     def now_ms(self) -> int:
         return int(self.clock() * 1000)
@@ -159,7 +163,14 @@ class PlazaService:
         town = json.dumps(self.town, ensure_ascii=False, separators=(",", ":")) if self.town_dirty else None
         self.town_dirty = False
         if rows or ex is not None or town is not None:
-            await asyncio.to_thread(self._write_players, rows, ex, town)
+            try:
+                await asyncio.to_thread(self._write_players, rows, ex, town)
+            except Exception:                          # 寫入失敗：標記回去，下一輪重試
+                self.dirty.update(r[0] for r in rows)
+                self.ex_dirty = self.ex_dirty or ex is not None
+                self.town_dirty = self.town_dirty or town is not None
+                log.exception("plaza flush failed")
+                raise
 
     def _write_players(self, rows: list[tuple], ex: str | None = None, town: str | None = None) -> None:
         with self.store._lock:
@@ -468,9 +479,15 @@ class PlazaService:
         if r["sold"]:
             self.ex_dirty = True
         self.dirty.add(me)
+        bonus = 0
         if r["total"]:
-            await self._progress(relay, me, rec, [("ship_gold", r["total"])])
-        return {"total": r["total"], "sold": r["sold"], **self._mine(rec)}
+            online = {str(c.user_id) for c in relay.connections if c.game_id == GAME_ID}
+            friends = sum(1 for f in rec["social"]["friends"] if f["id"] in online and f["id"] != me)
+            pct = min(30, 10 * friends)                     # 好友在線加成：每位 +10%，最多 +30%
+            bonus = r["total"] * pct // 100
+            rec["gold"] += bonus
+            await self._progress(relay, me, rec, [("ship_gold", r["total"] + bonus)])
+        return {"total": r["total"], "bonus": bonus, "sold": r["sold"], **self._mine(rec)}
 
     # ---------- 農場與拜訪 ----------
     async def _owner(self, me: str, rec: dict[str, Any], owner: Any, name: str | None = None) -> tuple[str, dict[str, Any]]:
@@ -584,7 +601,7 @@ class PlazaService:
         if kind == "sysgift" and data.get("item") in L.ITEMS:
             n = max(1, min(99, int(data.get("n") or 1)))
             rec["inv"][data["item"]] = rec["inv"].get(data["item"], 0) + n
-        elif kind in ("syssold", "sysdiv", "sysbuild"):
+        elif kind in ("syssold", "sysdiv", "sysbuild", "sysrank"):
             pass                                                  # 錢在成交／發息時已經入帳，這裡只是讀過
         self.dirty.add(me)
         return self._mine(rec)
@@ -1478,6 +1495,7 @@ class PlazaService:
         if now // 1000 != self._fw_sec:
             self._fw_sec = now // 1000
             await self._fireworks_step(relay, now)
+            await self._weekly_step(relay, now)
         await self._boss_step(relay, now, min(0.25, max(0.0, (now - self._arena_last) / 1000)) if self._arena_last else ARENA_SECONDS)
         dt = min(0.25, max(0.0, (now - self._arena_last) / 1000)) if self._arena_last else ARENA_SECONDS
         self._arena_last = now
@@ -1602,18 +1620,22 @@ class PlazaService:
 
     async def _town_finished(self, relay, done: dict[str, Any]) -> None:
         self._apply_town_effects()
+        self.town_dirty = True
         for r in done["rewards"]:
-            rec = await self.load(r["id"], create=False)
-            if rec is None:
-                continue
-            rec["gold"] += r["gold"]
-            self.dirty.add(r["id"])
-            await self._notify(relay, r["id"], "sys", "建設委員會", "sysbuild", {"name": done["name"], "gold": r["gold"], "points": r["points"]})
-            await self._push_me(relay, r["id"])
-            ev: list[tuple[str, Any]] = [("town_build", 1)]
-            if r["top"]:
-                ev.append(("town_top", 1))
-            await self._progress(relay, r["id"], rec, ev)
+            try:                                          # 一個人出錯不影響其他人的回饋金
+                rec = await self.load(r["id"], create=False)
+                if rec is None:
+                    continue
+                rec["gold"] += r["gold"]
+                self.dirty.add(r["id"])
+                ev: list[tuple[str, Any]] = [("town_build", 1)]
+                if r["top"]:
+                    ev.append(("town_top", 1))
+                await self._progress(relay, r["id"], rec, ev)
+                await self._push_me(relay, r["id"])
+                await self._notify(relay, r["id"], "sys", "建設委員會", "sysbuild", {"name": done["name"], "gold": r["gold"], "points": r["points"]})
+            except Exception:
+                log.exception("town reward failed for %s", r["id"])
         await self._game_all(relay, {"type": "game", "op": "townDone", "name": done["name"], "effect": done["effect"], "town": self._town_public(),
                                      "top": done["rewards"][0]["name"] if done["rewards"] else ""})
 
@@ -1634,6 +1656,78 @@ class PlazaService:
         if act == "adopt":
             await self._progress(relay, me, rec, [("pets_best", len(PT.state(rec)["own"]))])
         return {"pets": PT.view(rec), **self._mine(rec)}
+
+    # ---------- 週榜 ----------
+    def _week_rows(self, wk: str) -> list[tuple[str, str, dict[str, Any]]]:
+        with self.store._lock:
+            rows = self.store._db.execute(
+                "SELECT user_id, name, json_extract(data, '$.week'), json_extract(data, '$.week_prev') FROM plaza_players "
+                "WHERE json_extract(data, '$.week.wk') = ? OR json_extract(data, '$.week_prev.wk') = ?", (wk, wk)).fetchall()
+        out = []
+        for uid, name, w, prev in rows:
+            for blob in (w, prev):
+                d = json.loads(blob) if blob else None
+                if isinstance(d, dict) and d.get("wk") == wk:
+                    out.append((uid, name, d))
+                    break
+        return out
+
+    def _boards(self, rows: list[tuple[str, str, dict[str, Any]]], n: int) -> dict[str, list[list[Any]]]:
+        out = {}
+        for key, _title in Q.WEEK_BOARDS:
+            ranked = sorted(((name, int(d.get(key, 0)), uid) for uid, name, d in rows if int(d.get(key, 0)) > 0), key=lambda r: -r[1])
+            out[key] = [[name, v, uid] for name, v, uid in ranked[:n]]
+        return out
+
+    async def op_rank(self, relay, conn, me, rec, p):
+        now = self.now_ms()
+        wk = Q.week_of(L.taipei_day(now))
+        if not self._rank_cache or now - self._rank_cache[0] > 30_000 or self._rank_cache[1] != wk:
+            await self.flush()
+            rows = await asyncio.to_thread(self._week_rows, wk)
+            self._rank_cache = (now, wk, self._boards(rows, 10))
+        boards = self._rank_cache[2]
+        mine = rec.get("week") if (rec.get("week") or {}).get("wk") == wk else {}
+        return {"week": wk, "boards": [{"key": k, "title": t, "top": [[n, v] for n, v, _ in boards[k]], "mine": int((mine or {}).get(k, 0))}
+                                       for k, t in Q.WEEK_BOARDS],
+                "gold": Q.WEEK_GOLD, "last": self.weekly.get("champs") or []}
+
+    async def _weekly_step(self, relay, now: int) -> None:
+        """每分鐘看一次：換週了就結算上週，前三名發金幣與系統信。"""
+        if now - self._week_check < 60_000:
+            return
+        self._week_check = now
+        wk = Q.week_of(L.taipei_day(now))
+        last = self.weekly.get("last")
+        if last == wk:
+            return
+        boards: dict[str, list[list[Any]]] = {}
+        if last:
+            await self.flush()
+            rows = await asyncio.to_thread(self._week_rows, last)
+            boards = self._boards(rows, 3)
+        # 先記「已結算」再發獎：就算發到一半當機，重啟也不會重複發
+        self.weekly = {"last": wk, "champs": [[title, boards[key][0][0]] for key, title in Q.WEEK_BOARDS if boards.get(key)]}
+        await asyncio.to_thread(self._write_kv, "weekly", json.dumps(self.weekly, ensure_ascii=False))
+        for key, title in Q.WEEK_BOARDS:
+            for i, (name, v, uid) in enumerate(boards.get(key) or []):
+                try:
+                    gold = Q.WEEK_GOLD[i]
+                    rec = await self.load(uid, create=False)
+                    if rec is None:
+                        continue
+                    rec["gold"] += gold
+                    self.dirty.add(uid)
+                    if i == 0:
+                        await self._progress(relay, uid, rec, [("week_champ", 1)])
+                    await self._push_me(relay, uid)
+                    await self._notify(relay, uid, "sys", "派派鎮公所", "sysrank", {"title": title, "rank": i + 1, "gold": gold, "week": last, "v": v})
+                except Exception:
+                    log.exception("weekly reward failed for %s", uid)
+
+    def _write_kv(self, k: str, v: str) -> None:
+        with self.store._lock:
+            self.store._db.execute("INSERT INTO plaza_exchange (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", (k, v))
 
     async def op_quests(self, relay, conn, me, rec, p):
         return {"quests": Q.view(rec, me, L.taipei_day(self.now_ms()))}

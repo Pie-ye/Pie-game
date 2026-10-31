@@ -13,6 +13,7 @@
 
 from __future__ import annotations
 
+import datetime
 import hashlib
 from typing import Any
 
@@ -51,6 +52,7 @@ STAMPS: list[tuple[str, str, str, str, str, int, int]] = [
     ("social_friend5", "social", "交友廣闊", "有 5 位好友", "friends_best", 5, 60),
     ("social_coop20", "social", "好幫手", "在別人的農場幫忙 20 次", "coop_help", 20, 80),
     ("social_liked10", "social", "人氣家園", "家園被稱讚 10 次", "liked_best", 10, 80),
+    ("week_champ", "party", "週榜冠軍", "在任何一個週榜拿到第一名", "week_champ", 1, 150),
     ("town_pets5", "town", "寵物之家", "擁有 5 隻寵物", "pets_best", 5, 80),
     ("town_wish10", "town", "虔誠的人", "在菲比女神噴水池許願 10 次", "wish", 10, 40),
     ("town_feed5", "town", "瑞吉的朋友", "餵瑞吉 5 次", "feed", 5, 40),
@@ -85,6 +87,18 @@ DAILY_POOL: list[tuple[str, str, int, int, str]] = [
     ("party", "boss_hit", 10, 40, "丟中大胃王蛙 10 次"),
     ("town", "town_give", 1, 30, "捐一次東西給全鎮工程"),
 ]
+# 週榜：哪些進度算進每週排行（kind → 榜名）
+WEEK_KINDS = {"arena_win": "arena", "boss_feed": "boss", "town_points": "town", "fish": "fish", "party_win": "party"}
+WEEK_BOARDS = [("arena", "🎪 派派大作戰冠軍"), ("boss", "🐸 餵飽大胃王"), ("town", "🏗️ 工程貢獻"), ("fish", "🎣 釣到的魚"), ("party", "🎉 廣場派對冠軍")]
+WEEK_GOLD = [300, 150, 80]
+
+
+def week_of(day: str) -> str:
+    """台北日期 → ISO 週，例如 2026-W44。"""
+    y, w, _ = datetime.date.fromisoformat(day).isocalendar()
+    return f"{y}-W{w:02d}"
+
+
 DAILY_N = 3
 DAILY_BONUS = 60
 
@@ -124,8 +138,17 @@ def note(rec: dict[str, Any], uid: str, events: list[tuple[str, Any]], day: str,
     uniq = rec.setdefault("uniq", {})
     stamps = rec.setdefault("stamps", {})
     d = _daily(rec, uid, day)
+    wk = week_of(day)
+    week = rec.get("week")
+    if not isinstance(week, dict) or week.get("wk") != wk:
+        if isinstance(week, dict) and week.get("wk"):
+            rec["week_prev"] = week                    # 換週時保留上週紀錄，結算前不會遺失
+        week = rec["week"] = {"wk": wk}
     touched = set()
     for kind, n in events:
+        if kind in WEEK_KINDS and not kind.endswith("_best"):
+            board = WEEK_KINDS[kind]
+            week[board] = int(week.get(board, 0)) + int(n)
         if kind.startswith("uniq:"):
             name, _, val = kind[5:].partition("=")
             lst = uniq.setdefault(name, [])

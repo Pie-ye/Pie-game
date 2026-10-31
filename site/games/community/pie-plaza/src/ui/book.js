@@ -31,9 +31,9 @@ export function openBook(data, tab = 'daily', close) {
   const show = (t) => {
     tabs.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.t === t));
     page.replaceChildren();
-    if (t === 'daily') paintDaily(page, data); else paintStamps(page, data);
+    if (t === 'daily') paintDaily(page, data); else if (t === 'rank') paintRank(page, data.rank); else paintStamps(page, data);
   };
-  for (const [t, name] of [['daily', '今日委託'], ['stamps', `集章 ${data.count}/${data.total}`]]) {
+  for (const [t, name] of [['daily', '今日委託'], ['stamps', `集章 ${data.count}/${data.total}`], ...(data.rank ? [['rank', '週榜']] : [])]) {
     const b = el('button', null, name); b.type = 'button'; b.dataset.t = t;
     b.addEventListener('click', () => show(t));
     tabs.append(b);
@@ -71,5 +71,17 @@ function paintStamps(page, data) {
       grid.append(card);
     }
     page.append(grid);
+  }
+}
+
+function paintRank(page, r) {
+  page.append(el('p', 'note', `${r.week}（台北時間週一換週）。每週一結算，各榜前三名拿 ${r.gold.join('／')} G，第一名得到「週榜冠軍」章。`));
+  if (r.last && r.last.length) page.append(el('p', 'note', `上週冠軍：${r.last.map(([t, n]) => `${t.replace(/^\S+\s/, '')} ${n}`).join('、')}`));
+  for (const b of r.boards) {
+    page.append(el('h3', null, `${b.title}　（你：${b.mine}）`));
+    if (!b.top.length) { page.append(el('p', 'note', '這週還沒有人上榜，當第一個吧！')); continue; }
+    const ol = el('ol', 'note');
+    b.top.forEach(([name, v], i) => ol.append(el('li', i < 3 ? 'podium' : null, `${['🥇', '🥈', '🥉'][i] || `${i + 1}.`} ${name}　${v}`)));
+    page.append(ol);
   }
 }
