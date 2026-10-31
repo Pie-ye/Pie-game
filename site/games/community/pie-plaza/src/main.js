@@ -29,7 +29,7 @@ import { openHill } from './ui/hill.js';
 import { openSmash } from './ui/smash.js';
 import { openVase } from './ui/vase.js';
 import { createArena } from './ui/arena.js';
-import { openBook, questLine } from './ui/book.js';
+import { openBook, questLine, guideLine } from './ui/book.js';
 import { createBoss } from './ui/boss.js';
 import { openTown } from './ui/town.js';
 import { drawFireworks, fireworksTime } from './ui/fireworks.js';
@@ -782,7 +782,16 @@ async function openBookPanel(tab) {
     openBook({ ...r.quests, rank }, tab);
   } catch (_e) { /* 已提示 */ }
 }
+const guideEl = document.createElement('button');
+guideEl.type = 'button'; guideEl.id = 'guide'; guideEl.hidden = true;
+guideEl.addEventListener('click', () => openBookPanel('guide'));
+document.querySelector('.frame').append(guideEl);
+async function refreshGuide() {
+  if (!api.server) { guideEl.hidden = true; return; }
+  try { const r = await call('quests', {}, { quiet: true }); const t = guideLine(r.quests); guideEl.hidden = !t; if (t) guideEl.textContent = t; } catch (_e) { /* 下次再說 */ }
+}
 function onQuest(list) {
+  if (list.some((q) => q.t === 'guide' || q.t === 'guideAll')) refreshGuide();
   for (const q of list) { const t = questLine(q); if (t) sys(t); }
   const top = list.find((q) => q.t === 'title') || list.find((q) => q.t === 'stamp') || list[0];
   if (top) { hud.toast(questLine(top), 3500); audio.tool(top.t === 'daily' ? 'harvest' : 'fanfare'); }
@@ -1274,6 +1283,7 @@ async function connect() {
       serverStatus('🖥 伺服器存檔');
       if (!me.look && !creatorOpen()) openLook(true);
       loadMail();
+      refreshGuide();
     } else {
       sys('伺服器還沒準備好遊戲存檔，先用試玩模式（進度不會留下來）。');
       serverStatus('試玩模式');

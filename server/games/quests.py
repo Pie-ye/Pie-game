@@ -99,6 +99,19 @@ def week_of(day: str) -> str:
     return f"{y}-W{w:02d}"
 
 
+# 新手引導：依序完成，每步有獎金，全部完成再加碼（進度用累計數值 prog 判斷）
+GUIDE: list[tuple[str, int, str, int]] = [
+    ("clear", 3, "到西邊農場清掉 3 個雜物（鐮刀割草、斧頭砍樹枝、十字鎬敲石頭）", 30),
+    ("harvest", 1, "翻土、播種、澆水，收成第一個作物", 50),
+    ("ship_gold", 1, "把作物放進小屋旁的出貨箱賣掉", 30),
+    ("fish", 1, "拿釣竿面向海邊或池塘，釣到一條魚", 40),
+    ("arena_play", 1, "到廣場北橋的競技場，參加一場派派大作戰", 60),
+    ("like", 1, "按「拜訪」去鄰居家，在信箱稱讚一次", 30),
+    ("town_give", 1, "到商店街東邊的派派新區，為全鎮工程捐一次東西", 40),
+]
+GUIDE_BONUS = 100
+
+
 DAILY_N = 3
 DAILY_BONUS = 60
 
@@ -179,6 +192,17 @@ def note(rec: dict[str, Any], uid: str, events: list[tuple[str, Any]], day: str,
                 if title not in titles:
                     titles.append(title)
                 done.append({"t": "title", "name": title, "gold": CAT_BONUS, "cat": cat})
+    guide = rec.setdefault("guide", [])
+    for i, (kind, need, text, gold) in enumerate(GUIDE):
+        if i in guide or kind not in touched:
+            continue
+        if _value(rec, kind) >= need:
+            guide.append(i)
+            rec["gold"] += gold
+            done.append({"t": "guide", "name": text, "gold": gold})
+            if len(guide) == len(GUIDE):
+                rec["gold"] += GUIDE_BONUS
+                done.append({"t": "guideAll", "name": "新手引導全部完成", "gold": GUIDE_BONUS})
     for slot, idx in enumerate(d["pick"]):
         if slot in d["done"]:
             continue
@@ -208,5 +232,8 @@ def view(rec: dict[str, Any], uid: str, day: str) -> dict[str, Any]:
         "cats": [{"id": k, "icon": v[0], "name": v[1], "title": v[2]} for k, v in CATS.items()],
         "catBonus": CAT_BONUS,
         "titles": list(rec.get("titles", [])),
+        "guide": [{"text": text, "gold": gold, "done": i in rec.get("guide", []), "have": min(_value(rec, kind), need), "need": need}
+                  for i, (kind, need, text, gold) in enumerate(GUIDE)],
+        "guideBonus": GUIDE_BONUS,
         "count": len(stamps), "total": len(STAMPS),
     }

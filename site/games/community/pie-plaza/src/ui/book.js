@@ -9,6 +9,8 @@ export function questLine(q) {
   if (q.t === 'title') return `🏅 集滿一整類，獲得稱號「${q.name}」！+${q.gold} G`;
   if (q.t === 'daily') return `📋 委託完成：${q.name}　+${q.gold} G`;
   if (q.t === 'bonus') return `🎁 今日委託全部完成！+${q.gold} G`;
+  if (q.t === 'guide') return `🧭 新手任務完成：${q.name}　+${q.gold} G`;
+  if (q.t === 'guideAll') return `🎓 新手引導全部完成！+${q.gold} G，歡迎成為派派鎮民！`;
   return '';
 }
 
@@ -31,9 +33,11 @@ export function openBook(data, tab = 'daily', close) {
   const show = (t) => {
     tabs.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.t === t));
     page.replaceChildren();
-    if (t === 'daily') paintDaily(page, data); else if (t === 'rank') paintRank(page, data.rank); else paintStamps(page, data);
+    if (t === 'guide') paintGuide(page, data); else if (t === 'daily') paintDaily(page, data); else if (t === 'rank') paintRank(page, data.rank); else paintStamps(page, data);
   };
-  for (const [t, name] of [['daily', '今日委託'], ['stamps', `集章 ${data.count}/${data.total}`], ...(data.rank ? [['rank', '週榜']] : [])]) {
+  const guideLeft = (data.guide || []).filter((g) => !g.done).length;
+  if (tab === 'daily' && guideLeft) tab = 'guide';
+  for (const [t, name] of [...(guideLeft ? [['guide', `新手 ${data.guide.length - guideLeft}/${data.guide.length}`]] : []), ['daily', '今日委託'], ['stamps', `集章 ${data.count}/${data.total}`], ...(data.rank ? [['rank', '週榜']] : [])]) {
     const b = el('button', null, name); b.type = 'button'; b.dataset.t = t;
     b.addEventListener('click', () => show(t));
     tabs.append(b);
@@ -84,4 +88,22 @@ function paintRank(page, r) {
     b.top.forEach(([name, v], i) => ol.append(el('li', i < 3 ? 'podium' : null, `${['🥇', '🥈', '🥉'][i] || `${i + 1}.`} ${name}　${v}`)));
     page.append(ol);
   }
+}
+
+function paintGuide(page, data) {
+  page.append(el('p', 'note', `跟著做一遍就認識派派鎮了。每一步都有金幣，全部完成再送 ${data.guideBonus} G。`));
+  data.guide.forEach((g, i) => {
+    const card = el('div', `event quest${g.done ? ' past' : ''}`);
+    card.append(el('b', null, `${g.done ? '✅' : `${i + 1}.`} ${g.text}`), el('span', 'tag', `${g.gold} G`));
+    if (!g.done && g.need > 1) card.append(bar(g.have, g.need));
+    page.append(card);
+  });
+}
+
+/** 右上角的引導小框：下一個還沒完成的步驟。全部完成或訪客時隱藏。 */
+export function guideLine(data) {
+  const g = (data && data.guide) || [];
+  const i = g.findIndex((x) => !x.done);
+  if (i < 0) return null;
+  return `🧭 新手 ${i + 1}/${g.length}：${g[i].text}`;
 }

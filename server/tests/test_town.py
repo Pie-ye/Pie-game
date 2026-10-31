@@ -86,3 +86,16 @@ def test_pets_starter_adopt_unlock_and_match_frontend():
                                     "const m = await import('./site/games/community/pie-plaza/src/game/pets.js'); console.log(JSON.stringify(m.PETS.map((p) => [p.id, p.name, p.price, p.unlock])))"],
                                    cwd=repo, capture_output=True, text=True, check=True).stdout)
     assert js == [[p["id"], p["name"], p["price"], p["unlock"]] for p in PT.PETS]
+
+
+def test_guide_steps_pay_once_and_bonus():
+    from server.games import quests as Q
+    rec = {"gold": 0}
+    out = Q.note(rec, "u1", [("clear", 3)], "2027-01-10", 1)
+    assert [d["t"] for d in out if d["t"].startswith("guide")] == ["guide"]
+    assert not [d for d in Q.note(rec, "u1", [("clear", 1)], "2027-01-10", 2) if d["t"] == "guide"]
+    allk = [(k, n) for k, n, _t, _g in Q.GUIDE]
+    out = Q.note(rec, "u1", allk, "2027-01-10", 3)
+    assert any(d["t"] == "guideAll" for d in out) and len(rec["guide"]) == len(Q.GUIDE)
+    v = Q.view(rec, "u1", "2027-01-10")
+    assert all(g["done"] for g in v["guide"])

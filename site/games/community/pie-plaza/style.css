@@ -204,3 +204,8 @@ button:disabled { opacity:.5; cursor:default; }
 .pet-card button { min-height:26px; padding:0 6px; font-size:.75rem; }
 .pet-card small { color:#8a7560; font-size:.68rem; }
 .pet-icon { display:block; image-rendering:pixelated; background-repeat:no-repeat; background-position:0 0; min-height:30px; }
+
+#guide { position:absolute; top:12px; left:12px; max-width:260px; padding:4px 8px; font:inherit; font-size:.75rem; line-height:1.4; text-align:left; color:#3a2412; background:#fff1cf; border:2px solid #c98a3c; border-radius:4px; cursor:pointer; box-shadow:0 2px 0 rgba(0,0,0,.25); z-index:3; }
+#guide[hidden] { display:none; }
+.in-arena #guide { display:none; }
+.event.quest b { display:block; padding-right:46px; }
