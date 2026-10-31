@@ -38,6 +38,7 @@ STAMPS: list[tuple[str, str, str, str, str, int, int]] = [
     ("arena_crown10", "party", "皇冠收藏家", "派派大作戰奪冠 10 次", "arena_win", 10, 200),
     ("arena_coin30", "party", "金幣雨達人", "金幣雨單回合 30 分以上", "arena_coin_best", 30, 60),
     ("arena_hit10", "party", "神射手", "派餅大戰單回合打中 10 次", "arena_hit_best", 10, 60),
+    ("arena_quiz5", "party", "問答王", "派派問答一回合全部答對", "arena_quiz_best", 5, 60),
     ("arena_survivor", "party", "最後站著的人", "落地板撐到最後", "arena_floor_survive", 1, 60),
     ("arena_crowd", "party", "熱鬧的一場", "和另外兩位以上的真人一起打派派大作戰", "arena_humans3", 1, 80),
     ("boss_first", "party", "餵飽大胃王", "大胃王蛙被餵飽時你有丟中", "boss_feed", 1, 40),

@@ -1367,7 +1367,7 @@ function frame(now) {
     updateFishing(now, dt);
     animateLandmarks(now);
     pulsePartyVisuals();
-    const fell = inArena && arena.inShow() && arena.mine.out && arena.snap.kind === 'floor';
+    const fell = inArena && arena.inShow() && ((arena.mine.out && arena.snap.kind === 'floor') || arena.sunk(me));
     const list = fell ? [] : [{ ...me, name: myName, self: true }];
     const inShow = inArena ? arena.participants() : null;
     if (inArena) { list.push(...arena.people(now, dt)); arena.tick(); }

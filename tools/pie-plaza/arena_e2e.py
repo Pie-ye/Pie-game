@@ -73,10 +73,10 @@ def main() -> int:
         check(snap and snap["ph"] == "queue" and snap["q"][0][0] == "u1", "A 在報名台按 E：進入報名倒數")
         A.locator(".frame").screenshot(path=str(OUT / "01_queue.png"))
         # B 在廣場看到全鎮公告，點公告過去
-        B.wait_for_selector(".arena-call:not([hidden])", timeout=5000)
-        check("派派大作戰" in B.inner_text(".arena-call"), "B 在廣場收到全鎮公告")
+        B.wait_for_selector(".party-call:not([hidden])", timeout=5000)
+        check("派派大作戰" in B.inner_text(".party-call"), "B 在廣場收到全鎮公告")
         B.locator(".frame").screenshot(path=str(OUT / "02_call_in_plaza.png"))
-        B.locator(".arena-call").click(); B.wait_for_timeout(800)
+        B.locator(".party-call").click(); B.wait_for_timeout(800)
         check(B.evaluate(f"{P}.area") == "arena", "B 點公告直接到競技場")
         B.evaluate(f"Object.assign({P}.me, {{x: 176, y: 246, dir: 0}})"); B.wait_for_timeout(300)
         env.key(pb, B, "e"); B.wait_for_timeout(800)

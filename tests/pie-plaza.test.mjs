@@ -1625,3 +1625,12 @@ test('boss: Taipei time label and images listed', async () => {
   assert.equal(B.hhmmTaipei(Date.UTC(2027, 0, 15, 4, 30)), '12:30');
   assert.equal(B.BOSS_IMAGES.length, 5);
 });
+
+test('arena quiz quadrants match the server and centers sit inside each quadrant', () => {
+  const qs = Array.from({ length: AR.ARENA.cols * AR.ARENA.rows }, (_, i) => AR.quadrant(i));
+  assert.equal(qs.filter((q) => q === -1).length, AR.ARENA.rows);
+  for (let q = 0; q < 4; q++) {
+    const [cx, cy] = AR.quadrantCenter(q);
+    assert.equal(AR.quadrant(AR.cellOf(cx, cy)), q, `center of ${q}`);
+  }
+});

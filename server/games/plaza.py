@@ -1486,7 +1486,8 @@ class PlazaService:
             self.dirty.add(r["id"])
             await self._push_me(relay, r["id"], arenaGold=gold, arenaRank=r["rank"])
             stats = r.get("stats") or {}
-            ev: list[tuple[str, Any]] = [("arena_play", 1), ("arena_coin_best", stats.get("coin", 0)), ("arena_hit_best", stats.get("hit", 0))]
+            ev: list[tuple[str, Any]] = [("arena_play", 1), ("arena_coin_best", stats.get("coin", 0)), ("arena_hit_best", stats.get("hit", 0)),
+                                         ("arena_quiz_best", stats.get("quiz", 0))]
             if r["rank"] == 1:
                 ev.append(("arena_win", 1))
             if stats.get("survive"):

@@ -20,7 +20,7 @@ def test_queue_fills_bots_and_runs_full_show():
     assert ar.phase == "intro"
     assert len(ar.order) == A.MIN_PLAYERS
     assert sum(1 for u in ar.order if ar.p[u]["bot"]) == 3
-    assert ar.rounds[-1] == "floor" and sorted(ar.rounds[:2]) == ["coin", "pie"]
+    assert ar.rounds[-1] == "floor" and len(set(ar.rounds[:2]) & {"coin", "pie", "quiz"}) == 2
     kinds = []
 
     def watch(t):
@@ -133,6 +133,10 @@ def test_constants_match_frontend():
     assert tuple(a["desk"]) == A.DESK and a["deskReach"] == A.DESK_REACH and a["inset"] == A.INSET
     assert a["dailyPaid"] == A.DAILY_PAID and a["minPlayers"] == A.MIN_PLAYERS and a["maxPlayers"] == A.MAX_PLAYERS
     assert a["gold"] == A.GOLD_BY_RANK and a["goldRest"] == A.GOLD_REST
+    js_q = subprocess.run(["node", "--input-type=module", "-e",
+                           "const m = await import('./site/games/community/pie-plaza/src/game/arena.js'); console.log(JSON.stringify(Array.from({length: 66}, (_, i) => m.quadrant(i))))"],
+                          cwd=repo, capture_output=True, text=True, check=True).stdout
+    assert json.loads(js_q) == [A.quadrant(i) for i in range(A.COLS * A.ROWS)]
 
 
 def test_review_fixes_nan_leave_and_gone_thrower():
@@ -149,3 +153,36 @@ def test_review_fixes_nan_leave_and_gone_thrower():
     now = run(ar, now, now + A.INTRO_MS + 100)
     ar.leave("u1", now)
     assert ar.throw("u1", 1, 0, now) == "not_live"
+
+
+def test_quiz_round_scores_right_quadrant_and_bots_answer():
+    ar = A.Arena(random.Random(11))
+    ar.join("u1", "a", None, A.DESK[0], A.DESK[1], 0)
+    now = run(ar, 0, A.QUEUE_MS + 100)
+    ar.rounds = ["quiz", "coin", "floor"]; ar.rd = -1; ar._next_round(now)
+    assert ar.snapshot(now).get("Z") is None            # 開場前不洩題
+    now = run(ar, now, now + A.INTRO_MS + 100)
+    assert ar.kind == "quiz" and ar.phase == "live"
+    right = 0
+    for qi in range(A.QUIZ["n"]):
+        snap = ar.snapshot(now)
+        assert snap["Z"]["st"] == "ask" and snap["Z"]["ok"] is None and len(snap["Z"]["a"]) == 4
+        ok = A.QUESTIONS[ar.quiz["qs"][ar.quiz["i"]]][2]
+        cx, cy = A.quadrant_center(ok)
+        ar.p["u1"].update(x=cx, y=cy)                    # 站到正解區
+        while ar.phase == "live" and ar.quiz["i"] == qi:
+            now += 100
+            ar.tick(now, 0.1)
+            ar.pose("u1", cx, cy, now)
+        right += 1
+    assert ar.phase == "result"
+    assert ar.p["u1"]["score"] == A.QUIZ["n"]
+    assert ar.p["u1"]["stats"]["quiz"] == A.QUIZ["n"]
+    bots = [ar.p[u]["score"] for u in ar.order if ar.p[u]["bot"]]
+    assert 0 < sum(bots) < 3 * A.QUIZ["n"], bots       # 鎮民會答對一些、答錯一些
+
+
+def test_quadrants_split_field():
+    qs = [A.quadrant(i) for i in range(A.COLS * A.ROWS)]
+    assert qs.count(-1) == A.ROWS and all(qs.count(q) == (A.COLS // 2) * (A.ROWS // 2) for q in range(4))
+    assert A.quadrant(0) == 0 and A.quadrant(A.COLS - 1) == 1 and A.quadrant(A.COLS * (A.ROWS - 1)) == 2

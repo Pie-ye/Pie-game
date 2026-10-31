@@ -1,6 +1,6 @@
 // 派派大作戰的畫面：套用伺服器快照、內插其他參賽者、畫地板／金幣／派餅／特效，以及計分介面與開賽公告。
 // 規則都在伺服器；這裡只負責「看起來對」與把操作送出去。
-import { ARENA, ROUNDS, unpackPlayer, standings, secondsLeft, cellOf, inField, fieldRect } from '../game/arena.js';
+import { ARENA, ROUNDS, QUAD, quadrant, quadrantCenter, unpackPlayer, standings, secondsLeft, cellOf, inField, fieldRect } from '../game/arena.js';
 import { drawText } from '../engine/render.js';
 import { ATLAS } from '../engine/atlas.js';
 
@@ -27,7 +27,7 @@ export function createArena({ myId, audio, hud, sys, onCall }) {
   const barEl = el('div', 'arena-bar'), boardEl = el('ol', 'arena-board'), bannerEl = el('div', 'arena-banner');
   bannerEl.hidden = true;
   hudEl.append(barEl);
-  const callEl = el('button', 'arena-call'); callEl.type = 'button'; callEl.hidden = true;
+  const callEl = el('button', 'arena-call party-call'); callEl.type = 'button'; callEl.hidden = true;
   callEl.addEventListener('click', () => { callEl.hidden = true; callUntil = 0; if (onCall) onCall(); });
   frame.append(hudEl, boardEl, bannerEl, callEl);
 
@@ -64,8 +64,12 @@ export function createArena({ myId, audio, hud, sys, onCall }) {
     else if (e.k === 'crack') audio.tool('crack');
     else if (e.k === 'fall') {
       fx.push({ k: 'smoke', x: e.x, y: e.y, t0: performance.now() });
-      if (String(e.id) === id) { audio.tool('fall'); hud.toast('掉下去了！這回合先看大家比', 2500); }
-    } else if (e.k === 'round') {
+      if (String(e.id) === id) { audio.tool('fall'); hud.toast(e.quiz ? '答錯了，濕答答……' : '掉下去了！這回合先看大家比', e.quiz ? 1400 : 2500); }
+    } else if (e.k === 'right') {
+      if (String(e.id) === id) { audio.tool('harvest'); hud.toast('答對了！+1', 1200); }
+    } else if (e.k === 'answer') audio.tool('crack');
+    else if (e.k === 'question') audio.tool('talk');
+    else if (e.k === 'round') {
       const r = ROUNDS[e.kind] || {};
       audio.tool('whistle');
       const last = snap && snap.rounds && e.rd === snap.rounds.length - 1;
@@ -160,6 +164,12 @@ export function createArena({ myId, audio, hud, sys, onCall }) {
     lastCount = -1;
     const r = ROUNDS[snap.kind] || {};
     const left = secondsLeft(snap, t);
+    if (snap.kind === 'quiz' && snap.ph === 'live' && snap.Z) {
+      const z = snap.Z, qleft = Math.max(0, Math.ceil((z.until - t) / 1000));
+      barEl.textContent = z.st === 'ask' ? `❓ 第 ${z.i + 1}/${z.n} 題：${z.q}　⏱ ${qleft}` : `❓ 答案是 ${QUAD.labels[z.ok]}．${z.a[z.ok]}！`;
+      boardEl.replaceChildren(...standings(allPlayers(), 'score').map((p) => el('li', p.id === me() ? 'me' : null, `${p.rank}. ${p.name}${p.bot ? '·鎮民' : ''}　${p.score}`)));
+      return;
+    }
     const head = `${r.icon || ''} ${r.name || ''}　第 ${snap.rd + 1}／${(snap.rounds || []).length} 回合`;
     const phase = snap.ph === 'intro' ? `${left} 秒後開始` : snap.ph === 'live' ? `剩 ${left} 秒` : snap.ph === 'result' ? '結算中' : '頒獎';
     const my = mine ? (snap.kind === 'pie' && snap.ph === 'live' ? `　🥧×${mine.ammo}　得分 ${mine.score}` : snap.kind === 'floor' ? (mine.out ? '　已出局' : '　還站著！') : `　得分 ${mine.score}`) : '　觀戰中';
@@ -176,7 +186,8 @@ export function createArena({ myId, audio, hud, sys, onCall }) {
     const [x0, y0, x1, y1] = ARENA.field;
     ctx.fillStyle = '#5a3a1e'; ctx.fillRect(x0 - 4, y0 - 4, x1 - x0 + 8, y1 - y0 + 8);
     ctx.fillStyle = '#8a5a30'; ctx.fillRect(x0 - 2, y0 - 2, x1 - x0 + 4, y1 - y0 + 4);
-    const live = running() && snap.kind === 'floor' && snap.ph !== 'final';
+    const live = running() && (snap.kind === 'floor' || snap.kind === 'quiz') && snap.ph !== 'final';
+    const quiz = running() && snap.kind === 'quiz' && snap.ph === 'live';
     for (let i = 0; i < ARENA.cols * ARENA.rows; i++) {
       const c = i % ARENA.cols, r = Math.floor(i / ARENA.cols), x = x0 + c * ARENA.cell, y = y0 + r * ARENA.cell;
       const st = live ? floor[i] || '0' : '0';
@@ -188,6 +199,7 @@ export function createArena({ myId, audio, hud, sys, onCall }) {
       }
       const j = st === '1' ? Math.round(Math.sin(now / 30 + i) * 1) : 0;
       ctx.fillStyle = (c + r) % 2 ? '#e2c08a' : '#ecd2a0'; ctx.fillRect(x + j, y, ARENA.cell, ARENA.cell);
+      if (quiz) { const q = quadrant(i); ctx.fillStyle = q < 0 ? 'rgba(90,58,30,.35)' : QUAD.colors[q]; ctx.fillRect(x + j, y, ARENA.cell, ARENA.cell); }
       ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.fillRect(x + j, y, ARENA.cell, 1); ctx.fillRect(x + j, y, 1, ARENA.cell);
       ctx.fillStyle = 'rgba(90,58,30,.22)'; ctx.fillRect(x + j, y + ARENA.cell - 1, ARENA.cell, 1); ctx.fillRect(x + j + ARENA.cell - 1, y, 1, ARENA.cell);
       if (st === '1') {
@@ -257,6 +269,17 @@ export function createArena({ myId, audio, hud, sys, onCall }) {
       const [x0, y0, x1, y1] = ARENA.field;
       drawText(ctx, '派派大作戰', (x0 + x1) / 2, (y0 + y1) / 2 + 5, 14, 'rgba(90,58,30,.85)');
     }
+    if (running() && snap.kind === 'quiz' && snap.Z && snap.ph === 'live') {
+      for (let q = 0; q < 4; q++) {
+        const [cx, cy] = quadrantCenter(q);
+        const ok = snap.Z.ok;
+        const text = `${QUAD.labels[q]}. ${snap.Z.a[q]}`;
+        const w = Math.max(40, text.length * 7 + 10);
+        ctx.fillStyle = ok == null ? 'rgba(40,24,10,.72)' : ok === q ? 'rgba(30,110,40,.9)' : 'rgba(40,24,10,.4)';
+        ctx.fillRect(Math.round((cx - w / 2) * S), Math.round((cy - 9) * S), Math.round(w * S), Math.round(14 * S));
+        drawText(ctx, text, cx, cy + 2, 12, ok == null || ok === q ? '#fff3d6' : 'rgba(255,243,214,.5)');
+      }
+    }
   }
 
   return {
@@ -307,10 +330,13 @@ export function createArena({ myId, audio, hud, sys, onCall }) {
         if (p.gone) continue;
         p.x += (p.tx - p.x) * k; p.y += (p.ty - p.y) * k;
         if (p.out && snap.kind === 'floor') continue;
+        if (snap.kind === 'quiz' && floor[cellOf(p.x, p.y)] === '2') continue;      // 答錯掉下去，下一題再出現
         out.push({ id: p.id, name: p.name, x: p.x, y: p.y, dir: p.dir, moving: now - p.movedAt < 260, look: p.look, npc: p.bot, sprite: p.sprite, near: true, arena: true });
       }
       return out;
     },
+    /** 問答揭曉時自己站在塌掉的區塊上。 */
+    sunk(p) { return running() && snap.kind === 'quiz' && floor[cellOf(p.x, p.y)] === '2'; },
     participants() { return new Set(running() ? [...others.keys()] : []); },
     tick() { paintHud(false); },
     shaking: () => performance.now() < shake,

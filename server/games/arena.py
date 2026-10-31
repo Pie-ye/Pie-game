@@ -16,6 +16,8 @@ import math
 import random
 from typing import Any
 
+from .quiz_bank import QUESTIONS
+
 # ---------- 場地（原生像素，1 格 16 px） ----------
 FIELD = (64, 48, 416, 240)                   # x0, y0, x1, y1（和前端 maps/arena.js 一致）
 CELL = 32
@@ -49,7 +51,23 @@ FLOOR = {"ms": 60000, "warn": 1600, "first": 3000, "gapStart": 2600, "gapEnd": 1
 
 PODIUM = [(240, 194), (224, 202), (256, 207)]   # 頒獎台：第一、二、三名站的位置（前端 arenaPodium 底部在 y=222）
 
-ROUND_NAMES = {"coin": "金幣雨", "pie": "派餅大戰", "floor": "落地板"}
+QUIZ = {"n": 5, "ask": 7000, "reveal": 2500, "judge": 400}   # 揭曉後 0.4 秒才判定站位（抵消延遲）
+ROUND_NAMES = {"coin": "金幣雨", "pie": "派餅大戰", "floor": "落地板", "quiz": "派派問答"}
+
+
+def quadrant(i: int) -> int:
+    """格子屬於哪一區：0=A 左上、1=B 右上、2=C 左下、3=D 右下；中間那一欄是分隔線（-1）。"""
+    c, r = i % COLS, i // COLS
+    if c == COLS // 2:
+        return -1
+    return (2 if r >= ROWS // 2 else 0) + (1 if c > COLS // 2 else 0)
+
+
+def quadrant_center(q: int) -> tuple[float, float]:
+    cs = [i for i in range(COLS * ROWS) if quadrant(i) == q]
+    xs = [cell_center(i)[0] for i in cs]
+    ys = [cell_center(i)[1] for i in cs]
+    return sum(xs) / len(xs), sum(ys) / len(ys)
 
 # 補位的鎮民：名字與 ninja/npc 走路圖
 BOTS = [
@@ -126,6 +144,7 @@ class Arena:
         self.fall_at: dict[int, int] = {}
         self.next_at = 0
         self.seq = 0
+        self.quiz: dict[str, Any] | None = None
         self.results: list[dict[str, Any]] | None = None
         self.payable: list[str] = []
 
@@ -246,9 +265,9 @@ class Arena:
         for uid in list(self.p):
             if uid not in self.order:
                 del self.p[uid]
-        first = ["coin", "pie"]
+        first = ["coin", "pie", "quiz"]
         self.rng.shuffle(first)
-        self.rounds = first + ["floor"]
+        self.rounds = first[:2] + ["floor"]
         self.rd = -1
         self.results = None
         self.payable = []
@@ -259,6 +278,7 @@ class Arena:
         self.kind = self.rounds[self.rd]
         self.phase, self.phase_end = "intro", now + INTRO_MS
         self.coins, self.pies, self.fall_at, self.grace = {}, [], {}, {}
+        self.quiz = None
         self.floor = [0] * (COLS * ROWS)
         spots = spawn_points(len(self.order))
         self.rng.shuffle(spots)
@@ -272,8 +292,12 @@ class Arena:
     def _go_live(self, now: int) -> None:
         self.phase = "live"
         self.started = now
-        self.phase_end = now + {"coin": COIN["ms"], "pie": PIE["ms"], "floor": FLOOR["ms"]}[self.kind]
+        quiz_ms = QUIZ["n"] * (QUIZ["ask"] + QUIZ["reveal"])
+        self.phase_end = now + {"coin": COIN["ms"], "pie": PIE["ms"], "floor": FLOOR["ms"], "quiz": quiz_ms}[self.kind]
         self.next_at = now + (FLOOR["first"] if self.kind == "floor" else 0)
+        if self.kind == "quiz":
+            picks = self.rng.sample(range(len(QUESTIONS)), QUIZ["n"])
+            self.quiz = {"qs": picks, "i": 0, "stage": "ask", "until": now + QUIZ["ask"], "judged": False}
 
     def _end_round(self, now: int) -> None:
         active = [u for u in self.order if not self.p[u]["gone"] or self.p[u]["score"]]
@@ -290,6 +314,8 @@ class Arena:
                 st["coin"] = max(st.get("coin", 0), self.p[u]["score"])
             elif self.kind == "pie":
                 st["hit"] = max(st.get("hit", 0), self.p[u]["score"])
+            elif self.kind == "quiz":
+                st["quiz"] = max(st.get("quiz", 0), self.p[u]["score"])
             elif self.p[u]["out"] is None and not self.p[u]["gone"]:
                 st["survive"] = True
         for u in self.order:
@@ -352,6 +378,8 @@ class Arena:
                 self._tick_coin(now)
             elif self.kind == "pie":
                 self._tick_pie(now, dt)
+            elif self.kind == "quiz":
+                self._tick_quiz(now)
             else:
                 self._tick_floor(now, dt)
             if now >= self.phase_end or (self.kind == "floor" and self._floor_done()):
@@ -480,6 +508,55 @@ class Arena:
             else:
                 pl["danger"] = 0
 
+    # ---------- 派派問答 ----------
+    def _tick_quiz(self, now: int) -> None:
+        z = self.quiz
+        q, opts, ok = QUESTIONS[z["qs"][z["i"]]]
+        if z["stage"] == "ask" and now >= z["until"]:
+            z["stage"], z["until"], z["judged"] = "reveal", now + QUIZ["reveal"], False
+            for i in range(COLS * ROWS):
+                self.floor[i] = 0 if quadrant(i) == ok else 1
+            self._ev(k="answer", ok=ok)
+        elif z["stage"] == "reveal" and not z["judged"] and now >= z["until"] - QUIZ["reveal"] + QUIZ["judge"]:
+            z["judged"] = True
+            for i in range(COLS * ROWS):
+                if self.floor[i] == 1:
+                    self.floor[i] = 2
+            for u in self.order:
+                pl = self.p[u]
+                if pl["gone"]:
+                    continue
+                if quadrant(cell_of(pl["x"], pl["y"])) == ok:
+                    pl["score"] += 1
+                    self._ev(k="right", id=u)
+                else:
+                    self._ev(k="fall", id=u, x=round(pl["x"]), y=round(pl["y"]), quiz=True)
+        elif z["stage"] == "reveal" and now >= z["until"]:
+            self.floor = [0] * (COLS * ROWS)
+            if z["i"] + 1 < len(z["qs"]):
+                z["i"] += 1
+                z["stage"], z["until"] = "ask", now + QUIZ["ask"]
+                for u in self.order:
+                    self.p[u]["goal"] = None
+                    self.p[u]["think"] = 0
+                self._ev(k="question", i=z["i"])
+            else:
+                self.phase_end = now                 # 題目答完就結束這回合
+
+    def _bot_quiz(self, pl: dict[str, Any], now: int, dt: float) -> None:
+        z = self.quiz
+        if z["stage"] != "ask":
+            return
+        if pl["goal"] is None and not pl["think"]:
+            pl["think"] = now + self.rng.randint(1200, 5200)          # 想一下
+        if pl["goal"] is None and now >= pl["think"]:
+            ok = QUESTIONS[z["qs"][z["i"]]][2]
+            pick = ok if self.rng.random() < 0.6 else self.rng.randrange(4)
+            cx, cy = quadrant_center(pick)
+            pl["goal"] = (cx + self.rng.uniform(-30, 30), cy + self.rng.uniform(-14, 14), pick)
+        if pl["goal"]:
+            self._move_bot(pl, pl["goal"][0], pl["goal"][1], dt)
+
     def _floor_done(self) -> bool:
         alive = [u for u in self.order if self.p[u]["out"] is None and not self.p[u]["gone"]]
         return len(alive) <= 1 and len(self.order) >= 2
@@ -503,6 +580,8 @@ class Arena:
                 self._bot_coin(pl, now, dt)
             elif self.kind == "pie":
                 self._bot_pie(u, pl, now, dt)
+            elif self.kind == "quiz":
+                self._bot_quiz(pl, now, dt)
             else:
                 self._bot_floor(pl, now, dt)
 
@@ -602,6 +681,11 @@ class Arena:
                 out["K"] = [[p["id"], round(p["x"], 1), round(p["y"], 1), round(p["vx"]), round(p["vy"])] for p in self.pies]
             else:
                 out["F"] = "".join(str(s) for s in self.floor)
+            if self.kind == "quiz" and self.quiz:
+                z = self.quiz
+                q, opts, ok = QUESTIONS[z["qs"][z["i"]]]
+                out["Z"] = {"i": z["i"], "n": len(z["qs"]), "q": q, "a": opts, "st": z["stage"], "until": z["until"],
+                            "ok": ok if z["stage"] == "reveal" else None}
         if self.results is not None:
             out["res"] = self.results
         if self.events:

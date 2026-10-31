@@ -18,7 +18,25 @@ export const ROUNDS = {
   coin: { name: '金幣雨', icon: '🪙', how: '撿金幣！碰到就算，金色派餅 5 分。', color: '#f5c542' },
   pie: { name: '派餅大戰', icon: '🥧', how: '空白鍵或點畫面丟派。打中 +1，被打中會暈一下。', color: '#f08a5d' },
   floor: { name: '落地板', icon: '🕳️', how: '地板閃紅就快跑！掉下去就出局，撐到最後的人贏。', color: '#7ec4cf' },
+  quiz: { name: '派派問答', icon: '❓', how: '走到答案的色塊上！揭曉時站錯的地方會塌，答對 +1。', color: '#b48ef0' },
 };
+
+export const QUAD = { labels: ['A', 'B', 'C', 'D'], colors: ['rgba(229,115,115,.42)', 'rgba(100,181,246,.42)', 'rgba(129,199,132,.42)', 'rgba(255,213,79,.48)'] };
+
+/** 格子屬於哪一區：0=A 左上、1=B 右上、2=C 左下、3=D 右下；中間一欄是分隔線（-1）。和伺服器 arena.quadrant 一致。 */
+export function quadrant(i) {
+  const c = i % ARENA.cols, r = Math.floor(i / ARENA.cols), mid = Math.floor(ARENA.cols / 2);
+  if (c === mid) return -1;
+  return (r >= Math.floor(ARENA.rows / 2) ? 2 : 0) + (c > mid ? 1 : 0);
+}
+
+/** 一區的中心（原生像素）。 */
+export function quadrantCenter(q) {
+  const [x0, y0] = ARENA.field, mid = Math.floor(ARENA.cols / 2), hr = Math.floor(ARENA.rows / 2);
+  const cx = q % 2 ? x0 + (mid + 1 + (ARENA.cols - mid - 1) / 2) * ARENA.cell : x0 + (mid / 2) * ARENA.cell;
+  const cy = q >= 2 ? y0 + (hr + (ARENA.rows - hr) / 2) * ARENA.cell : y0 + (hr / 2) * ARENA.cell;
+  return [cx, cy];
+}
 
 export const PHASE_TEXT = { idle: '等待報名', queue: '報名中', intro: '準備', live: '比賽中', result: '回合結算', final: '頒獎' };
 
