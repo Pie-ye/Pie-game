@@ -25,6 +25,7 @@ STAMPS: list[tuple[str, str, str, str, str, int, int]] = [
     ("farm_50", "farm", "豐收", "累計收成 50 個作物", "harvest", 50, 80),
     ("farm_all", "farm", "六色菜園", "六種作物都收成過", "uniq:crop", 6, 120),
     ("farm_clear", "farm", "開墾者", "累計清除 100 個雜物", "clear", 100, 60),
+    ("farm_bake", "farm", "烘焙師", "五種派都烤過", "uniq:pie", 5, 100),
     ("farm_ship", "farm", "出貨大戶", "累計出貨 1000 G", "ship_gold", 1000, 80),
     ("fish_first", "fish", "第一條魚", "釣到任何一條魚", "fish", 1, 20),
     ("fish_30", "fish", "老練釣手", "累計釣到 30 條魚", "fish", 30, 60),
@@ -46,6 +47,9 @@ STAMPS: list[tuple[str, str, str, str, str, int, int]] = [
     ("boss_first", "party", "餵飽大胃王", "大胃王蛙被餵飽時你有丟中", "boss_feed", 1, 40),
     ("boss_10", "party", "蛙蛙保母", "大胃王蛙被餵飽 10 次（你都有份）", "boss_feed", 10, 150),
     ("boss_top", "party", "最佳餵食員", "在一次餵食中丟進最多", "boss_top", 1, 80),
+    ("social_npc5", "social", "鎮上的朋友", "和一位鎮民達到 5 顆心", "npc_best", 5, 60),
+    ("social_npc_all", "social", "人見人愛", "和 5 位鎮民達到 5 顆心", "npc_five", 5, 150),
+    ("social_npc10", "social", "摯友", "和一位鎮民達到 10 顆心", "npc_best", 10, 200),
     ("social_like5", "social", "熱情鄰居", "稱讚 5 次別人的家園", "like", 5, 40),
     ("social_gift3", "social", "送禮達人", "送出 3 份禮物", "gift", 3, 40),
     ("social_visit10", "social", "串門子", "拜訪 10 個不同的家園", "uniq:visit", 10, 60),
@@ -87,6 +91,8 @@ DAILY_POOL: list[tuple[str, str, int, int, str]] = [
     # 新的只能加在最後：玩家存檔裡的今日委託記的是索引
     ("party", "boss_hit", 10, 40, "丟中大胃王蛙 10 次"),
     ("town", "town_give", 1, 30, "捐一次東西給全鎮工程"),
+    ("social", "npc_gift", 2, 30, "送禮物給兩位鎮民"),
+    ("farm", "bake", 2, 40, "在瑪莉麵包店烤 2 個派"),
 ]
 # 週榜：哪些進度算進每週排行（kind → 榜名）
 WEEK_KINDS = {"arena_win": "arena", "boss_feed": "boss", "town_points": "town", "fish": "fish", "party_win": "party"}

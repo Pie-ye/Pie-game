@@ -126,6 +126,8 @@ SPEC.update({
     "buildSite0": ("gen/build_site_0.png", 0, 0, 64, 64), "buildSite1": ("gen/build_site_1.png", 0, 0, 64, 64),
     "buildSite2": ("gen/build_site_1.png", 0, 0, 64, 64), "buildGreenhouse": ("gen/build_greenhouse.png", 0, 0, 64, 64),
     "buildFireworks": ("gen/build_fireworks.png", 0, 0, 48, 64),
+    # 五種派餅（tools/pie-plaza/tint_pies.py 由 arena_pie 換色，之後可換成專屬圖）
+    **{f"pie_{k}Item": (f"gen/pie_{k}.png", 0, 0, 16, 16) for k in ("strawberry", "pumpkin", "tomato", "carrot", "beet")},
 })
 
 

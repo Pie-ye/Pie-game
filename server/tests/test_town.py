@@ -130,3 +130,33 @@ def test_hunt_spots_match_frontend():
                                     "const m = await import('./site/games/community/pie-plaza/src/game/hunt.js'); console.log(JSON.stringify(m.HUNT_SPOTS))"],
                                    cwd=repo, capture_output=True, text=True, check=True).stdout)
     assert js == HU.SPOTS
+
+
+def test_npc_gifts_hearts_tiers_and_daily_limit():
+    from server.games import friends as FR
+    rec = {"gold": 0, "inv": {"pie_pumpkin": 20, "wood": 3}}
+    r = FR.gift(rec, "grandpa", "pie_pumpkin", "2027-01-01", L.ITEMS)
+    assert r["ok"] and r["taste"] == "love" and rec["inv"]["pie_pumpkin"] == 19
+    assert FR.gift(rec, "grandpa", "pie_pumpkin", "2027-01-01", L.ITEMS)["code"] == "gifted"
+    assert FR.gift(rec, "nobody", "wood", "2027-01-01", L.ITEMS)["code"] == "bad_npc"
+    assert FR.gift(rec, "mary", "pie_beet", "2027-01-01", L.ITEMS)["code"] == "no_item"
+    golds, day = 0, 2
+    while FR.hearts(rec["npc"]["grandpa"]["p"]) < 10:
+        r = FR.gift(rec, "grandpa", "pie_pumpkin", f"2027-01-{day:02d}", L.ITEMS)
+        golds += r["reward"]; day += 1
+    assert golds == sum(FR.TIERS.values()) and "皮爺爺的好朋友" in rec["titles"]
+    assert FR.counts(rec) == (10, 1)
+
+
+def test_friends_match_frontend():
+    import json
+    import subprocess
+    from pathlib import Path
+    from server.games import friends as FR
+    repo = Path(__file__).resolve().parents[2]
+    js = json.loads(subprocess.run(["node", "--input-type=module", "-e",
+                                    "const m = await import('./site/games/community/pie-plaza/src/game/friends.js'); console.log(JSON.stringify(Object.fromEntries(Object.entries(m.FRIENDS).map(([k, f]) => [k, [f.name, f.loves, f.likes]]))))"],
+                                   cwd=repo, capture_output=True, text=True, check=True).stdout)
+    assert js == {k: [f["name"], f["loves"], f["likes"]] for k, f in FR.FRIENDS.items()}
+    for f in FR.FRIENDS.values():
+        assert all(i in L.ITEMS for i in f["loves"] + f["likes"]), f

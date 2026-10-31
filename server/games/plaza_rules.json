@@ -106,7 +106,54 @@
   "beet": "甜菜",
   "tomato": "番茄",
   "strawberry": "草莓",
-  "pumpkin": "南瓜"
+  "pumpkin": "南瓜",
+  "pie_strawberry": "草莓派",
+  "pie_pumpkin": "南瓜派",
+  "pie_tomato": "番茄鹹派",
+  "pie_carrot": "紅蘿蔔派",
+  "pie_beet": "甜菜派"
+ },
+ "pies": {
+  "pie_strawberry": {
+   "name": "草莓派",
+   "sell": 330,
+   "need": {
+    "wheat": 2,
+    "strawberry": 2
+   }
+  },
+  "pie_pumpkin": {
+   "name": "南瓜派",
+   "sell": 300,
+   "need": {
+    "wheat": 2,
+    "pumpkin": 1
+   }
+  },
+  "pie_tomato": {
+   "name": "番茄鹹派",
+   "sell": 240,
+   "need": {
+    "wheat": 2,
+    "tomato": 2
+   }
+  },
+  "pie_carrot": {
+   "name": "紅蘿蔔派",
+   "sell": 200,
+   "need": {
+    "wheat": 2,
+    "carrot": 3
+   }
+  },
+  "pie_beet": {
+   "name": "甜菜派",
+   "sell": 190,
+   "need": {
+    "wheat": 2,
+    "beet": 2
+   }
+  }
  },
  "fish": [
   {

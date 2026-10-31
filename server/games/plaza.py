@@ -26,6 +26,7 @@ from . import boss as BS
 from . import town as TW
 from . import pets as PT
 from . import hunt as HU
+from . import friends as FR
 
 GAME_ID = "pie-plaza"
 log = logging.getLogger("pie.plaza")
@@ -582,7 +583,7 @@ class PlazaService:
         item = p.get("item")
         if to == me:
             raise GameError("bad_user")
-        if not (item in L.CROPS or (isinstance(item, str) and item.startswith("fish_") and item in L.ITEMS)) or rec["inv"].get(item, 0) <= 0:
+        if not (item in L.CROPS or item in L.PIES or (isinstance(item, str) and item.startswith("fish_") and item in L.ITEMS)) or rec["inv"].get(item, 0) <= 0:
             raise GameError("no_item", "背包裡沒有這個東西")
         rec["inv"][item] -= 1
         if not rec["inv"][item]:
@@ -1644,6 +1645,38 @@ class PlazaService:
                 log.exception("town reward failed for %s", r["id"])
         await self._game_all(relay, {"type": "game", "op": "townDone", "name": done["name"], "effect": done["effect"], "town": self._town_public(),
                                      "top": done["rewards"][0]["name"] if done["rewards"] else ""})
+
+    # ---------- 烘焙與鎮民好感 ----------
+    async def op_bake(self, relay, conn, me, rec, p):
+        pie = p.get("pie")
+        n = self._int(p.get("n"), 1, 99)
+        recipe = L.PIES.get(pie) if isinstance(pie, str) else None
+        if recipe is None:
+            raise GameError("bad_pie", "沒有這種派")
+        can = min(rec["inv"].get(k, 0) // v for k, v in recipe["need"].items())
+        if can <= 0:
+            raise GameError("no_item", "材料不夠")
+        n = min(n, can)
+        for k, v in recipe["need"].items():
+            rec["inv"][k] -= v * n
+            if not rec["inv"][k]:
+                del rec["inv"][k]
+        rec["inv"][pie] = rec["inv"].get(pie, 0) + n
+        self.dirty.add(me)
+        await self._progress(relay, me, rec, [("bake", n), (f"uniq:pie={pie}", 0)])
+        return {"baked": n, "pie": pie, **self._mine(rec)}
+
+    async def op_npc(self, relay, conn, me, rec, p):
+        day = L.taipei_day(self.now_ms())
+        if p.get("act") == "gift":
+            r = FR.gift(rec, p.get("npc"), p.get("item"), day, L.ITEMS)
+            if not r["ok"]:
+                raise GameError(r["code"], r["msg"])
+            self.dirty.add(me)
+            best, five = FR.counts(rec)
+            await self._progress(relay, me, rec, [("npc_gift", 1), ("npc_best", best), ("npc_five", five)])
+            return {**r, "friends": FR.view(rec, day), **self._mine(rec)}
+        return {"friends": FR.view(rec, day)}
 
     async def op_hunt(self, relay, conn, me, rec, p):
         day = L.taipei_day(self.now_ms())

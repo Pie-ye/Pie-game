@@ -23,7 +23,16 @@ export const CROP_KEYS = Object.keys(CROPS);
 export const GROW_MS = 45_000;                      // 澆過水後多久長一階（乘上作物倍數）
 export const TOOLS = ['axe', 'pickaxe', 'sickle', 'hoe', 'wateringcan', 'rod', 'seed', 'hammer'];
 export const TOOL_NAMES = { axe: '斧頭', pickaxe: '十字鎬', sickle: '鐮刀', hoe: '鋤頭', wateringcan: '澆水壺', rod: '釣竿', seed: '種子', hammer: '裝潢' };
-export const ITEM_NAMES = { wood: '木材', stone: '石頭', fiber: '纖維', ...Object.fromEntries(Object.entries(CROPS).map(([k, c]) => [k, c.name])) };
+// 派餅：在瑪莉麵包店用作物烤（伺服器 server/games/plaza.py op_bake），比賣原料值錢，也是送鎮民的好禮物
+export const PIES = {
+  pie_strawberry: { name: '草莓派', sell: 330, need: { wheat: 2, strawberry: 2 } },
+  pie_pumpkin: { name: '南瓜派', sell: 300, need: { wheat: 2, pumpkin: 1 } },
+  pie_tomato: { name: '番茄鹹派', sell: 240, need: { wheat: 2, tomato: 2 } },
+  pie_carrot: { name: '紅蘿蔔派', sell: 200, need: { wheat: 2, carrot: 3 } },
+  pie_beet: { name: '甜菜派', sell: 190, need: { wheat: 2, beet: 2 } },
+};
+export const ITEM_NAMES = { wood: '木材', stone: '石頭', fiber: '纖維', ...Object.fromEntries(Object.entries(CROPS).map(([k, c]) => [k, c.name])),
+  ...Object.fromEntries(Object.entries(PIES).map(([k, p]) => [k, p.name])) };
 export const STARTER_SEEDS = { wheat: 15, carrot: 5 };
 
 const key = (x, y) => `${x},${y}`;

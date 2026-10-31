@@ -209,3 +209,10 @@ button:disabled { opacity:.5; cursor:default; }
 #guide[hidden] { display:none; }
 .in-arena #guide { display:none; }
 .event.quest b { display:block; padding-right:46px; }
+
+/* ---------- 鎮民好感 ---------- */
+.hearts { margin:0 0 2px; font-size:1rem; letter-spacing:1px; color:#e0465a; }
+.gifts { grid-template-columns:1fr 1fr; }
+.gifts button { display:flex; align-items:center; gap:4px; min-height:34px; font-size:.75rem; text-align:left; }
+.gifts button.loved { outline:2px solid #e0465a; }
+.event.quest b i { display:inline-block; vertical-align:middle; margin-right:2px; }

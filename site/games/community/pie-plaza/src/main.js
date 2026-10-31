@@ -36,6 +36,8 @@ import { drawFireworks, fireworksTime } from './ui/fireworks.js';
 import { openPets } from './ui/pets.js';
 import { cleanPet, followStep } from './game/pets.js';
 import { huntHere } from './game/hunt.js';
+import { openNpcMenu, openBake } from './ui/npc.js';
+import { BY_NAME, tierLine, REACTION, FRIENDS } from './game/friends.js';
 import { obj } from './engine/world.js';
 import { throwDir, ARENA } from './game/arena.js';
 import { openVisitPanel, openVisitorMenu, openMailbox, openPlayerCard, openEmotes } from './ui/social.js';
@@ -331,7 +333,12 @@ function interact() {
   }
   if (t.npc) {
     t.dir = [1, 0, 3, 2][me.dir]; t.talking = true; t.moving = false; t.goal = null;
-    dialog.show({ name: t.name, sprite: t.sprite }, linesFor(t), () => { t.talking = false; doAction(action); });
+    const fid = BY_NAME[t.name];
+    const extra = fid && friendsView && friendsView[fid] ? tierLine(fid, friendsView[fid].hearts) : null;
+    dialog.show({ name: t.name, sprite: t.sprite }, extra ? [...linesFor(t), extra] : linesFor(t), () => {
+      t.talking = false;
+      if (fid && api.server) openNpc(fid, action); else doAction(action);
+    });
   } else {
     dialog.show({ name: t.title }, t.lines, () => doAction(action));
   }
@@ -368,6 +375,7 @@ function doAction(action) {
   else if (action === 'arenaDesk') arenaDesk();
   else if (action === 'town') openTownPanel();
   else if (action === 'pets') openPetsPanel();
+  else if (action === 'bake') openBakePanel();
   else if (action === 'arenaBoard') arenaBoard();
 }
 async function ship() {
@@ -734,6 +742,38 @@ async function throwAtBoss(dx, dy) {
 const bossThrowing = () => map && map.id === 'plaza' && api.server && boss.canThrow();
 const arenaThrowing = () => map && map.id === 'arena' && arena.inShow() && arena.snap.ph === 'live' && arena.snap.kind === 'pie';
 
+// ---------- 鎮民好感與烤派 ----------
+let friendsView = null;
+const ACTION_LABEL = { shop: '🌱 買種子', market: '🧺 早市特賣', houseDesign: '🏠 改造小屋', exchange: '📈 看行情', pets: '🐾 領養寵物', town: '🏗️ 看工程', bake: '🥧 烤派' };
+async function refreshFriends() {
+  if (!api.server) return;
+  try { friendsView = (await call('npc', { act: 'view' }, { quiet: true })).friends; } catch (_e) { /* 下次再說 */ }
+}
+async function openNpc(fid, action) {
+  if (!friendsView) await refreshFriends();
+  const fv = (friendsView && friendsView[fid]) || { hearts: 0, p: 0, today: false };
+  const actions = action ? [{ label: ACTION_LABEL[action] || '好', fn: () => doAction(action) }] : [];
+  openNpcMenu(fid, fv, () => farm.inv, actions, async (item) => {
+    const r = await call('npc', { act: 'gift', npc: fid, item });
+    applyMine(farm, r); refreshHud(); friendsView = r.friends;
+    const name = FRIENDS[fid].name;
+    let message = REACTION[r.taste](name);
+    if (r.up) message += `　❤ 升到 ${r.hearts} 顆心！`;
+    if (r.reward) message += `　${name}回禮 ${r.reward} G`;
+    if (r.title) { message += `　獲得稱號「${r.title}」！`; sys(`🏅 你和${name}成為好朋友了！`); }
+    audio.tool(r.taste === 'love' || r.up ? 'fanfare' : 'harvest');
+    return { ...r, message };
+  });
+}
+function openBakePanel() {
+  if (!api.server) { hud.toast('登入後才能烤派'); return; }
+  openBake(() => farm.inv, async (pie, n) => {
+    const r = await call('bake', { pie, n });
+    applyMine(farm, r); refreshHud(); audio.tool('harvest');
+    return r;
+  });
+}
+
 // ---------- 限時尋寶（萬聖節南瓜燈） ----------
 async function refreshHunt(announce) {
   if (!api.server) return;
@@ -752,7 +792,7 @@ async function findHunt(id) {
     const r = await call('hunt', { act: 'find', id, x: Math.round(me.x), y: Math.round(me.y) });
     hunt = r.hunt; applyMine(farm, r); refreshHud(); applyEvents(map);
     audio.tool(r.all ? 'fanfare' : 'bigcoin');
-    hud.toast(r.all ? `🎃 全部找到了！+${r.gold} G` : `🎃 找到南瓜燈 ${r.count}/${r.total}　+${r.gold} G`, 2500);
+    hud.toast(r.all ? `🎃 全部找到了！+${r.reward} G` : `🎃 找到南瓜燈 ${r.count}/${r.total}　+${r.reward} G`, 2500);
     if (r.all) sys('🎃 今天的南瓜燈全部找到了！明天會藏在別的地方。');
   } catch (_e) { /* 已提示 */ }
 }
@@ -1318,6 +1358,7 @@ async function connect() {
       loadMail();
       refreshGuide();
       refreshHunt(true);
+      refreshFriends();
     } else {
       sys('伺服器還沒準備好遊戲存檔，先用試玩模式（進度不會留下來）。');
       serverStatus('試玩模式');

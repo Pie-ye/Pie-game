@@ -70,4 +70,4 @@ def find(rec: dict[str, Any], day: str, sid: Any, x: Any, y: Any) -> dict[str, A
     if all_found:
         gold += h["bonus"]
     rec["gold"] += gold
-    return {"ok": True, "gold": gold, "count": len(st["found"]), "total": len(spots), "all": all_found}
+    return {"ok": True, "reward": gold, "count": len(st["found"]), "total": len(spots), "all": all_found}

@@ -24,6 +24,7 @@ const rules = {
   debris: Object.fromEntries(Object.entries(F.DEBRIS).map(([k, d]) => [k, { tool: d.tool, hp: d.hp, drop: d.drop, looks: d.looks.length }])),
   crops: Object.fromEntries(Object.entries(F.CROPS).map(([k, c]) => [k, { name: c.name, seed: c.seed, sell: c.sell, grow: c.grow }])),
   itemNames: F.ITEM_NAMES,
+  pies: F.PIES,
   fish: FI.FISH,
   furniture: C.FURNITURE, floors: Object.keys(C.FLOORS), walls: Object.keys(C.WALLS), houseStyles: Object.keys(C.HOUSE_STYLES),
   room: ROOM,

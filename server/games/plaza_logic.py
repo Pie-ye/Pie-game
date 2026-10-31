@@ -25,8 +25,10 @@ CROP_KEYS = list(CROPS)
 GROW_MS = FARM["growMs"]
 FISH = RULES["fish"]
 FISH_BY_ID = {f["id"]: f for f in FISH}
-ITEMS = set(RULES["itemNames"]) | {f"fish_{f['id']}" for f in FISH if not f.get("junk")}
-SELL = {**{k: c["sell"] for k, c in CROPS.items()}, **{f"fish_{f['id']}": f["price"] for f in FISH if f.get("price")}}
+PIES = RULES.get("pies") or {}
+ITEMS = set(RULES["itemNames"]) | {f"fish_{f['id']}" for f in FISH if not f.get("junk")} | set(PIES)
+SELL = {**{k: c["sell"] for k, c in CROPS.items()}, **{f"fish_{f['id']}": f["price"] for f in FISH if f.get("price")},
+        **{k: p["sell"] for k, p in PIES.items()}}
 FURNITURE = {f["k"]: f for f in RULES["furniture"]}
 ROOM = RULES["room"]
 TZ_OFFSET = 8 * 3600
