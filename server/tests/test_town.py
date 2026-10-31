@@ -99,3 +99,34 @@ def test_guide_steps_pay_once_and_bonus():
     assert any(d["t"] == "guideAll" for d in out) and len(rec["guide"]) == len(Q.GUIDE)
     v = Q.view(rec, "u1", "2027-01-10")
     assert all(g["done"] for g in v["guide"])
+
+
+def test_hunt_daily_spots_find_once_and_bonus():
+    from server.games import hunt as HU
+    rec = {"gold": 0}
+    assert HU.view(rec, "2026-10-30") == {"on": False}
+    v = HU.view(rec, "2026-10-31")
+    assert v["on"] and len(v["spots"]) == 8 and {s["map"] for s in v["spots"]} == set(HU.SPOTS)
+    assert v["spots"] == HU.view({"gold": 0}, "2026-10-31")["spots"], "同一天大家一樣"
+    assert [s["id"] for s in v["spots"]] != [s["id"] for s in HU.view({"gold": 0}, "2026-11-01")["spots"]]
+    s0 = v["spots"][0]
+    assert HU.find(rec, "2026-10-31", s0["id"], 0, 0)["code"] == "too_far"
+    r = HU.find(rec, "2026-10-31", s0["id"], s0["x"], s0["y"] + 10)
+    assert r["ok"] and rec["gold"] == 15
+    assert HU.find(rec, "2026-10-31", s0["id"], s0["x"], s0["y"])["code"] == "found"
+    for s in v["spots"][1:]:
+        r = HU.find(rec, "2026-10-31", s["id"], s["x"], s["y"])
+    assert r["all"] and rec["gold"] == 15 * 8 + 60
+    assert HU.find(rec, "2026-11-03", s0["id"], s0["x"], s0["y"])["code"] == "no_hunt"
+
+
+def test_hunt_spots_match_frontend():
+    import json
+    import subprocess
+    from pathlib import Path
+    from server.games import hunt as HU
+    repo = Path(__file__).resolve().parents[2]
+    js = json.loads(subprocess.run(["node", "--input-type=module", "-e",
+                                    "const m = await import('./site/games/community/pie-plaza/src/game/hunt.js'); console.log(JSON.stringify(m.HUNT_SPOTS))"],
+                                   cwd=repo, capture_output=True, text=True, check=True).stdout)
+    assert js == HU.SPOTS

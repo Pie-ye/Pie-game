@@ -25,6 +25,7 @@ from . import party_bots as PB
 from . import boss as BS
 from . import town as TW
 from . import pets as PT
+from . import hunt as HU
 
 GAME_ID = "pie-plaza"
 log = logging.getLogger("pie.plaza")
@@ -1638,6 +1639,23 @@ class PlazaService:
                 log.exception("town reward failed for %s", r["id"])
         await self._game_all(relay, {"type": "game", "op": "townDone", "name": done["name"], "effect": done["effect"], "town": self._town_public(),
                                      "top": done["rewards"][0]["name"] if done["rewards"] else ""})
+
+    async def op_hunt(self, relay, conn, me, rec, p):
+        day = L.taipei_day(self.now_ms())
+        act = p.get("act")
+        if act == "find":
+            r = HU.find(rec, day, p.get("id"), p.get("x"), p.get("y"))
+            if not r["ok"]:
+                raise GameError(r["code"], r["msg"])
+            self.dirty.add(me)
+            ev: list[tuple[str, Any]] = [("hunt_find", 1)]
+            if r["all"]:
+                ev.append(("hunt_all", 1))
+            await self._progress(relay, me, rec, ev)
+            return {**r, "hunt": HU.view(rec, day), **self._mine(rec)}
+        if act != "view":
+            raise GameError("bad_message", "無效的動作")
+        return {"hunt": HU.view(rec, day)}
 
     async def op_pets(self, relay, conn, me, rec, p):
         act = p.get("act")

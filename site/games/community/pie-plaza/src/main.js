@@ -35,6 +35,8 @@ import { openTown } from './ui/town.js';
 import { drawFireworks, fireworksTime } from './ui/fireworks.js';
 import { openPets } from './ui/pets.js';
 import { cleanPet, followStep } from './game/pets.js';
+import { huntHere } from './game/hunt.js';
+import { obj } from './engine/world.js';
 import { throwDir, ARENA } from './game/arena.js';
 import { openVisitPanel, openVisitorMenu, openMailbox, openPlayerCard, openEmotes } from './ui/social.js';
 import { TOOLS, CROPS, useTool, debrisLeft, CROP_KEYS } from './farm/state.js';
@@ -123,8 +125,15 @@ new ResizeObserver(fit).observe(document.querySelector('.stage'));
 
 // ---------- 定時活動 ----------
 const isOn = (id) => events.includes(id);
+let hunt = null;               // 限時尋寶（伺服器 view）
+function applyHunt(m) {
+  m.signs = m.signs.filter((t) => t.action !== 'hunt');
+  const here = huntHere(hunt, m.id);
+  for (const h of here) m.signs.push({ x: h.x, y: h.y, title: hunt.name, lines: [], action: 'hunt', id: h.id, reach: 18, hint: 'E 收下南瓜燈' });
+  return here.map((h) => obj('pumpkinItem', h.x, h.y, { foot: null, light: 24, flicker: true }));
+}
 function applyEvents(m) {
-  const objs = eventObjects(m.id, events);
+  const objs = [...eventObjects(m.id, events), ...applyHunt(m)];
   m.eventObjects = objs;
   if (!m.farm) m.dynamic = objs.filter((o) => o.foot).map((o) => ({ x0: o.x - o.foot[0] / 2, x1: o.x + o.foot[0] / 2, y0: o.y - o.foot[1], y1: o.y }));
 }
@@ -294,6 +303,7 @@ function interact() {
   const ev = t.eventAction && events.find((id) => t.eventAction[id]);
   const action = ev ? t.eventAction[ev] : t.action;
   if (action === 'arenaDesk') { arenaDesk(); return true; }
+  if (action === 'hunt') { findHunt(t.id); return true; }
   if (action === 'partyGrab') { grabSpot(t.spot); return true; }
   if (action === 'seekSpot') { useSeekSpot(t.spot); return true; }
   if (action === 'tugPull') { pullTug(t.side); return true; }
@@ -723,6 +733,29 @@ async function throwAtBoss(dx, dy) {
 }
 const bossThrowing = () => map && map.id === 'plaza' && api.server && boss.canThrow();
 const arenaThrowing = () => map && map.id === 'arena' && arena.inShow() && arena.snap.ph === 'live' && arena.snap.kind === 'pie';
+
+// ---------- 限時尋寶（萬聖節南瓜燈） ----------
+async function refreshHunt(announce) {
+  if (!api.server) return;
+  try {
+    const r = await call('hunt', { act: 'view' }, { quiet: true });
+    hunt = r.hunt;
+    if (map) applyEvents(map);
+    if (announce && hunt.on) {
+      const n = hunt.spots.filter((x) => x.found).length;
+      sys(`🎃 ${hunt.name}尋寶（到 ${hunt.to.slice(5).replace('-', '/')}）：今天在廣場、商店街、競技場、派派新區藏了 ${hunt.spots.length} 顆，你找到 ${n} 顆。每顆 ${hunt.gold} G，全找到再加 ${hunt.bonus} G！`);
+    }
+  } catch (_e) { /* 沒有活動 */ }
+}
+async function findHunt(id) {
+  try {
+    const r = await call('hunt', { act: 'find', id, x: Math.round(me.x), y: Math.round(me.y) });
+    hunt = r.hunt; applyMine(farm, r); refreshHud(); applyEvents(map);
+    audio.tool(r.all ? 'fanfare' : 'bigcoin');
+    hud.toast(r.all ? `🎃 全部找到了！+${r.gold} G` : `🎃 找到南瓜燈 ${r.count}/${r.total}　+${r.gold} G`, 2500);
+    if (r.all) sys('🎃 今天的南瓜燈全部找到了！明天會藏在別的地方。');
+  } catch (_e) { /* 已提示 */ }
+}
 
 // ---------- 寵物 ----------
 async function openPetsPanel() {
@@ -1284,6 +1317,7 @@ async function connect() {
       if (!me.look && !creatorOpen()) openLook(true);
       loadMail();
       refreshGuide();
+      refreshHunt(true);
     } else {
       sys('伺服器還沒準備好遊戲存檔，先用試玩模式（進度不會留下來）。');
       serverStatus('試玩模式');

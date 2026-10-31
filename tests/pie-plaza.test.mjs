@@ -1663,3 +1663,15 @@ test('town donate options: fish slot takes any fish, gold slot takes gold', asyn
   assert.deepEqual(T.donatable('gold', {}, 50), [{ item: 'gold', have: 50 }]);
   assert.deepEqual(T.donatable('wood', { wood: 3 }, 0), [{ item: 'wood', have: 3 }]);
 });
+
+test('hunt spots are walkable, reachable and not inside the arena field', async () => {
+  const { HUNT_SPOTS } = await import('../site/games/community/pie-plaza/src/game/hunt.js');
+  for (const [area, spots] of Object.entries(HUNT_SPOTS)) {
+    const m = maps[area] || getMap(area, { decor });
+    const ok = reach(m, Object.values(m.entries)[0]);
+    for (const [x, y] of spots) {
+      assert.equal(m.blocked(x, y + 8), false, `${area} ${x},${y}`);
+      assert.ok(ok(x - 8, y - 4, x + 8, y + 16), `${area} ${x},${y} reachable`);
+    }
+  }
+});
