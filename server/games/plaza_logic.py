@@ -173,11 +173,14 @@ def use_tool(owner_rec: dict[str, Any], actor_rec: dict[str, Any], tool: str, x:
     return {"ok": False, "msg": ""}
 
 
+GROW_SPEED = 1.0          # 全鎮工程「派派溫室」蓋好後由 PlazaService 設成 1.25
+
+
 def grow(farm: dict[str, Any], now_ms: int) -> list[str]:
     """作物成長（伺服器時間）。回傳有變化的格子。"""
     changed = []
     for k, c in farm["crops"].items():
-        if c["s"] < 3 and c.get("w") and now_ms - c["w"] >= GROW_MS * CROPS[c["t"]]["grow"]:
+        if c["s"] < 3 and c.get("w") and now_ms - c["w"] >= GROW_MS * CROPS[c["t"]]["grow"] / GROW_SPEED:
             c["s"] += 1
             c["w"] = 0
             if k in farm["tilled"]:

@@ -31,6 +31,8 @@ import { openVase } from './ui/vase.js';
 import { createArena } from './ui/arena.js';
 import { openBook, questLine } from './ui/book.js';
 import { createBoss } from './ui/boss.js';
+import { openTown } from './ui/town.js';
+import { drawFireworks, fireworksTime } from './ui/fireworks.js';
 import { throwDir, ARENA } from './game/arena.js';
 import { openVisitPanel, openVisitorMenu, openMailbox, openPlayerCard, openEmotes } from './ui/social.js';
 import { TOOLS, CROPS, useTool, debrisLeft, CROP_KEYS } from './farm/state.js';
@@ -64,6 +66,7 @@ const hud = createHud({ onSelect: (i) => selectTool(i) });
 
 let scene = null, net = null, api = createLocalApi(), myId = 'guest', myName = '我';
 let map = null, area = 'plaza';
+let townPub = { done: [], cur: 'greenhouse', p: 0 };   // 全鎮工程（伺服器公開狀態）
 const me = { id: 'guest', x: 240, y: 200, dir: 0, moving: false, bubble: '', bubbleAt: 0, acting: 0, look: null };
 let farm = null, decor = null, social = { open: true, friends: [], coop: [], likes: 0, liked: {} };
 let tool = 0, edit = null, hover = null, fishing = null, holding = false;
@@ -160,13 +163,14 @@ function toolAllowed(t) {
   }
   if (map.id === 'plaza') return t === 'rod';
   if (map.id === 'arena') return false;
+  if (map.id === 'frontier') return t === 'rod';
   return map.id === personal('house') && t === 'hammer';
 }
 /** opts.rebuild：同一區重建（不算換區）；opts.viewed：已經向伺服器 view 過了。 */
 function loadArea(a, entry, opts = {}) {
   const owner = ownerOf(a), host = owner && owner !== myId ? visits.get(owner) : null;
   if (owner && owner !== myId && !host) { hud.toast('要先從「拜訪」選單進去'); return false; }
-  const m = getMap(a, { decor: host ? host.decor : decor });
+  const m = getMap(a, { decor: host ? host.decor : decor, town: townPub });
   if (!m) { sys(`找不到地區：${a}`); return false; }
   if (!m.shared) m.version = Date.now();
   if (m.farm) syncFarm(m, host ? host.farm : farm);
@@ -189,6 +193,7 @@ function loadArea(a, entry, opts = {}) {
   sendPose(undefined, true);
   arena.setVisible(a === 'arena');
   boss.setVisible(a === 'plaza');
+  if (moved && a === 'frontier' && api.server) call('town', { act: 'view' }, { quiet: true }).then((r) => setTown(r.town)).catch(() => {});
   if (moved && a === 'arena') enterArena();
   else if (moved && wasArena) leaveArena();
   // 伺服器推播只送給「正在看」這塊地的人
@@ -348,6 +353,7 @@ function doAction(action) {
   else if (action === 'smash') openSmashPanel();
   else if (action === 'vase') openVasePanel();
   else if (action === 'arenaDesk') arenaDesk();
+  else if (action === 'town') openTownPanel();
   else if (action === 'arenaBoard') arenaBoard();
 }
 async function ship() {
@@ -713,6 +719,29 @@ async function throwAtBoss(dx, dy) {
 const bossThrowing = () => map && map.id === 'plaza' && api.server && boss.canThrow();
 const arenaThrowing = () => map && map.id === 'arena' && arena.inShow() && arena.snap.ph === 'live' && arena.snap.kind === 'pie';
 
+// ---------- 全鎮工程（派派新區） ----------
+function setTown(t) {
+  if (!t) return;
+  const changed = JSON.stringify(t) !== JSON.stringify(townPub);
+  townPub = t;
+  if (changed && map && map.id === 'frontier') rebuildHere();
+}
+async function openTownPanel() {
+  if (!api.server) { dialog.show({ name: '工頭阿土' }, ['全鎮工程要登入才能參加：捐的東西和貢獻都記在伺服器。']); return; }
+  try {
+    const r = await call('town', { act: 'view' });
+    setTown(r.town);
+    openTown(r, {
+      inv: () => farm.inv, gold: () => farm.gold,
+      donate: async (item, n) => {
+        const d = await call('town', { act: 'donate', item, n });
+        applyMine(farm, d); refreshHud(); setTown(d.town); audio.tool('harvest');
+        return d;
+      },
+    });
+  } catch (_e) { /* 已提示 */ }
+}
+
 // ---------- 鎮民手冊：每日委託與集章 ----------
 async function openBookPanel(tab) {
   if (!api.server) { openBook(null); return; }
@@ -912,8 +941,9 @@ function animateLandmarks(now) {
 
 // ---------- 釣魚（伺服器抽魚與計時） ----------
 async function castRod() {
-  const where = map.id === 'plaza' ? 'sea' : map.farm ? 'pond' : null;
-  if (!where) { hud.toast('這裡沒有地方釣魚'); return; }
+  const onPier = map.pier && me.x >= map.pier.x0 - 4 && me.x <= map.pier.x1 + 4 && me.y >= map.pier.y0 - 12 && me.y <= map.pier.y1;
+  const where = map.id === 'plaza' ? 'sea' : map.farm ? 'pond' : map.id === 'frontier' && onPier ? 'pier' : null;
+  if (!where) { hud.toast(map.id === 'frontier' ? (map.pier ? '走到碼頭上才能釣魚' : '碼頭還沒蓋好，先一起捐材料吧') : '這裡沒有地方釣魚'); return; }
   if (fishing) return;
   const { tx, ty } = tileOf(me.x, me.y - 2), [dx, dy] = DIR_VEC[me.dir];
   for (let k = 1; k <= 3; k++) {
@@ -1128,6 +1158,9 @@ function onGame(m) {
   else if (m.op === 'arenaCall') arena.call(m);
   else if (m.op === 'boss' && m.boss) boss.apply(m.boss, true);
   else if (m.op === 'bossCall') boss.call(m);
+  else if (m.op === 'town' && m.town) { setTown(m.town); if (m.by) sys(`🏗️ ${m.by} 為全鎮工程捐了 ${m.key === 'gold' ? '金幣' : m.key === 'fish' ? '魚' : itemName(m.key)} ×${m.n}`); }
+  else if (m.op === 'townDone') { setTown(m.town); sys(`🎉 全鎮工程「${m.name}」完工了！${m.effect}。${m.top ? `貢獻最多的是 ${m.top}。` : ''}`); hud.toast(`🎉 「${m.name}」完工！${m.effect}`, 5000); audio.tool('fanfare'); }
+  if (m.op === 'me' && m.fwGift) { hud.toast(`🎆 看煙火的小禮物：${m.fwGift.gold} G 和種子 ×${m.fwGift.n}`, 3500); sys('🎆 煙火真漂亮！收到看煙火的小禮物。'); }
   if (m.op === 'me' && m.bossFull != null) {
     const gift = m.bossGift ? `，還有 ${CROPS[m.bossGift.item] ? CROPS[m.bossGift.item].name : ''}種子 ×${m.bossGift.n}` : '';
     hud.toast(m.bossGold ? `🐸 ${m.bossFull ? '牠吃飽了！' : '牠逃走了，'}你丟中 ${m.bossHits} 次，獲得 ${m.bossGold} G${gift}` : `🐸 你丟中 ${m.bossHits} 次（今天的獎勵次數用完了）`, 4000);
@@ -1184,7 +1217,7 @@ async function connect() {
       },
       mail(m) {
         loadMail();
-        const t = { syslike: '👍 有人稱讚了你的家園', sysgift: '🎁 有人送你禮物，打開信箱看看', syssold: '💰 你的東西在跳蚤市場賣掉了！', syscoop: '🤝 有人邀請你共同耕作', sysdiv: '📈 交易所週一股息入帳了' }[m.kind] || '✉ 收到新的留言';
+        const t = { sysbuild: '🏗️ 全鎮工程完工了，回饋金已入帳', syslike: '👍 有人稱讚了你的家園', sysgift: '🎁 有人送你禮物，打開信箱看看', syssold: '💰 你的東西在跳蚤市場賣掉了！', syscoop: '🤝 有人邀請你共同耕作', sysdiv: '📈 交易所週一股息入帳了' }[m.kind] || '✉ 收到新的留言';
         hud.toast(t, 2500);
       },
       game: onGame,
@@ -1386,6 +1419,10 @@ function frame(now) {
       opts.under = (c, t) => boss.drawUnder(c, t, scene);
       opts.over = (c, t) => boss.drawOver(c, t, scene);
       opts.top = (c, cam, S, t) => boss.drawTop(c, cam, S, t);
+    }
+    if (map.id === 'plaza' && townPub.done.includes('fireworks') && fireworksTime()) {
+      const prevTop = opts.top;
+      opts.top = (c, cam, S, t) => { if (prevTop) prevTop(c, cam, S, t); drawFireworks(c, Date.now()); };
     }
     if (inArena) {
       opts.under = (c, t) => arena.drawUnder(c, t, scene);

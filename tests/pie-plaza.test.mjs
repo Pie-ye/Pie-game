@@ -81,7 +81,7 @@ test('blobTile follows the Sprout layout', () => {
 
 // ---------- 地圖 ----------
 const decor = C.defaultDecor();
-const AREAS = ['plaza', 'town', 'arena', ...SHOPS.map((s) => `shop:${s.id}`), 'farm:u1', 'house:u1'];
+const AREAS = ['plaza', 'town', 'arena', 'frontier', ...SHOPS.map((s) => `shop:${s.id}`), 'farm:u1', 'house:u1'];
 const maps = Object.fromEntries(AREAS.map((a) => [a, getMap(a, { decor })]));
 const resolve = (to) => (to === 'farm' ? 'farm:u1' : to);
 
@@ -1633,4 +1633,33 @@ test('arena quiz quadrants match the server and centers sit inside each quadrant
     const [cx, cy] = AR.quadrantCenter(q);
     assert.equal(AR.quadrant(AR.cellOf(cx, cy)), q, `center of ${q}`);
   }
+});
+
+// ---------- 派派新區（全鎮工程） ----------
+const FR = await import('../site/games/community/pie-plaza/src/maps/frontier.js');
+test('frontier builds for every construction state; pier opens a walkable fishing spot', () => {
+  const states = [{ done: [], cur: 'greenhouse', p: 0 }, { done: ['greenhouse'], cur: 'pier', p: 0.5 }, { done: ['greenhouse', 'pier'], cur: 'fireworks', p: 0.9 },
+    { done: ['greenhouse', 'pier', 'fireworks'], cur: null, p: 1 }];
+  for (const st of states) {
+    const m = FR.buildFrontier(st);
+    for (const o of m.objects) assert.ok(ATLAS[o.k], `${o.k}`);
+    const e = m.entries.west;
+    assert.equal(m.blocked(e.x, e.y), false);
+    const ok = reach(m, e);
+    for (const w of m.warps) assert.ok(ok(w.x0, w.y0, w.x1, w.y1), 'warp reachable');
+    assert.ok(m.npcs.length === 1 && m.signs.some((t) => t.action === 'town'));
+    if (st.done.includes('pier')) {
+      assert.ok(m.pier && !m.blocked((m.pier.x0 + m.pier.x1) / 2, m.pier.y1 - 8), 'pier is walkable');
+      assert.ok(ok(m.pier.x0 + 4, m.pier.y0, m.pier.x1 - 4, m.pier.y1), 'pier reachable on foot');
+    } else assert.equal(m.pier, null);
+  }
+  const town = maps.town;
+  assert.ok(town.warps.some((w) => w.to === 'frontier') && town.entries.east, 'town east gate');
+});
+test('town donate options: fish slot takes any fish, gold slot takes gold', async () => {
+  const T = await import('../site/games/community/pie-plaza/src/ui/town.js').catch(() => null);
+  if (!T) return;
+  assert.deepEqual(T.donatable('fish', { fish_carp: 2, wood: 3, fish_tuna: 0 }, 50), [{ item: 'fish_carp', have: 2 }]);
+  assert.deepEqual(T.donatable('gold', {}, 50), [{ item: 'gold', have: 50 }]);
+  assert.deepEqual(T.donatable('wood', { wood: 3 }, 0), [{ item: 'wood', have: 3 }]);
 });

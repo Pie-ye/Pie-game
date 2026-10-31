@@ -2,17 +2,19 @@
 // 小遊戲：一條直槽，魚在裡面上下亂竄；按住讓綠色捕捉條往上、放開往下掉。
 // 魚在捕捉條裡進度上升，跑出去就下降；進度滿就釣到，歸零就跑掉。
 
-// where：sea（廣場四周的海）、pond（農場池塘）；hours：出現時段（台北時間，含頭不含尾，可跨午夜）
+// where：sea（廣場四周的海）、pond（農場池塘）、pier（派派新區的海釣碼頭，全鎮工程蓋好才有）；hours：出現時段（台北時間，含頭不含尾，可跨午夜）
 export const FISH = [
-  { id: 'sardine', name: '沙丁魚', where: ['sea'], price: 30, diff: 1, w: 30 },
-  { id: 'tuna', name: '鮪魚', where: ['sea'], price: 120, diff: 3.5, w: 8 },
-  { id: 'puffer', name: '河豚', where: ['sea'], price: 160, diff: 4, w: 4, hours: [12, 17] },
+  { id: 'sardine', name: '沙丁魚', where: ['sea', 'pier'], price: 30, diff: 1, w: 30 },
+  { id: 'tuna', name: '鮪魚', where: ['sea', 'pier'], price: 120, diff: 3.5, w: 8 },
+  { id: 'puffer', name: '河豚', where: ['sea', 'pier'], price: 160, diff: 4, w: 4, hours: [12, 17] },
   { id: 'carp', name: '鯉魚', where: ['pond'], price: 35, diff: 1, w: 30 },
   { id: 'bass', name: '鱸魚', where: ['pond', 'sea'], price: 60, diff: 2, w: 16 },
   { id: 'catfish', name: '鯰魚', where: ['pond'], price: 90, diff: 3, w: 8, hours: [18, 6] },
   { id: 'trout', name: '虹鱒', where: ['pond'], price: 75, diff: 2.5, w: 10, hours: [6, 18] },
-  { id: 'golden', name: '金色鯉魚', where: ['pond', 'sea'], price: 500, diff: 5, w: 0, contest: 3 },
-  { id: 'boot', name: '舊靴子', where: ['pond', 'sea'], price: 0, diff: 0, w: 6, junk: true },
+  { id: 'golden', name: '金色鯉魚', where: ['pond', 'sea', 'pier'], price: 500, diff: 5, w: 0, contest: 3 },
+  { id: 'octopus', name: '章魚', where: ['pier'], price: 140, diff: 3, w: 14 },
+  { id: 'shrimp', name: '大蝦', where: ['pier'], price: 70, diff: 2, w: 24 },
+  { id: 'boot', name: '舊靴子', where: ['pond', 'sea', 'pier'], price: 0, diff: 0, w: 6, junk: true },
 ];
 export const FISH_PRICES = Object.fromEntries(FISH.filter((f) => f.price).map((f) => [`fish_${f.id}`, f.price]));
 export const fishName = (id) => (FISH.find((f) => f.id === id) || {}).name || id;

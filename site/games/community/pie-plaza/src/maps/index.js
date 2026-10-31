@@ -4,11 +4,13 @@ import { buildTown } from './town.js';
 import { buildFarm } from './farm.js';
 import { buildShop, buildHouse } from './interior.js';
 import { buildArena } from './arena.js';
+import { buildFrontier } from './frontier.js';
 
 const cache = new Map();
 /** area：'plaza'、'town'、'shop:<id>'、'farm:<owner>'、'house:<owner>'。ctx 提供個人資料（小屋樣式、裝潢）。 */
 export function getMap(area, ctx = {}) {
   const [kind, arg] = area.split(':');
+  if (kind === 'frontier') return buildFrontier(ctx.town);   // 依全鎮工程狀態，每次重建
   if (kind === 'farm' || kind === 'house') {            // 個人地圖：資料可能改變，每次重建
     if (kind === 'farm') return buildFarm(arg, ctx.decor || {});
     return buildHouse(arg, ctx.decor);
@@ -20,4 +22,4 @@ export function getMap(area, ctx = {}) {
   }
   return cache.get(area);
 }
-export const AREA_NAMES = { plaza: '廣場', town: '商店街', arena: '派對競技場', farm: '我的農場', house: '我的小屋' };
+export const AREA_NAMES = { plaza: '廣場', town: '商店街', arena: '派對競技場', frontier: '派派新區', farm: '我的農場', house: '我的小屋' };

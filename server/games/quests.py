@@ -29,6 +29,7 @@ STAMPS: list[tuple[str, str, str, str, str, int, int]] = [
     ("fish_30", "fish", "老練釣手", "累計釣到 30 條魚", "fish", 30, 60),
     ("fish_all", "fish", "魚類圖鑑", "八種魚都釣過", "uniq:fish", 8, 150),
     ("fish_golden", "fish", "金色傳說", "釣到金色鯉魚", "fish:golden", 1, 80),
+    ("fish_pier", "fish", "碼頭漁獲", "在海釣碼頭釣到章魚和大蝦", "uniq:pierfish", 2, 80),
     ("fish_contest", "fish", "釣魚大賽前三", "在釣魚大賽拿到前三名", "contest_top3", 1, 60),
     ("party_first", "party", "派對新手", "玩完一場廣場常駐派對", "party_play", 1, 20),
     ("party_all", "party", "派對全制霸", "九種廣場派對都玩過", "uniq:party", 9, 150),
@@ -55,6 +56,8 @@ STAMPS: list[tuple[str, str, str, str, str, int, int]] = [
     ("town_trade", "town", "初次交易", "在交易所完成一筆交易", "trade", 1, 30),
     ("town_sell5", "town", "攤販", "在跳蚤市場賣出 5 筆", "sell", 5, 60),
     ("town_buy3", "town", "愛逛市場", "在跳蚤市場買 3 筆", "buy", 3, 40),
+    ("town_builder", "town", "新區功臣", "出力蓋好一棟全鎮工程", "town_build", 1, 60),
+    ("town_top", "town", "工程總監", "在一期全鎮工程貢獻最多", "town_top", 1, 120),
 ]
 STAMP_BY = {s[0]: s for s in STAMPS}
 CATS = {
@@ -79,6 +82,7 @@ DAILY_POOL: list[tuple[str, str, int, int, str]] = [
     ("town", "sell", 1, 30, "在跳蚤市場賣出一筆"),
     # 新的只能加在最後：玩家存檔裡的今日委託記的是索引
     ("party", "boss_hit", 10, 40, "丟中大胃王蛙 10 次"),
+    ("town", "town_give", 1, 30, "捐一次東西給全鎮工程"),
 ]
 DAILY_N = 3
 DAILY_BONUS = 60

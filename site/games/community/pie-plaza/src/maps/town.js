@@ -35,7 +35,8 @@ export function buildTown() {
   for (let x = 32; x < w * 16; x += 64) { objects.push(obj(x % 128 ? 'treeClump' : 'pineClump', x, 64)); objects.push(obj(x % 192 ? 'treeClump2' : 'treeClump', x + 32, 128, { foot: [60, 10] })); }
   for (let x = 32; x < w * 16; x += 64) objects.push(obj(x % 128 ? 'pineClump' : 'treeClump', x, h * 16 - 2));
   for (let y = 300; y < h * 16 - 40; y += 48) { objects.push(obj('treeBig', 20, y)); objects.push(obj('treeBig', w * 16 - 20, y)); }
-  objects.push(obj('treeBig', w * 16 - 20, 250), obj('treeBig', w * 16 - 20, 200));
+  objects.push(obj('treeBig', w * 16 - 20, 200), obj('signPost', w * 16 - 40, roadY * 16 - 4));
+  signs.push({ x: w * 16 - 40, y: roadY * 16 - 4, title: '路牌', lines: ['東邊：派派新區 →', '全鎮一起捐材料蓋新建築的開發區。'] });
   // 市集廣場：中央大樹、攤位、長椅、旗幟
   const px0 = plaza[0] * 16, px1 = (plaza[2] + 1) * 16, py0 = plaza[1] * 16, py1 = (plaza[3] + 1) * 16;
   objects.push(obj('treeBigOrange', (px0 + px1) / 2, py0 + 66, { foot: [14, 8] }));
@@ -61,9 +62,10 @@ export function buildTown() {
   return finalizeMap({
     id: 'town', title: '商店街', grid: g, base: 'grass', objects: [...objects, ...decor], warps: [
       ...warps, { x0: -8, y0: roadY * 16, x1: 8, y1: roadY * 16 + 32, to: 'plaza', entry: 'east', label: '廣場' },
+      { x0: w * 16 - 8, y0: roadY * 16, x1: w * 16 + 8, y1: roadY * 16 + 32, to: 'frontier', entry: 'west', label: '派派新區' },
     ],
     signs, npcs,
-    entries: { west: { x: 20, y: roadY * 16 + 18, dir: 3 },
+    entries: { west: { x: 20, y: roadY * 16 + 18, dir: 3 }, east: { x: w * 16 - 24, y: roadY * 16 + 18, dir: 2 },
       ...Object.fromEntries(warps.map((wp) => [wp.to, { x: (wp.x0 + wp.x1) / 2, y: wp.y1 + 6, dir: 0 }])) },
   });
 }

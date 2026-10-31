@@ -113,7 +113,8 @@
    "id": "sardine",
    "name": "沙丁魚",
    "where": [
-    "sea"
+    "sea",
+    "pier"
    ],
    "price": 30,
    "diff": 1,
@@ -123,7 +124,8 @@
    "id": "tuna",
    "name": "鮪魚",
    "where": [
-    "sea"
+    "sea",
+    "pier"
    ],
    "price": 120,
    "diff": 3.5,
@@ -133,7 +135,8 @@
    "id": "puffer",
    "name": "河豚",
    "where": [
-    "sea"
+    "sea",
+    "pier"
    ],
    "price": 160,
    "diff": 4,
@@ -197,7 +200,8 @@
    "name": "金色鯉魚",
    "where": [
     "pond",
-    "sea"
+    "sea",
+    "pier"
    ],
    "price": 500,
    "diff": 5,
@@ -205,11 +209,32 @@
    "contest": 3
   },
   {
+   "id": "octopus",
+   "name": "章魚",
+   "where": [
+    "pier"
+   ],
+   "price": 140,
+   "diff": 3,
+   "w": 14
+  },
+  {
+   "id": "shrimp",
+   "name": "大蝦",
+   "where": [
+    "pier"
+   ],
+   "price": 70,
+   "diff": 2,
+   "w": 24
+  },
+  {
    "id": "boot",
    "name": "舊靴子",
    "where": [
     "pond",
-    "sea"
+    "sea",
+    "pier"
    ],
    "price": 0,
    "diff": 0,

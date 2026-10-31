@@ -1591,3 +1591,40 @@ async def test_party_bots_fill_and_play_all_nine(tmp_path) -> None:
         assert rnd["status"] == "over", kind
         assert "alice" in (rnd.get("payouts") or {}), kind
         assert acted[kind] >= 1, f"鎮民在 {kind} 沒有任何動作"
+
+
+# ---------- 全鎮工程 ----------
+@pytest.mark.asyncio
+async def test_town_project_donate_finish_effects(aiohttp_client, tmp_path) -> None:
+    from server.games import town as TW
+    client, plaza, store, _ = await make(aiohttp_client, tmp_path, quests=True)
+    alice = await connect_and_auth(client, "alice", G)
+    bob = await connect_and_auth(client, "bob", G)
+    await call(alice, "load")
+    await call(bob, "load")
+    v = await call(alice, "town", act="view")
+    assert v["view"]["cur"]["id"] == "greenhouse" and v["grow"] == 1.0
+    assert (await call(alice, "town", act="donate", item="wood", n=5))["code"] == "no_item"
+    a = plaza.players["alice"]
+    a["inv"].update(wood=60, stone=40, fiber=40, wheat=30)
+    a["gold"] = 5000
+    for item, n in (("wood", 60), ("stone", 40), ("fiber", 40), ("wheat", 30)):
+        r = await call(alice, "town", act="donate", item=item, n=n)
+        assert r["ok"] and r["took"] == n
+    plaza.players["bob"]["gold"] = 3000
+    r = await call(bob, "town", act="donate", item="gold", n=1500)
+    assert r["done"]["id"] == "greenhouse"
+    assert TW.built(plaza.town, "greenhouse") and L.GROW_SPEED == 1.25
+    assert "town_top" in plaza.players["alice"]["stamps"] and "town_builder" in plaza.players["bob"]["stamps"]   # alice 1510 點 > bob 1500 點
+    mails = await asyncio.to_thread(store.mail_list_sync, G, "alice")
+    assert any(m["kind"] == "sysbuild" for m in mails)
+    # 碼頭還沒蓋好不能在碼頭釣魚
+    assert (await call(alice, "cast", where="pier"))["code"] == "not_built"
+    # 存檔後重開伺服器：工程狀態還在、效果也在
+    await plaza.flush()
+    L.GROW_SPEED = 1.0
+    again = PlazaService(store, clock=plaza.clock, rng=random.Random(2))
+    assert TW.built(again.town, "greenhouse") and again.town["cur"] == "pier" and L.GROW_SPEED == 1.25
+    L.GROW_SPEED = 1.0
+    for ws in (alice, bob):
+        await ws.close()

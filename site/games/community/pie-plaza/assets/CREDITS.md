@@ -29,8 +29,8 @@
 
 ## 補畫素材：antigravity 生成
 
-- 檔案：`gen/arena_*.png`：派對競技場的派餅、金派、奶油漬、皇冠、頒獎台、報名攤位。
-- 2026-10-31 由 antigravity（agy 的圖片生成代理）依 `tools/pie-plaza/art/RULES.md` 與 `art/arena/BRIEF.md` 產生，同樣以 Sprout Lands 為風格參考，再用 `process_art.py arena` 去背。
+- 檔案：`gen/arena_*.png`：派對競技場的派餅、金派、奶油漬、皇冠、頒獎台、報名攤位；`gen/build_*.png`：派派新區的工地兩階段、派派溫室、煙火台；`gen/fish_octopus.png`、`gen/fish_shrimp.png`。
+- 2026-10-31 由 antigravity（agy 的圖片生成代理）依 `tools/pie-plaza/art/RULES.md` 與 `art/arena/BRIEF.md`、`art/build/BRIEF.md` 產生，同樣以 Sprout Lands 為風格參考，再用 `process_art.py arena` 去背。
 
 ## 語音：pie-phoebe
 

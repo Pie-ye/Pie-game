@@ -103,7 +103,7 @@ for crop in ("carrot", "tomato", "pumpkin", "strawberry"):
         SPEC[f"{crop}{i}"] = (f"gen/{crop}_{i}.png", 0, 0, 16, 16)
     SPEC[f"{crop}Item"] = (f"gen/{crop}_item.png", 0, 0, 16, 16)
     SPEC[f"{crop}Seed"] = (f"gen/{crop}_seed.png", 0, 0, 16, 16)
-for fish in ("carp", "catfish", "bass", "trout", "sardine", "tuna", "puffer", "golden"):
+for fish in ("carp", "catfish", "bass", "trout", "sardine", "tuna", "puffer", "golden", "octopus", "shrimp"):
     SPEC[f"fish{fish[0].upper()}{fish[1:]}"] = (f"gen/fish_{fish}.png", 0, 0, 16, 16)
 # 原創地標：菲比啾比女神噴水池、瑞吉海獅秀（grok 依 pie-phoebe 原畫重繪成像素風）
 for i in range(3):
@@ -122,6 +122,10 @@ SPEC.update({
     "arenaPie": ("gen/arena_pie.png", 0, 0, 16, 16), "arenaPieGold": ("gen/arena_pie_gold.png", 0, 0, 16, 16),
     "arenaSplat": ("gen/arena_splat.png", 0, 0, 16, 16), "arenaCrown": ("gen/arena_crown.png", 0, 0, 16, 16),
     "arenaPodium": ("gen/arena_podium.png", 0, 0, 48, 32), "arenaDesk": ("gen/arena_desk.png", 0, 0, 48, 32),
+    # 派派新區的全鎮工程（antigravity 依 art/build/BRIEF.md 生成；第三階段工地暫用第二階段）
+    "buildSite0": ("gen/build_site_0.png", 0, 0, 64, 64), "buildSite1": ("gen/build_site_1.png", 0, 0, 64, 64),
+    "buildSite2": ("gen/build_site_1.png", 0, 0, 64, 64), "buildGreenhouse": ("gen/build_greenhouse.png", 0, 0, 64, 64),
+    "buildFireworks": ("gen/build_fireworks.png", 0, 0, 48, 64),
 })
 
 

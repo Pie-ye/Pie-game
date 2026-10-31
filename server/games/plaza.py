@@ -23,6 +23,7 @@ from . import arena as AR
 from . import quests as Q
 from . import party_bots as PB
 from . import boss as BS
+from . import town as TW
 
 GAME_ID = "pie-plaza"
 log = logging.getLogger("pie.plaza")
@@ -109,13 +110,18 @@ class PlazaService:
         self._bot_next: dict[tuple[str, str], int] = {}
         self._bot_memo: dict[tuple[str, str], dict[str, Any]] = {}
         self._bots_at = 0
+        self._fw_sec = 0
         with store._lock:
             for statement in SCHEMA:
                 store._db.execute(statement)
             for row in store._db.execute("SELECT id, seller, seller_name, item, n, price, created_at FROM plaza_market"):
                 self.market[row[0]] = {"id": row[0], "seller": row[1], "sellerName": row[2], "item": row[3], "n": row[4], "price": row[5], "at": row[6]}
             row = store._db.execute("SELECT v FROM plaza_exchange WHERE k='state'").fetchone()
+            trow = store._db.execute("SELECT v FROM plaza_exchange WHERE k='town'").fetchone()
         self.ex = L.sanitize_exchange(json.loads(row[0]) if row else None, self.now_ms())
+        self.town = TW.sanitize(json.loads(trow[0]) if trow else None)
+        self.town_dirty = False
+        self._apply_town_effects()
 
     def now_ms(self) -> int:
         return int(self.clock() * 1000)
@@ -149,10 +155,12 @@ class PlazaService:
         self.dirty.clear()
         ex = json.dumps(self.ex, ensure_ascii=False, separators=(",", ":")) if self.ex_dirty else None
         self.ex_dirty = False
-        if rows or ex is not None:
-            await asyncio.to_thread(self._write_players, rows, ex)
+        town = json.dumps(self.town, ensure_ascii=False, separators=(",", ":")) if self.town_dirty else None
+        self.town_dirty = False
+        if rows or ex is not None or town is not None:
+            await asyncio.to_thread(self._write_players, rows, ex, town)
 
-    def _write_players(self, rows: list[tuple], ex: str | None = None) -> None:
+    def _write_players(self, rows: list[tuple], ex: str | None = None, town: str | None = None) -> None:
         with self.store._lock:
             if rows:
                 self.store._db.executemany(
@@ -162,6 +170,9 @@ class PlazaService:
             if ex is not None:
                 self.store._db.execute(
                     "INSERT INTO plaza_exchange (k, v) VALUES ('state', ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", (ex,))
+            if town is not None:
+                self.store._db.execute(
+                    "INSERT INTO plaza_exchange (k, v) VALUES ('town', ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", (town,))
 
     async def _tick_loop(self, relay) -> None:
         """有人在看的農場：作物依伺服器時間成長，變化推給所有觀看者。"""
@@ -568,7 +579,7 @@ class PlazaService:
         if kind == "sysgift" and data.get("item") in L.ITEMS:
             n = max(1, min(99, int(data.get("n") or 1)))
             rec["inv"][data["item"]] = rec["inv"].get(data["item"], 0) + n
-        elif kind in ("syssold", "sysdiv"):
+        elif kind in ("syssold", "sysdiv", "sysbuild"):
             pass                                                  # 錢在成交／發息時已經入帳，這裡只是讀過
         self.dirty.add(me)
         return self._mine(rec)
@@ -659,8 +670,10 @@ class PlazaService:
     # ---------- 釣魚（伺服器抽魚、計時） ----------
     async def op_cast(self, relay, conn, me, rec, p):
         where = p.get("where")
-        if where not in ("sea", "pond"):
+        if where not in ("sea", "pond", "pier"):
             raise GameError("bad_message")
+        if where == "pier" and not TW.built(self.town, "pier"):
+            raise GameError("not_built", "碼頭還沒蓋好")
         now = self.now_ms()
         contest = where == "sea" and L.event_active("fishing", now)
         fish = L.roll_fish(where, L.taipei(now).tm_hour, contest, self.rng)
@@ -684,7 +697,10 @@ class PlazaService:
         if not fish.get("junk"):
             k = f"fish_{fish['id']}"
             rec["inv"][k] = rec["inv"].get(k, 0) + 1
-            await self._progress(relay, me, rec, [("fish", 1), (f"fish:{fish['id']}", 1), (f"uniq:fish={fish['id']}", 0)])
+            fev: list[tuple[str, Any]] = [("fish", 1), (f"fish:{fish['id']}", 1), (f"uniq:fish={fish['id']}", 0)]
+            if fish["id"] in ("octopus", "shrimp"):
+                fev.append((f"uniq:pierfish={fish['id']}", 0))
+            await self._progress(relay, me, rec, fev)
             L.note_act(self.ex, "FISH", 1)
             self.ex_dirty = True
             self.dirty.add(me)
@@ -1347,6 +1363,28 @@ class PlazaService:
             if changed:
                 await getattr(self, f"_broadcast_{kind}")(relay)
 
+    async def _fireworks_step(self, relay, now: int) -> None:
+        """煙火台蓋好後：每晚 21:00–21:05（台北）在廣場的人，每天一次小禮物。"""
+        if not TW.built(self.town, "fireworks"):
+            return
+        t = L.taipei(now)
+        if not (t.tm_hour == 21 and t.tm_min < 5):
+            return
+        day = L.taipei_day(now)
+        for c in list(relay.connections):
+            if c.game_id != GAME_ID or c.area != "plaza":
+                continue
+            uid = str(c.user_id)
+            rec = self.players.get(uid)
+            if rec is None or rec.get("fw") == day:
+                continue
+            rec["fw"] = day
+            rec["gold"] += 20
+            crop = self.rng.choice(L.CROP_KEYS)
+            rec["seeds"][crop] = rec["seeds"].get(crop, 0) + 2
+            self.dirty.add(uid)
+            await self._push_me(relay, uid, fwGift={"gold": 20, "item": crop, "n": 2})
+
     async def _boss_step(self, relay, now: int, dt: float) -> None:
         """大胃王蛙：排程出現、預告、模擬、推播、發獎。"""
         bs = self.boss
@@ -1432,6 +1470,9 @@ class PlazaService:
         if now - self._bots_at >= 400:
             self._bots_at = now
             await self._party_bots(relay)
+        if now // 1000 != self._fw_sec:
+            self._fw_sec = now // 1000
+            await self._fireworks_step(relay, now)
         await self._boss_step(relay, now, min(0.25, max(0.0, (now - self._arena_last) / 1000)) if self._arena_last else ARENA_SECONDS)
         dt = min(0.25, max(0.0, (now - self._arena_last) / 1000)) if self._arena_last else ARENA_SECONDS
         self._arena_last = now
@@ -1522,6 +1563,54 @@ class PlazaService:
         day = L.taipei_day(now)
         return {"arena": ar.snapshot(now), "stats": {"shows": st.get("shows", 0), "wins": st.get("wins", 0),
                 "paidLeft": AR.DAILY_PAID - (st.get("paid", 0) if st.get("day") == day else 0)}}
+
+    # ---------- 全鎮工程（派派新區） ----------
+    def _apply_town_effects(self) -> None:
+        L.GROW_SPEED = 1.25 if TW.built(self.town, "greenhouse") else 1.0
+
+    def _town_public(self) -> dict[str, Any]:
+        return {"done": list(self.town["done"]), "cur": self.town["cur"], "p": round(TW.progress(self.town), 3)}
+
+    async def op_town(self, relay, conn, me, rec, p):
+        act = p.get("act")
+        if act == "donate":
+            item = p.get("item")
+            n = self._int(p.get("n"), 1, 99999)
+            if not isinstance(item, str) or not (item == "gold" or item in L.ITEMS):
+                raise GameError("bad_message", "沒有這種東西")
+            r = TW.donate(self.town, rec, me, rec["name"], item, n, L.SELL, self.now_ms())
+            if not r["ok"]:
+                raise GameError(r["code"], r["msg"])
+            self.town_dirty = True
+            self.dirty.add(me)
+            await self._progress(relay, me, rec, [("town_give", 1), ("town_points", r["points"])])
+            if r.get("done"):
+                await self._town_finished(relay, r["done"])
+            pub = self._town_public()
+            for c in list(relay.connections):
+                if c.game_id == GAME_ID and c.area == "frontier" and c is not conn:
+                    await self._send(c, {"type": "game", "op": "town", "town": pub, "by": rec["name"], "key": r["key"], "n": r["took"]})
+            return {"took": r["took"], "points": r["points"], "done": r.get("done"), "view": TW.view(self.town, me), "town": pub, **self._mine(rec)}
+        if act != "view":
+            raise GameError("bad_message", "無效的動作")
+        return {"view": TW.view(self.town, me), "town": self._town_public(), "grow": L.GROW_SPEED}
+
+    async def _town_finished(self, relay, done: dict[str, Any]) -> None:
+        self._apply_town_effects()
+        for r in done["rewards"]:
+            rec = await self.load(r["id"], create=False)
+            if rec is None:
+                continue
+            rec["gold"] += r["gold"]
+            self.dirty.add(r["id"])
+            await self._notify(relay, r["id"], "sys", "建設委員會", "sysbuild", {"name": done["name"], "gold": r["gold"], "points": r["points"]})
+            await self._push_me(relay, r["id"])
+            ev: list[tuple[str, Any]] = [("town_build", 1)]
+            if r["top"]:
+                ev.append(("town_top", 1))
+            await self._progress(relay, r["id"], rec, ev)
+        await self._game_all(relay, {"type": "game", "op": "townDone", "name": done["name"], "effect": done["effect"], "town": self._town_public(),
+                                     "top": done["rewards"][0]["name"] if done["rewards"] else ""})
 
     async def op_quests(self, relay, conn, me, rec, p):
         return {"quests": Q.view(rec, me, L.taipei_day(self.now_ms()))}
