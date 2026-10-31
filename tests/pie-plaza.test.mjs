@@ -18,6 +18,17 @@ const { eventObjects } = await import(`${SRC}/events/effects.js`);
 const EX = await import(`${SRC}/house/exterior.js`);
 const X = await import(`${SRC}/game/exchange.js`);
 const { createLocalApi } = await import(`${SRC}/game/api.js`);
+const PTY = await import(`${SRC}/game/party.js`);
+const CT = await import(`${SRC}/game/contest.js`);
+const SK = await import(`${SRC}/game/seek.js`);
+const HOT = await import(`${SRC}/game/hot.js`);
+const TG = await import(`${SRC}/game/tug.js`);
+const HL = await import(`${SRC}/game/haul.js`);
+const LT = await import(`${SRC}/game/light.js`);
+const HI = await import(`${SRC}/game/hill.js`);
+const SM = await import(`${SRC}/game/smash.js`);
+const VA = await import(`${SRC}/game/vase.js`);
+const CD = await import(`${SRC}/ui/countdown.js`);
 
 // ---------- 聊天與基本邏輯 ----------
 test('cleanText strips controls, bidi marks and collapses spaces', () => {
@@ -442,4 +453,1147 @@ test('mail is validated and gifts move items safely', () => {
   assert.equal(SO.takeGift(inv, 'pumpkin'), true); assert.deepEqual(inv, { wood: 9 });
   assert.equal(SO.takeGift(inv, 'pumpkin'), false);
   for (const n of SO.EMOTES) assert.ok(ATLAS[`emote${n}`], `emote${n}`);
+});
+
+// ---------- 廣場搶寶 ----------
+test('plaza treasure scramble: three join, grab, settle G, fourth and post-settle rejected', () => {
+  let rnd = PTY.newParty();
+  rnd = PTY.partyJoin(rnd, 'a', '阿派', 0).round;
+  rnd = PTY.partyJoin(rnd, 'b', '小菲', 1).round;
+  const third = PTY.partyJoin(rnd, 'c', '皮皮', 2);
+  assert.equal(third.ok, true); rnd = third.round;
+  assert.equal(rnd.status, 'countdown');
+  assert.equal(rnd.order.length, 3);
+  const early = PTY.partyGrab(rnd, 'a', PTY.PARTY.spots[0].id, PTY.PARTY.spots[0].x, PTY.PARTY.spots[0].y, 3);
+  assert.equal(early.ok, false); assert.equal(early.code, 'not_live');
+  const boarded = PTY.partyJoin(rnd, 'd', '路人', 4);
+  assert.equal(boarded.ok, true); rnd = boarded.round;
+  assert.equal(rnd.status, 'countdown');
+  assert.equal(rnd.order.length, 4);
+  PTY.maybeExpire(rnd, rnd.startedAt + PTY.PARTY.countdownMs);
+  assert.equal(rnd.status, 'live');
+  const fourth = PTY.partyJoin(rnd, 'e', '晚到', PTY.PARTY.countdownMs + 1);
+  assert.equal(fourth.ok, false);
+  assert.equal(fourth.code, 'party_live');
+  const far = PTY.partyGrab(rnd, 'a', PTY.PARTY.spots[0].id, 0, 0, PTY.PARTY.countdownMs + 10);
+  assert.equal(far.ok, false); assert.equal(far.code, 'too_far');
+  const order = [['a', 0], ['b', 1], ['c', 2], ['a', 3], ['b', 4], ['c', 5]];
+  for (const [uid, i] of order) {
+    const s = PTY.PARTY.spots[i];
+    const r = PTY.partyGrab(rnd, uid, s.id, s.x, s.y, PTY.PARTY.countdownMs + 20 + i);
+    assert.equal(r.ok, true, r.msg || r.code);
+    rnd = r.round;
+  }
+  assert.equal(rnd.status, 'over');
+  assert.deepEqual(rnd.payouts, { a: 40, b: 20, c: 10, d: 5 });
+  const rec = { gold: 100 };
+  assert.equal(PTY.applyPartyGold(rec, 'a', rnd), 40);
+  assert.equal(rec.gold, 140);
+  assert.equal(PTY.applyPartyGold(rec, 'a', rnd), 0);
+  const after = PTY.partyGrab(rnd, 'a', PTY.PARTY.spots[0].id, PTY.PARTY.spots[0].x, PTY.PARTY.spots[0].y, 99);
+  assert.equal(after.ok, false);
+  assert.equal(after.code, 'party_over');
+});
+test('plaza scramble countdown: leave below min reopens, full board goes live', () => {
+  let rnd = PTY.newParty();
+  for (const [id, name] of [['a', 'A'], ['b', 'B'], ['c', 'C']]) rnd = PTY.partyJoin(rnd, id, name, 0).round;
+  assert.equal(rnd.status, 'countdown');
+  rnd = PTY.partyLeave(rnd, 'c', 1).round;
+  assert.equal(rnd.status, 'open');
+  assert.equal(rnd.startedAt, null);
+  rnd = PTY.partyJoin(rnd, 'c', 'C', 2).round;
+  assert.equal(rnd.status, 'countdown');
+  for (const id of ['d', 'e', 'f', 'g', 'h']) rnd = PTY.partyJoin(rnd, id, id.toUpperCase(), 3).round;
+  assert.equal(rnd.status, 'live');
+  assert.equal(rnd.order.length, 8);
+  assert.equal(PTY.partyJoin(rnd, 'i', 'I', 4).code, 'party_live');
+});
+test('plaza map exposes the scramble chest and every spot sprite is in ATLAS', () => {
+  const sign = maps.plaza.signs.find((s) => s.action === 'party');
+  assert.ok(sign && sign.x === PTY.JOIN.x && sign.y === PTY.JOIN.y);
+  const chest = maps.plaza.objects.find((o) => o.k === PTY.JOIN.k && o.x === sign.x && o.y === sign.y);
+  assert.ok(chest && ATLAS[chest.k], 'join chest sprite missing from ATLAS');
+  for (const s of PTY.PARTY.spots) {
+    assert.ok(ATLAS[s.k], s.k);
+    assert.ok(maps.plaza.objects.some((o) => o.k === s.k && o.x === s.x && o.y === s.y), s.id);
+    assert.ok(maps.plaza.signs.some((t) => t.action === 'partyGrab' && t.spot === s.id));
+  }
+});
+test('guest sandbox can run a scramble and does not persist gold', async () => {
+  const api = createLocalApi();
+  const joined = await api.call('party', { act: 'join' });
+  assert.equal(joined.party.status, 'live');
+  assert.ok(joined.party.players.length >= 3);
+  const s = PTY.PARTY.spots[0];
+  const grabbed = await api.call('party', { act: 'grab', spot: s.id, x: s.x, y: s.y });
+  assert.equal(grabbed.party.status, 'over');
+  assert.ok(grabbed.gold > 100);
+  assert.ok(grabbed.payout >= 5);
+  const gold = (await api.call('load')).me.gold;
+  assert.equal(gold, grabbed.gold);
+  const fresh = createLocalApi();
+  assert.equal((await fresh.call('load')).me.gold, 100);
+  await assert.rejects(() => api.call('party', { act: 'grab', spot: s.id, x: s.x, y: s.y }), /結束|party_over/);
+});
+test('timeout end pays 40/20/10 once, even if next op is join or grab', async () => {
+  const t0 = 1000, later = t0 + PTY.PARTY.roundMs;
+  const joinPay = createLocalApi();
+  const live = await joinPay.call('party', { act: 'join', now: t0 });
+  assert.equal(live.party.status, 'live');
+  assert.equal(live.party.players[0].id, 'guest');
+  const afterJoin = await joinPay.call('party', { act: 'join', now: later });
+  assert.equal(afterJoin.gold, 140);
+  assert.equal(afterJoin.payout, 40);
+  assert.equal((await joinPay.call('party', { act: 'view', now: later + 1 })).gold, 140);
+
+  const grabPay = createLocalApi();
+  await grabPay.call('party', { act: 'join', now: t0 });
+  const s = PTY.PARTY.spots[0];
+  await assert.rejects(
+    () => grabPay.call('party', { act: 'grab', spot: s.id, x: s.x, y: s.y, now: later }),
+    /結束|party_over/,
+  );
+  assert.equal((await grabPay.call('load')).me.gold, 140);
+  assert.equal((await grabPay.call('party', { act: 'view', now: later + 1 })).gold, 140);
+
+  let rnd = PTY.newParty();
+  rnd = PTY.partyJoin(rnd, 'a', 'A', t0).round;
+  rnd = PTY.partyJoin(rnd, 'b', 'B', t0).round;
+  rnd = PTY.partyJoin(rnd, 'c', 'C', t0).round;
+  assert.equal(rnd.status, 'countdown');
+  const recs = { a: { gold: 100 }, b: { gold: 100 }, c: { gold: 100 } };
+  const end = t0 + PTY.PARTY.countdownMs + PTY.PARTY.roundMs;
+  PTY.maybeExpire(rnd, end);
+  assert.equal(rnd.status, 'over');
+  assert.deepEqual(rnd.payouts, { a: 40, b: 20, c: 10 });
+  assert.equal(PTY.applyPartyGold(recs.a, 'a', rnd), 40);
+  assert.equal(PTY.applyPartyGold(recs.b, 'b', rnd), 20);
+  assert.equal(PTY.applyPartyGold(recs.c, 'c', rnd), 10);
+  const nxt = PTY.partyJoin(rnd, 'd', 'D', end);
+  assert.equal(nxt.ok, true);
+  assert.equal(nxt.round.status, 'open');
+  assert.equal(PTY.applyPartyGold(recs.a, 'a', nxt.round), 0);
+  assert.equal(recs.a.gold, 140);
+});
+
+// ---------- 釣魚大賽 ----------
+test('fishing contest scores cm, doubles golden, pays 40/20/10 at slot end', () => {
+  const noon = at(12), end = at(13);
+  let rnd = CT.newContest();
+  rnd = CT.contestCatch(rnd, 'a', '阿派', 'sardine', 20, noon).round;
+  rnd = CT.contestCatch(rnd, 'b', '小菲', 'golden', 20, noon).round;
+  rnd = CT.contestCatch(rnd, 'c', '皮皮', 'tuna', 30, noon).round;
+  assert.equal(rnd.players.b.score, 40);
+  assert.equal(CT.contestCatch(rnd, 'd', '路人', 'bass', 10, end).code, 'contest_closed');
+  CT.maybeExpireContest(rnd, end);
+  assert.equal(rnd.status, 'over');
+  assert.deepEqual(rnd.payouts, { b: 40, c: 20, a: 10 });
+  const rec = { gold: 100 };
+  assert.equal(CT.applyContestGold(rec, 'b', rnd), 40);
+  assert.equal(rec.gold, 140);
+  assert.equal(CT.applyContestGold(rec, 'b', rnd), 0);
+  const nxt = CT.contestCatch(rnd, 'e', 'E', 'bass', 15, noon);
+  assert.equal(nxt.ok, true);
+  assert.equal(nxt.round.slot, '12-13');
+  assert.equal(CT.applyContestGold(rec, 'b', nxt.round), 0);
+});
+test('plaza map exposes the fishing contest board and sprite is in ATLAS', () => {
+  const sign = maps.plaza.signs.find((s) => s.action === 'contest');
+  assert.ok(sign && sign.x === CT.BOARD.x && sign.y === CT.BOARD.y);
+  const board = maps.plaza.objects.find((o) => o.k === CT.BOARD.k && o.x === sign.x && o.y === sign.y);
+  assert.ok(board && ATLAS[board.k], 'contest board sprite missing from ATLAS');
+});
+test('guest sandbox contest pays once and does not persist gold', async () => {
+  const noon = at(12), end = at(13);
+  const api = createLocalApi();
+  let land = null;
+  for (let i = 0; i < 16; i++) {
+    const c = await api.call('cast', { where: 'sea', now: noon });
+    assert.equal(c.contest, true);
+    land = await api.call('land', { cast: c.cast, ok: true, now: noon });
+    if (land.caught && land.size > 0 && land.board && land.board.players.length) break;
+  }
+  assert.ok(land && land.board && land.board.players.length >= 1, 'guest should land a scoring fish during the slot');
+  const done = await api.call('contest', { now: end });
+  assert.equal(done.contest.status, 'over');
+  assert.equal(done.gold, 140);
+  assert.equal(done.payout, 40);
+  assert.equal((await api.call('contest', { now: end + 1 })).gold, 140);
+  const fresh = createLocalApi();
+  assert.equal((await fresh.call('load')).me.gold, 100);
+});
+
+// ---------- 營火捉迷藏 ----------
+test('plaza hide-and-seek: three join, first is seeker, hide/check tag, settle G', () => {
+  let rnd = SK.newSeek();
+  rnd = SK.seekJoin(rnd, 'a', '阿派', 0).round;
+  rnd = SK.seekJoin(rnd, 'b', '小菲', 1).round;
+  const third = SK.seekJoin(rnd, 'c', '皮皮', 2);
+  assert.equal(third.ok, true); rnd = third.round;
+  assert.equal(rnd.status, 'countdown');
+  assert.equal(rnd.order.length, 3);
+  const early = SK.seekHide(rnd, 'b', SK.SEEK.spots[0].id, SK.SEEK.spots[0].x, SK.SEEK.spots[0].y, 3);
+  assert.equal(early.ok, false); assert.equal(early.code, 'not_live');
+  const boarded = SK.seekJoin(rnd, 'd', '路人', 4);
+  assert.equal(boarded.ok, true); rnd = boarded.round;
+  assert.equal(rnd.status, 'countdown');
+  SK.maybeExpireSeek(rnd, rnd.startedAt + SK.SEEK.countdownMs);
+  assert.equal(rnd.status, 'live');
+  assert.equal(rnd.seeker, 'a');
+  const fourth = SK.seekJoin(rnd, 'e', '晚到', SK.SEEK.countdownMs + 1);
+  assert.equal(fourth.ok, false);
+  assert.equal(fourth.code, 'seek_live');
+  assert.equal(SK.seekJoin(rnd, 'a', '阿派', SK.SEEK.countdownMs + 2).code, 'already_in');
+  const asSeeker = SK.seekHide(rnd, 'a', SK.SEEK.spots[0].id, SK.SEEK.spots[0].x, SK.SEEK.spots[0].y, SK.SEEK.countdownMs + 10);
+  assert.equal(asSeeker.code, 'not_hider');
+  const far = SK.seekHide(rnd, 'b', SK.SEEK.spots[0].id, 0, 0, SK.SEEK.countdownMs + 11);
+  assert.equal(far.code, 'too_far');
+  const s0 = SK.SEEK.spots[0], s1 = SK.SEEK.spots[1];
+  assert.equal(SK.seekHide(rnd, 'b', s0.id, s0.x, s0.y, SK.SEEK.countdownMs + 12).ok, true);
+  assert.equal(SK.seekHide(rnd, 'b', s0.id, s0.x, s0.y, SK.SEEK.countdownMs + 13).code, 'already_hidden');
+  assert.equal(SK.seekHide(rnd, 'c', s0.id, s0.x, s0.y, SK.SEEK.countdownMs + 14).code, 'spot_taken');
+  assert.equal(SK.seekHide(rnd, 'c', s1.id, s1.x, s1.y, SK.SEEK.countdownMs + 15).ok, true);
+  assert.equal(SK.seekCheck(rnd, 'b', s0.id, s0.x, s0.y, SK.SEEK.countdownMs + 16).code, 'not_seeker');
+  assert.equal(SK.seekCheck(rnd, 'a', SK.SEEK.spots[2].id, SK.SEEK.spots[2].x, SK.SEEK.spots[2].y, SK.SEEK.countdownMs + 17).code, 'empty_spot');
+  const tagged = SK.seekCheck(rnd, 'a', s0.id, s0.x, s0.y, SK.SEEK.countdownMs + 18);
+  assert.equal(tagged.ok, true);
+  assert.equal(tagged.found, 'b');
+  assert.equal(rnd.seeker, 'b');
+  assert.equal(rnd.hidden.b, undefined);
+  assert.equal(rnd.hidden.c, s1.id);
+  SK.maybeExpireSeek(rnd, rnd.startedAt + SK.SEEK.roundMs);
+  assert.equal(rnd.status, 'over');
+  assert.deepEqual(rnd.payouts, { c: 40, a: 20, b: 10, d: 5 });
+  const rec = { gold: 100 };
+  assert.equal(SK.applySeekGold(rec, 'c', rnd), 40);
+  assert.equal(rec.gold, 140);
+  assert.equal(SK.applySeekGold(rec, 'c', rnd), 0);
+  assert.equal(SK.seekHide(rnd, 'c', s1.id, s1.x, s1.y, 99).code, 'seek_over');
+});
+test('plaza hide-and-seek countdown: leave below min reopens, full board goes live', () => {
+  let rnd = SK.newSeek();
+  for (const [id, name] of [['a', 'A'], ['b', 'B'], ['c', 'C']]) rnd = SK.seekJoin(rnd, id, name, 0).round;
+  assert.equal(rnd.status, 'countdown');
+  rnd = SK.seekLeave(rnd, 'c', 1).round;
+  assert.equal(rnd.status, 'open');
+  assert.equal(rnd.startedAt, null);
+  rnd = SK.seekJoin(rnd, 'c', 'C', 2).round;
+  assert.equal(rnd.status, 'countdown');
+  for (const id of ['d', 'e', 'f', 'g', 'h']) rnd = SK.seekJoin(rnd, id, id.toUpperCase(), 3).round;
+  assert.equal(rnd.status, 'live');
+  assert.equal(rnd.order.length, 8);
+  assert.equal(rnd.seeker, 'a');
+  assert.equal(SK.seekJoin(rnd, 'i', 'I', 4).code, 'seek_live');
+  assert.equal(SK.seekLeave(rnd, 'c', 5).code, 'seek_live');
+});
+test('plaza map exposes the hide-and-seek log and every spot sprite is in ATLAS', () => {
+  const sign = maps.plaza.signs.find((s) => s.action === 'seek');
+  assert.ok(sign && sign.x === SK.SEEK_JOIN.x && sign.y === SK.SEEK_JOIN.y);
+  const log = maps.plaza.objects.find((o) => o.k === SK.SEEK_JOIN.k && o.x === sign.x && o.y === sign.y);
+  assert.ok(log && ATLAS[log.k], 'join log sprite missing from ATLAS');
+  for (const s of SK.SEEK.spots) {
+    assert.ok(ATLAS[s.k], s.k);
+    assert.ok(maps.plaza.objects.some((o) => o.k === s.k && o.x === s.x && o.y === s.y), s.id);
+    assert.ok(maps.plaza.signs.some((t) => t.action === 'seekSpot' && t.spot === s.id));
+  }
+});
+test('guest sandbox hide-and-seek fills bots, guest is seeker, timeout pays once', async () => {
+  const t0 = 1000, later = t0 + SK.SEEK.roundMs;
+  const api = createLocalApi();
+  const joined = await api.call('seek', { act: 'join', now: t0 });
+  assert.equal(joined.seek.status, 'live');
+  assert.ok(joined.seek.players.length >= 3);
+  assert.equal(joined.seek.seeker, 'guest');
+  assert.ok(joined.seek.players.filter((p) => p.hidden).length >= 2);
+  const s = SK.SEEK.spots[0];
+  const found = await api.call('seek', { act: 'check', spot: s.id, x: s.x, y: s.y, now: t0 + 10 });
+  assert.equal(found.seek.seeker !== 'guest', true);
+  const done = await api.call('seek', { act: 'view', now: later });
+  assert.equal(done.seek.status, 'over');
+  assert.ok(done.gold > 100);
+  assert.ok(done.payout >= 5);
+  assert.equal((await api.call('seek', { act: 'view', now: later + 1 })).gold, done.gold);
+  const fresh = createLocalApi();
+  assert.equal((await fresh.call('load')).me.gold, 100);
+  await assert.rejects(() => api.call('seek', { act: 'hide', spot: s.id, x: s.x, y: s.y, now: later + 2 }), /結束|seek_over/);
+});
+test('timeout end pays remaining hiders first, even if next op is join', () => {
+  const t0 = 1000;
+  let rnd = SK.newSeek();
+  rnd = SK.seekJoin(rnd, 'a', 'A', t0).round;
+  rnd = SK.seekJoin(rnd, 'b', 'B', t0).round;
+  rnd = SK.seekJoin(rnd, 'c', 'C', t0).round;
+  assert.equal(rnd.status, 'countdown');
+  SK.maybeExpireSeek(rnd, t0 + SK.SEEK.countdownMs);
+  const s0 = SK.SEEK.spots[0];
+  assert.equal(SK.seekHide(rnd, 'b', s0.id, s0.x, s0.y, t0 + SK.SEEK.countdownMs + 1).ok, true);
+  const recs = { a: { gold: 100 }, b: { gold: 100 }, c: { gold: 100 } };
+  const end = t0 + SK.SEEK.countdownMs + SK.SEEK.roundMs;
+  SK.maybeExpireSeek(rnd, end);
+  assert.equal(rnd.status, 'over');
+  assert.deepEqual(rnd.payouts, { b: 40, a: 20, c: 10 });
+  assert.equal(SK.applySeekGold(recs.b, 'b', rnd), 40);
+  assert.equal(SK.applySeekGold(recs.a, 'a', rnd), 20);
+  assert.equal(SK.applySeekGold(recs.c, 'c', rnd), 10);
+  const nxt = SK.seekJoin(rnd, 'd', 'D', end);
+  assert.equal(nxt.ok, true);
+  assert.equal(nxt.round.status, 'open');
+  assert.equal(SK.applySeekGold(recs.b, 'b', nxt.round), 0);
+  assert.equal(recs.b.gold, 140);
+});
+
+// ---------- 傳南瓜 ----------
+test('plaza hot potato: three join, first holds, take, holder ranks last', () => {
+  let rnd = HOT.newHot();
+  rnd = HOT.hotJoin(rnd, 'a', '阿派', 0).round;
+  rnd = HOT.hotJoin(rnd, 'b', '小菲', 1).round;
+  const third = HOT.hotJoin(rnd, 'c', '皮皮', 2);
+  assert.equal(third.ok, true); rnd = third.round;
+  assert.equal(rnd.status, 'countdown');
+  const early = HOT.hotTake(rnd, 'b', HOT.HOT_JOIN.x, HOT.HOT_JOIN.y, 3);
+  assert.equal(early.code, 'not_live');
+  const boarded = HOT.hotJoin(rnd, 'd', '路人', 4);
+  assert.equal(boarded.ok, true); rnd = boarded.round;
+  HOT.maybeExpireHot(rnd, rnd.startedAt + HOT.HOT.countdownMs);
+  assert.equal(rnd.status, 'live');
+  assert.equal(rnd.holder, 'a');
+  assert.equal(HOT.hotJoin(rnd, 'e', '晚到', HOT.HOT.countdownMs + 1).code, 'hot_live');
+  assert.equal(HOT.hotJoin(rnd, 'a', '阿派', HOT.HOT.countdownMs + 2).code, 'already_in');
+  assert.equal(HOT.hotTake(rnd, 'a', HOT.HOT_JOIN.x, HOT.HOT_JOIN.y, HOT.HOT.countdownMs + 10).code, 'already_holding');
+  assert.equal(HOT.hotTake(rnd, 'b', 0, 0, HOT.HOT.countdownMs + 11).code, 'too_far');
+  const took = HOT.hotTake(rnd, 'b', HOT.HOT_JOIN.x, HOT.HOT_JOIN.y, HOT.HOT.countdownMs + 12);
+  assert.equal(took.ok, true);
+  assert.equal(rnd.holder, 'b');
+  HOT.maybeExpireHot(rnd, rnd.startedAt + HOT.HOT.roundMs);
+  assert.equal(rnd.status, 'over');
+  assert.deepEqual(rnd.payouts, { a: 40, c: 20, d: 10, b: 5 });
+  const rec = { gold: 100 };
+  assert.equal(HOT.applyHotGold(rec, 'a', rnd), 40);
+  assert.equal(rec.gold, 140);
+  assert.equal(HOT.applyHotGold(rec, 'a', rnd), 0);
+  assert.equal(HOT.hotTake(rnd, 'c', HOT.HOT_JOIN.x, HOT.HOT_JOIN.y, 99).code, 'hot_over');
+});
+test('plaza hot potato countdown: leave below min reopens, full board goes live', () => {
+  let rnd = HOT.newHot();
+  for (const [id, name] of [['a', 'A'], ['b', 'B'], ['c', 'C']]) rnd = HOT.hotJoin(rnd, id, name, 0).round;
+  assert.equal(rnd.status, 'countdown');
+  rnd = HOT.hotLeave(rnd, 'c', 1).round;
+  assert.equal(rnd.status, 'open');
+  rnd = HOT.hotJoin(rnd, 'c', 'C', 2).round;
+  assert.equal(rnd.status, 'countdown');
+  for (const id of ['d', 'e', 'f', 'g', 'h']) rnd = HOT.hotJoin(rnd, id, id.toUpperCase(), 3).round;
+  assert.equal(rnd.status, 'live');
+  assert.equal(rnd.order.length, 8);
+  assert.equal(rnd.holder, 'a');
+  assert.equal(HOT.hotJoin(rnd, 'i', 'I', 4).code, 'hot_live');
+  assert.equal(HOT.hotLeave(rnd, 'c', 5).code, 'hot_live');
+});
+test('plaza map exposes the hot-potato pumpkin and sprite is in ATLAS', () => {
+  const sign = maps.plaza.signs.find((s) => s.action === 'hot');
+  assert.ok(sign && sign.x === HOT.HOT_JOIN.x && sign.y === HOT.HOT_JOIN.y);
+  const pumpkin = maps.plaza.objects.find((o) => o.k === HOT.HOT_JOIN.k && o.x === sign.x && o.y === sign.y);
+  assert.ok(pumpkin && ATLAS[pumpkin.k], 'pumpkin sprite missing from ATLAS');
+});
+test('guest sandbox hot potato fills bots, a bot holds, timeout pays guest first', async () => {
+  const t0 = 1000, later = t0 + HOT.HOT.roundMs;
+  const api = createLocalApi();
+  const joined = await api.call('hot', { act: 'join', now: t0 });
+  assert.equal(joined.hot.status, 'live');
+  assert.ok(joined.hot.players.length >= 3);
+  assert.equal(joined.hot.holder !== 'guest', true);
+  const took = await api.call('hot', { act: 'take', x: HOT.HOT_JOIN.x, y: HOT.HOT_JOIN.y, now: t0 + 10 });
+  assert.equal(took.hot.holder, 'guest');
+  const done = await api.call('hot', { act: 'view', now: later });
+  assert.equal(done.hot.status, 'over');
+  assert.ok(done.gold > 100);
+  assert.ok(done.payout >= 5);
+  assert.equal((await api.call('hot', { act: 'view', now: later + 1 })).gold, done.gold);
+  const fresh = createLocalApi();
+  assert.equal((await fresh.call('load')).me.gold, 100);
+  await assert.rejects(() => api.call('hot', { act: 'take', x: HOT.HOT_JOIN.x, y: HOT.HOT_JOIN.y, now: later + 2 }), /結束|hot_over/);
+});
+test('hot potato timeout pays holder last, even if next op is join', () => {
+  const t0 = 1000;
+  let rnd = HOT.newHot();
+  rnd = HOT.hotJoin(rnd, 'a', 'A', t0).round;
+  rnd = HOT.hotJoin(rnd, 'b', 'B', t0).round;
+  rnd = HOT.hotJoin(rnd, 'c', 'C', t0).round;
+  HOT.maybeExpireHot(rnd, t0 + HOT.HOT.countdownMs);
+  assert.equal(HOT.hotTake(rnd, 'b', HOT.HOT_JOIN.x, HOT.HOT_JOIN.y, t0 + HOT.HOT.countdownMs + 1).ok, true);
+  const recs = { a: { gold: 100 }, b: { gold: 100 }, c: { gold: 100 } };
+  const end = t0 + HOT.HOT.countdownMs + HOT.HOT.roundMs;
+  HOT.maybeExpireHot(rnd, end);
+  assert.equal(rnd.status, 'over');
+  assert.deepEqual(rnd.payouts, { a: 40, c: 20, b: 10 });
+  assert.equal(HOT.applyHotGold(recs.a, 'a', rnd), 40);
+  assert.equal(HOT.applyHotGold(recs.c, 'c', rnd), 20);
+  assert.equal(HOT.applyHotGold(recs.b, 'b', rnd), 10);
+  const nxt = HOT.hotJoin(rnd, 'd', 'D', end);
+  assert.equal(nxt.ok, true);
+  assert.equal(nxt.round.status, 'open');
+  assert.equal(HOT.applyHotGold(recs.a, 'a', nxt.round), 0);
+  assert.equal(recs.a.gold, 140);
+});
+
+// ---------- 廣場拔河 ----------
+test('plaza tug of war: three join, even left odd right, pull, winning side paid', () => {
+  let rnd = TG.newTug();
+  rnd = TG.tugJoin(rnd, 'a', '阿派', 0).round;
+  rnd = TG.tugJoin(rnd, 'b', '小菲', 1).round;
+  const third = TG.tugJoin(rnd, 'c', '皮皮', 2);
+  assert.equal(third.ok, true); rnd = third.round;
+  assert.equal(rnd.status, 'countdown');
+  const L = TG.TUG.spots[0], R = TG.TUG.spots[1];
+  const early = TG.tugPull(rnd, 'a', L.id, L.x, L.y, 3);
+  assert.equal(early.code, 'not_live');
+  TG.maybeExpireTug(rnd, rnd.startedAt + TG.TUG.countdownMs);
+  assert.equal(rnd.status, 'live');
+  assert.equal(rnd.team.a, 'L');
+  assert.equal(rnd.team.b, 'R');
+  assert.equal(rnd.team.c, 'L');
+  assert.equal(TG.tugJoin(rnd, 'e', '晚到', TG.TUG.countdownMs + 1).code, 'tug_live');
+  assert.equal(TG.tugJoin(rnd, 'a', '阿派', TG.TUG.countdownMs + 2).code, 'already_in');
+  assert.equal(TG.tugPull(rnd, 'a', R.id, R.x, R.y, TG.TUG.countdownMs + 10).code, 'wrong_side');
+  assert.equal(TG.tugPull(rnd, 'a', L.id, 0, 0, TG.TUG.countdownMs + 11).code, 'too_far');
+  assert.equal(TG.tugPull(rnd, 'a', L.id, L.x, L.y, TG.TUG.countdownMs + 12).ok, true);
+  assert.equal(TG.tugPull(rnd, 'b', R.id, R.x, R.y, TG.TUG.countdownMs + 13).ok, true);
+  assert.equal(TG.tugPull(rnd, 'b', R.id, R.x, R.y, TG.TUG.countdownMs + 14).ok, true);
+  TG.maybeExpireTug(rnd, rnd.startedAt + TG.TUG.roundMs);
+  assert.equal(rnd.status, 'over');
+  assert.equal(rnd.winner, 'R');
+  assert.deepEqual(rnd.payouts, { b: 40, a: 5, c: 5 });
+  const rec = { gold: 100 };
+  assert.equal(TG.applyTugGold(rec, 'b', rnd), 40);
+  assert.equal(rec.gold, 140);
+  assert.equal(TG.applyTugGold(rec, 'b', rnd), 0);
+  assert.equal(TG.tugPull(rnd, 'a', L.id, L.x, L.y, 99).code, 'tug_over');
+});
+test('plaza tug countdown: leave below min reopens, full board goes live', () => {
+  let rnd = TG.newTug();
+  for (const [id, name] of [['a', 'A'], ['b', 'B'], ['c', 'C']]) rnd = TG.tugJoin(rnd, id, name, 0).round;
+  assert.equal(rnd.status, 'countdown');
+  rnd = TG.tugLeave(rnd, 'c', 1).round;
+  assert.equal(rnd.status, 'open');
+  rnd = TG.tugJoin(rnd, 'c', 'C', 2).round;
+  for (const id of ['d', 'e', 'f', 'g', 'h']) rnd = TG.tugJoin(rnd, id, id.toUpperCase(), 3).round;
+  assert.equal(rnd.status, 'live');
+  assert.equal(rnd.order.length, 8);
+  assert.equal(TG.tugJoin(rnd, 'i', 'I', 4).code, 'tug_live');
+});
+test('plaza map exposes tug hay stakes and sprites are in ATLAS', () => {
+  const sign = maps.plaza.signs.find((s) => s.action === 'tug');
+  assert.ok(sign && sign.x === TG.TUG_JOIN.x && sign.y === TG.TUG_JOIN.y);
+  const hay = maps.plaza.objects.find((o) => o.k === TG.TUG_JOIN.k && o.x === sign.x && o.y === sign.y);
+  assert.ok(hay && ATLAS[hay.k], 'tug join hay missing from ATLAS');
+  for (const s of TG.TUG.spots) {
+    assert.ok(ATLAS[s.k], s.k);
+    assert.ok(maps.plaza.objects.some((o) => o.k === s.k && o.x === s.x && o.y === s.y), s.id);
+    assert.ok(maps.plaza.signs.some((t) => t.action === 'tugPull' && t.side === s.id));
+  }
+});
+test('guest sandbox tug fills bots and timeout pays once', async () => {
+  const t0 = 1000, later = t0 + TG.TUG.roundMs;
+  const api = createLocalApi();
+  const joined = await api.call('tug', { act: 'join', now: t0 });
+  assert.equal(joined.tug.status, 'live');
+  assert.ok(joined.tug.players.length >= 3);
+  const side = joined.tug.yourTeam;
+  const s = TG.TUG.spots.find((x) => x.id === side);
+  const pulled = await api.call('tug', { act: 'pull', side: s.id, x: s.x, y: s.y, now: t0 + 10 });
+  assert.ok(pulled.tug.players.find((p) => p.id === 'guest').pulls >= 1);
+  const done = await api.call('tug', { act: 'view', now: later });
+  assert.equal(done.tug.status, 'over');
+  assert.ok(done.gold > 100);
+  assert.ok(done.payout >= 5);
+  assert.equal((await api.call('tug', { act: 'view', now: later + 1 })).gold, done.gold);
+  const fresh = createLocalApi();
+  assert.equal((await fresh.call('load')).me.gold, 100);
+  await assert.rejects(() => api.call('tug', { act: 'pull', side: s.id, x: s.x, y: s.y, now: later + 2 }), /結束|tug_over/);
+});
+test('tug timeout pays winning side, even if next op is join', () => {
+  const t0 = 1000;
+  let rnd = TG.newTug();
+  rnd = TG.tugJoin(rnd, 'a', 'A', t0).round;
+  rnd = TG.tugJoin(rnd, 'b', 'B', t0).round;
+  rnd = TG.tugJoin(rnd, 'c', 'C', t0).round;
+  TG.maybeExpireTug(rnd, t0 + TG.TUG.countdownMs);
+  const L = TG.TUG.spots[0], R = TG.TUG.spots[1];
+  TG.tugPull(rnd, 'a', L.id, L.x, L.y, t0 + TG.TUG.countdownMs + 1);
+  TG.tugPull(rnd, 'b', R.id, R.x, R.y, t0 + TG.TUG.countdownMs + 2);
+  TG.tugPull(rnd, 'b', R.id, R.x, R.y, t0 + TG.TUG.countdownMs + 3);
+  const recs = { a: { gold: 100 }, b: { gold: 100 }, c: { gold: 100 } };
+  const end = t0 + TG.TUG.countdownMs + TG.TUG.roundMs;
+  TG.maybeExpireTug(rnd, end);
+  assert.equal(rnd.winner, 'R');
+  assert.deepEqual(rnd.payouts, { b: 40, a: 5, c: 5 });
+  assert.equal(TG.applyTugGold(recs.b, 'b', rnd), 40);
+  const nxt = TG.tugJoin(rnd, 'd', 'D', end);
+  assert.equal(nxt.ok, true);
+  assert.equal(nxt.round.status, 'open');
+  assert.equal(TG.applyTugGold(recs.b, 'b', nxt.round), 0);
+  assert.equal(recs.b.gold, 140);
+});
+
+// ---------- 廣場搬寶 ----------
+test('plaza haul: three join, take at barrel drop at cauldron, most deliveries paid', () => {
+  let rnd = HL.newHaul();
+  rnd = HL.haulJoin(rnd, 'a', '阿派', 0).round;
+  rnd = HL.haulJoin(rnd, 'b', '小菲', 1).round;
+  const third = HL.haulJoin(rnd, 'c', '皮皮', 2);
+  assert.equal(third.ok, true); rnd = third.round;
+  assert.equal(rnd.status, 'countdown');
+  const early = HL.haulTake(rnd, 'a', HL.HAUL_JOIN.x, HL.HAUL_JOIN.y, 3);
+  assert.equal(early.code, 'not_live');
+  HL.maybeExpireHaul(rnd, rnd.startedAt + HL.HAUL.countdownMs);
+  assert.equal(rnd.status, 'live');
+  assert.equal(rnd.holder, null);
+  assert.equal(HL.haulJoin(rnd, 'e', '晚到', HL.HAUL.countdownMs + 1).code, 'haul_live');
+  assert.equal(HL.haulJoin(rnd, 'a', '阿派', HL.HAUL.countdownMs + 2).code, 'already_in');
+  assert.equal(HL.haulDrop(rnd, 'a', HL.HAUL_DROP.x, HL.HAUL_DROP.y, HL.HAUL.countdownMs + 10).code, 'empty_hands');
+  assert.equal(HL.haulTake(rnd, 'a', 0, 0, HL.HAUL.countdownMs + 11).code, 'too_far');
+  assert.equal(HL.haulTake(rnd, 'a', HL.HAUL_JOIN.x, HL.HAUL_JOIN.y, HL.HAUL.countdownMs + 12).ok, true);
+  assert.equal(rnd.holder, 'a');
+  assert.equal(HL.haulTake(rnd, 'a', HL.HAUL_JOIN.x, HL.HAUL_JOIN.y, HL.HAUL.countdownMs + 13).code, 'already_holding');
+  assert.equal(HL.haulTake(rnd, 'b', HL.HAUL_JOIN.x, HL.HAUL_JOIN.y, HL.HAUL.countdownMs + 14).ok, true);
+  assert.equal(rnd.holder, 'b');
+  assert.equal(HL.haulDrop(rnd, 'b', 0, 0, HL.HAUL.countdownMs + 15).code, 'too_far');
+  assert.equal(HL.haulDrop(rnd, 'b', HL.HAUL_DROP.x, HL.HAUL_DROP.y, HL.HAUL.countdownMs + 16).ok, true);
+  assert.equal(rnd.holder, null);
+  assert.equal(rnd.scores.b, 1);
+  assert.equal(HL.haulTake(rnd, 'a', HL.HAUL_JOIN.x, HL.HAUL_JOIN.y, HL.HAUL.countdownMs + 17).ok, true);
+  assert.equal(HL.haulDrop(rnd, 'a', HL.HAUL_DROP.x, HL.HAUL_DROP.y, HL.HAUL.countdownMs + 18).ok, true);
+  assert.equal(HL.haulTake(rnd, 'a', HL.HAUL_JOIN.x, HL.HAUL_JOIN.y, HL.HAUL.countdownMs + 19).ok, true);
+  assert.equal(HL.haulDrop(rnd, 'a', HL.HAUL_DROP.x, HL.HAUL_DROP.y, HL.HAUL.countdownMs + 20).ok, true);
+  HL.maybeExpireHaul(rnd, rnd.startedAt + HL.HAUL.roundMs);
+  assert.equal(rnd.status, 'over');
+  assert.deepEqual(rnd.payouts, { a: 40, b: 20, c: 10 });
+  const rec = { gold: 100 };
+  assert.equal(HL.applyHaulGold(rec, 'a', rnd), 40);
+  assert.equal(rec.gold, 140);
+  assert.equal(HL.applyHaulGold(rec, 'a', rnd), 0);
+  assert.equal(HL.haulTake(rnd, 'a', HL.HAUL_JOIN.x, HL.HAUL_JOIN.y, 99).code, 'haul_over');
+});
+test('plaza haul countdown: leave below min reopens, full board goes live', () => {
+  let rnd = HL.newHaul();
+  for (const [id, name] of [['a', 'A'], ['b', 'B'], ['c', 'C']]) rnd = HL.haulJoin(rnd, id, name, 0).round;
+  assert.equal(rnd.status, 'countdown');
+  rnd = HL.haulLeave(rnd, 'c', 1).round;
+  assert.equal(rnd.status, 'open');
+  rnd = HL.haulJoin(rnd, 'c', 'C', 2).round;
+  for (const id of ['d', 'e', 'f', 'g', 'h']) rnd = HL.haulJoin(rnd, id, id.toUpperCase(), 3).round;
+  assert.equal(rnd.status, 'live');
+  assert.equal(rnd.order.length, 8);
+  assert.equal(HL.haulJoin(rnd, 'i', 'I', 4).code, 'haul_live');
+});
+test('plaza map exposes haul barrel and cauldron and bulletin names always-on parties', () => {
+  const sign = maps.plaza.signs.find((s) => s.action === 'haul');
+  assert.ok(sign && sign.x === HL.HAUL_JOIN.x && sign.y === HL.HAUL_JOIN.y);
+  const barrel = maps.plaza.objects.find((o) => o.k === HL.HAUL_JOIN.k && o.x === sign.x && o.y === sign.y);
+  assert.ok(barrel && ATLAS[barrel.k], 'haul join barrel missing from ATLAS');
+  assert.ok(ATLAS[HL.HAUL_DROP.k]);
+  assert.ok(maps.plaza.objects.some((o) => o.k === HL.HAUL_DROP.k && o.x === HL.HAUL_DROP.x && o.y === HL.HAUL_DROP.y));
+  assert.ok(maps.plaza.signs.some((t) => t.action === 'haulDrop'));
+  const board = maps.plaza.signs.find((s) => s.action === 'events');
+  const blob = (board.lines || []).join(' ');
+  assert.ok(blob.includes('搶寶') && blob.includes('捉迷藏') && blob.includes('傳南瓜') && blob.includes('拔河') && blob.includes('搬寶') && blob.includes('紅綠燈') && blob.includes('占席') && blob.includes('砸罐') && blob.includes('搶瓶'));
+  const west = maps.plaza.signs.find((s) => s.x === 52 && s.y === 126);
+  const east = maps.plaza.signs.find((s) => s.x === 428 && s.y === 126);
+  const westBlob = (west.lines || []).join(' ');
+  const eastBlob = (east.lines || []).join(' ');
+  assert.ok(westBlob.includes('搬寶') && westBlob.includes('捉迷藏') && westBlob.includes('傳南瓜') && westBlob.includes('搶寶') && westBlob.includes('紅綠燈'));
+  assert.ok(eastBlob.includes('拔河') && eastBlob.includes('搶瓶') && eastBlob.includes('占席') && eastBlob.includes('砸罐'));
+  assert.ok(EV.ALWAYS_ON.length >= 9);
+  assert.ok(EV.ALWAYS_ON.some((p) => p.name === '廣場搬寶'));
+  assert.ok(EV.ALWAYS_ON.some((p) => p.name === '廣場紅綠燈'));
+  assert.ok(EV.ALWAYS_ON.some((p) => p.name === '廣場占席'));
+  assert.ok(EV.ALWAYS_ON.some((p) => p.name === '廣場砸罐'));
+  assert.ok(EV.ALWAYS_ON.some((p) => p.name === '廣場搶瓶'));
+  const fountain = maps.plaza.signs.find((s) => s.action === 'wish');
+  const seek = maps.plaza.signs.find((s) => s.action === 'seek');
+  const show = maps.plaza.signs.find((s) => s.action === 'show');
+  for (const p of [HL.HAUL_JOIN, HL.HAUL_DROP]) {
+    assert.ok(Math.hypot(p.x - fountain.x, p.y - fountain.y) > 44, 'haul vs fountain');
+    assert.ok(Math.hypot(p.x - seek.x, p.y - seek.y) > 44, 'haul vs seek');
+    assert.ok(Math.hypot(p.x - show.x, p.y - show.y) > 44, 'haul vs Reggie');
+  }
+});
+test('guest sandbox haul fills bots and timeout pays once', async () => {
+  const t0 = 1000, later = t0 + HL.HAUL.roundMs;
+  const api = createLocalApi();
+  const joined = await api.call('haul', { act: 'join', now: t0 });
+  assert.equal(joined.haul.status, 'live');
+  assert.ok(joined.haul.players.length >= 3);
+  const stolen = await api.call('haul', { act: 'take', x: HL.HAUL_JOIN.x, y: HL.HAUL_JOIN.y, now: t0 + 10 });
+  assert.equal(stolen.haul.holder, 'guest');
+  const scored = await api.call('haul', { act: 'drop', x: HL.HAUL_DROP.x, y: HL.HAUL_DROP.y, now: t0 + 11 });
+  assert.ok(scored.haul.players.find((p) => p.id === 'guest').score >= 1);
+  const done = await api.call('haul', { act: 'view', now: later });
+  assert.equal(done.haul.status, 'over');
+  assert.ok(done.gold > 100);
+  assert.ok(done.payout >= 5);
+  assert.equal((await api.call('haul', { act: 'view', now: later + 1 })).gold, done.gold);
+  const fresh = createLocalApi();
+  assert.equal((await fresh.call('load')).me.gold, 100);
+  await assert.rejects(() => api.call('haul', { act: 'take', x: HL.HAUL_JOIN.x, y: HL.HAUL_JOIN.y, now: later + 2 }), /結束|haul_over/);
+});
+test('haul timeout pays deliveries, even if next op is join', () => {
+  const t0 = 1000;
+  let rnd = HL.newHaul();
+  rnd = HL.haulJoin(rnd, 'a', 'A', t0).round;
+  rnd = HL.haulJoin(rnd, 'b', 'B', t0).round;
+  rnd = HL.haulJoin(rnd, 'c', 'C', t0).round;
+  HL.maybeExpireHaul(rnd, t0 + HL.HAUL.countdownMs);
+  HL.haulTake(rnd, 'a', HL.HAUL_JOIN.x, HL.HAUL_JOIN.y, t0 + HL.HAUL.countdownMs + 1);
+  HL.haulDrop(rnd, 'a', HL.HAUL_DROP.x, HL.HAUL_DROP.y, t0 + HL.HAUL.countdownMs + 2);
+  const recs = { a: { gold: 100 }, b: { gold: 100 }, c: { gold: 100 } };
+  const end = t0 + HL.HAUL.countdownMs + HL.HAUL.roundMs;
+  HL.maybeExpireHaul(rnd, end);
+  assert.deepEqual(rnd.payouts, { a: 40, b: 20, c: 10 });
+  assert.equal(HL.applyHaulGold(recs.a, 'a', rnd), 40);
+  const nxt = HL.haulJoin(rnd, 'd', 'D', end);
+  assert.equal(nxt.ok, true);
+  assert.equal(nxt.round.status, 'open');
+  assert.equal(HL.applyHaulGold(recs.a, 'a', nxt.round), 0);
+  assert.equal(recs.a.gold, 140);
+});
+test('plaza light: three join, green dash scores, red dash outs, finishers paid', () => {
+  let rnd = LT.newLight();
+  rnd = LT.lightJoin(rnd, 'a', '阿派', 0).round;
+  rnd = LT.lightJoin(rnd, 'b', '小菲', 1).round;
+  const third = LT.lightJoin(rnd, 'c', '皮皮', 2);
+  assert.equal(third.ok, true);
+  assert.equal(third.round.status, 'countdown');
+  rnd = third.round;
+  const early = LT.lightDash(rnd, 'a', 'a', LT.LIGHT.spots[0].x, LT.LIGHT.spots[0].y, 3);
+  assert.equal(early.code, 'not_live');
+  LT.maybeExpireLight(rnd, (rnd.startedAt || 0) + LT.LIGHT.countdownMs);
+  assert.equal(rnd.status, 'live');
+  assert.equal(LT.lightJoin(rnd, 'e', '晚到', LT.LIGHT.countdownMs + 1).code, 'light_live');
+  assert.equal(LT.lightJoin(rnd, 'a', '阿派', LT.LIGHT.countdownMs + 2).code, 'already_in');
+  const liveAt = rnd.startedAt;
+  const s0 = LT.LIGHT.spots[0];
+  assert.equal(LT.lightDash(rnd, 'a', s0.id, 0, 0, liveAt + 10).code, 'too_far');
+  assert.equal(LT.lightDash(rnd, 'a', 'c', s0.x, s0.y, liveAt + 11).code, 'wrong_spot');
+  assert.equal(LT.lightOf(rnd, liveAt + 10), 'green');
+  assert.equal(LT.lightDash(rnd, 'a', s0.id, s0.x, s0.y, liveAt + 12).ok, true);
+  assert.equal(rnd.players.a.score, 1);
+  const redAt = liveAt + LT.LIGHT.greenMs + 10;
+  assert.equal(LT.lightOf(rnd, redAt), 'red');
+  const out = LT.lightDash(rnd, 'b', s0.id, s0.x, s0.y, redAt);
+  assert.equal(out.ok, true);
+  assert.equal(out.out, true);
+  assert.equal(!!rnd.out.b, true);
+  const green2 = liveAt + LT.LIGHT.greenMs + LT.LIGHT.redMs + 10;
+  assert.equal(LT.lightOf(rnd, green2), 'green');
+  for (const [uid, from] of [['a', 1], ['c', 0]]) {
+    for (let i = from; i < LT.LIGHT.spots.length; i++) {
+      const s = LT.LIGHT.spots[i];
+      assert.equal(LT.lightDash(rnd, uid, s.id, s.x, s.y, green2 + i).ok, true);
+    }
+  }
+  assert.equal(rnd.status, 'over');
+  assert.equal(rnd.payouts.a, 40);
+  assert.equal(rnd.payouts.c, 20);
+  assert.equal(rnd.payouts.b, 10);
+  const rec = { gold: 100 };
+  assert.equal(LT.applyLightGold(rec, 'a', rnd), 40);
+  assert.equal(LT.applyLightGold(rec, 'a', rnd), 0);
+  assert.equal(LT.lightDash(rnd, 'a', s0.id, s0.x, s0.y, 99).code, 'light_over');
+});
+test('plaza light countdown: leave below min reopens, full board goes live', () => {
+  let rnd = LT.newLight();
+  for (const [id, name] of [['a', 'A'], ['b', 'B'], ['c', 'C']]) rnd = LT.lightJoin(rnd, id, name, 0).round;
+  assert.equal(rnd.status, 'countdown');
+  rnd = LT.lightLeave(rnd, 'c', 1).round;
+  assert.equal(rnd.status, 'open');
+  rnd = LT.lightJoin(rnd, 'c', 'C', 2).round;
+  for (const id of ['d', 'e', 'f', 'g', 'h']) rnd = LT.lightJoin(rnd, id, id.toUpperCase(), 3).round;
+  assert.equal(rnd.status, 'live');
+  assert.equal(rnd.order.length, 8);
+  assert.equal(LT.lightJoin(rnd, 'i', 'I', 4).code, 'light_live');
+});
+test('plaza map exposes light course on north lawn unique from fountain tug haul', () => {
+  const sign = maps.plaza.signs.find((s) => s.action === 'light');
+  assert.ok(sign && sign.x === LT.LIGHT_JOIN.x && sign.y === LT.LIGHT_JOIN.y);
+  const rail = maps.plaza.objects.find((o) => o.k === LT.LIGHT_JOIN.k && o.x === sign.x && o.y === sign.y);
+  assert.ok(rail && ATLAS[rail.k], 'light join railing missing from ATLAS');
+  for (const s of LT.LIGHT.spots) {
+    assert.ok(ATLAS[s.k], s.k);
+    assert.ok(maps.plaza.objects.some((o) => o.k === s.k && o.x === s.x && o.y === s.y), s.id);
+    assert.ok(maps.plaza.signs.some((t) => t.action === 'lightDash' && t.spot === s.id));
+  }
+  const fountain = maps.plaza.signs.find((s) => s.action === 'wish');
+  const tug = maps.plaza.signs.find((s) => s.action === 'tug');
+  const pts = [LT.LIGHT_JOIN, ...LT.LIGHT.spots];
+  for (const p of pts) {
+    assert.ok(Math.hypot(p.x - fountain.x, p.y - fountain.y) > 64, 'light vs fountain');
+    assert.ok(Math.hypot(p.x - tug.x, p.y - tug.y) > 48, 'light vs tug');
+    assert.ok(Math.hypot(p.x - HL.HAUL_JOIN.x, p.y - HL.HAUL_JOIN.y) > 48, 'light vs haul join');
+    assert.ok(Math.hypot(p.x - HL.HAUL_DROP.x, p.y - HL.HAUL_DROP.y) > 48, 'light vs haul drop');
+  }
+});
+test('guest sandbox light fills bots and timeout pays once', async () => {
+  const t0 = 1000, later = t0 + LT.LIGHT.roundMs;
+  const api = createLocalApi();
+  const joined = await api.call('light', { act: 'join', now: t0 });
+  assert.equal(joined.light.status, 'live');
+  assert.ok(joined.light.players.length >= 3);
+  const s0 = LT.LIGHT.spots[0];
+  const stepped = await api.call('light', { act: 'dash', spot: s0.id, x: s0.x, y: s0.y, now: t0 + 10 });
+  assert.ok(stepped.light.players.find((p) => p.id === 'guest').score >= 1);
+  const done = await api.call('light', { act: 'view', now: later });
+  assert.equal(done.light.status, 'over');
+  assert.ok(done.gold > 100);
+  assert.ok(done.payout >= 5);
+  assert.equal((await api.call('light', { act: 'view', now: later + 1 })).gold, done.gold);
+  const fresh = createLocalApi();
+  assert.equal((await fresh.call('load')).me.gold, 100);
+  await assert.rejects(() => api.call('light', { act: 'dash', spot: s0.id, x: s0.x, y: s0.y, now: later + 2 }), /結束|light_over/);
+});
+test('light timeout pays remaining, even if next op is join', () => {
+  const t0 = 1000;
+  let rnd = LT.newLight();
+  rnd = LT.lightJoin(rnd, 'a', 'A', t0).round;
+  rnd = LT.lightJoin(rnd, 'b', 'B', t0).round;
+  rnd = LT.lightJoin(rnd, 'c', 'C', t0).round;
+  LT.maybeExpireLight(rnd, t0 + LT.LIGHT.countdownMs);
+  const s0 = LT.LIGHT.spots[0];
+  LT.lightDash(rnd, 'a', s0.id, s0.x, s0.y, t0 + LT.LIGHT.countdownMs + 10);
+  const recs = { a: { gold: 100 }, b: { gold: 100 }, c: { gold: 100 } };
+  const end = t0 + LT.LIGHT.countdownMs + LT.LIGHT.roundMs;
+  LT.maybeExpireLight(rnd, end);
+  assert.equal(rnd.status, 'over');
+  assert.equal(rnd.payouts.a, 40);
+  assert.equal(LT.applyLightGold(recs.a, 'a', rnd), 40);
+  const nxt = LT.lightJoin(rnd, 'd', 'D', end);
+  assert.equal(nxt.ok, true);
+  assert.equal(nxt.round.status, 'open');
+  assert.equal(LT.applyLightGold(recs.a, 'a', nxt.round), 0);
+  assert.equal(recs.a.gold, 140);
+});
+test('lightFromPublic is idle-null and matches lightOf while live', () => {
+  assert.equal(LT.lightFromPublic(null, 0), null);
+  assert.equal(LT.lightFromPublic({ status: 'open' }, 0), null);
+  let rnd = LT.newLight();
+  rnd = LT.lightJoin(rnd, 'a', 'A', 0).round;
+  rnd = LT.lightJoin(rnd, 'b', 'B', 0).round;
+  rnd = LT.lightJoin(rnd, 'c', 'C', 0).round;
+  LT.maybeExpireLight(rnd, rnd.startedAt + LT.LIGHT.countdownMs);
+  const liveAt = rnd.startedAt;
+  const pub = LT.lightPublic(rnd, liveAt + 10);
+  assert.equal(LT.lightFromPublic(pub, liveAt + 10), 'green');
+  assert.equal(LT.lightOf(rnd, liveAt + 10), 'green');
+  const redAt = liveAt + LT.LIGHT.greenMs + 10;
+  assert.equal(LT.lightFromPublic(pub, redAt), 'red');
+  assert.equal(LT.lightOf(rnd, redAt), 'red');
+});
+test('plaza hill: three join, take credits hold time, longest paid', () => {
+  let rnd = HI.newHill();
+  rnd = HI.hillJoin(rnd, 'a', '阿派', 0).round;
+  rnd = HI.hillJoin(rnd, 'b', '小菲', 1).round;
+  const third = HI.hillJoin(rnd, 'c', '皮皮', 2);
+  assert.equal(third.ok, true);
+  assert.equal(third.round.status, 'countdown');
+  rnd = third.round;
+  const early = HI.hillTake(rnd, 'a', HI.HILL_JOIN.x, HI.HILL_JOIN.y, 3);
+  assert.equal(early.code, 'not_live');
+  HI.maybeExpireHill(rnd, (rnd.startedAt || 0) + HI.HILL.countdownMs);
+  assert.equal(rnd.status, 'live');
+  assert.equal(HI.hillJoin(rnd, 'e', '晚到', HI.HILL.countdownMs + 1).code, 'hill_live');
+  assert.equal(HI.hillJoin(rnd, 'a', '阿派', HI.HILL.countdownMs + 2).code, 'already_in');
+  const liveAt = rnd.startedAt;
+  assert.equal(HI.hillTake(rnd, 'a', 0, 0, liveAt + 10).code, 'too_far');
+  assert.equal(HI.hillTake(rnd, 'a', HI.HILL_JOIN.x, HI.HILL_JOIN.y, liveAt + 12).ok, true);
+  assert.equal(rnd.holder, 'a');
+  assert.equal(HI.hillTake(rnd, 'a', HI.HILL_JOIN.x, HI.HILL_JOIN.y, liveAt + 13).code, 'already_holding');
+  assert.equal(HI.hillTake(rnd, 'b', HI.HILL_JOIN.x, HI.HILL_JOIN.y, liveAt + 112).ok, true);
+  assert.equal(rnd.holder, 'b');
+  assert.ok((rnd.scores.a | 0) >= 100);
+  assert.equal(HI.hillTake(rnd, 'a', HI.HILL_JOIN.x, HI.HILL_JOIN.y, liveAt + 200).ok, true);
+  HI.maybeExpireHill(rnd, liveAt + HI.HILL.roundMs);
+  assert.equal(rnd.status, 'over');
+  assert.equal(rnd.payouts.a, 40);
+  assert.equal(rnd.payouts.b, 20);
+  assert.equal(rnd.payouts.c, 10);
+  const rec = { gold: 100 };
+  assert.equal(HI.applyHillGold(rec, 'a', rnd), 40);
+  assert.equal(HI.applyHillGold(rec, 'a', rnd), 0);
+  assert.equal(HI.hillTake(rnd, 'a', HI.HILL_JOIN.x, HI.HILL_JOIN.y, 99).code, 'hill_over');
+});
+test('plaza hill countdown: leave below min reopens, full board goes live', () => {
+  let rnd = HI.newHill();
+  for (const [id, name] of [['a', 'A'], ['b', 'B'], ['c', 'C']]) rnd = HI.hillJoin(rnd, id, name, 0).round;
+  assert.equal(rnd.status, 'countdown');
+  rnd = HI.hillLeave(rnd, 'c', 1).round;
+  assert.equal(rnd.status, 'open');
+  rnd = HI.hillJoin(rnd, 'c', 'C', 2).round;
+  for (const id of ['d', 'e', 'f', 'g', 'h']) rnd = HI.hillJoin(rnd, id, id.toUpperCase(), 3).round;
+  assert.equal(rnd.status, 'live');
+  assert.equal(rnd.order.length, 8);
+  assert.equal(HI.hillJoin(rnd, 'i', 'I', 4).code, 'hill_live');
+});
+test('plaza map exposes hill straw mat unique from fountain haul light', () => {
+  const sign = maps.plaza.signs.find((s) => s.action === 'hill');
+  assert.ok(sign && sign.x === HI.HILL_JOIN.x && sign.y === HI.HILL_JOIN.y);
+  const mat = maps.plaza.objects.find((o) => o.k === HI.HILL_JOIN.k && o.x === sign.x && o.y === sign.y);
+  assert.ok(mat && ATLAS[mat.k], 'hill strawMat missing from ATLAS');
+  const fountain = maps.plaza.signs.find((s) => s.action === 'wish');
+  const light = maps.plaza.signs.find((s) => s.action === 'light');
+  assert.ok(Math.hypot(HI.HILL_JOIN.x - fountain.x, HI.HILL_JOIN.y - fountain.y) > 64, 'hill vs fountain');
+  assert.ok(Math.hypot(HI.HILL_JOIN.x - HL.HAUL_DROP.x, HI.HILL_JOIN.y - HL.HAUL_DROP.y) > 48, 'hill vs haul drop');
+  assert.ok(Math.hypot(HI.HILL_JOIN.x - light.x, HI.HILL_JOIN.y - light.y) > 48, 'hill vs light join');
+});
+test('guest sandbox hill fills bots and timeout pays once', async () => {
+  const t0 = 1000, later = t0 + HI.HILL.roundMs;
+  const api = createLocalApi();
+  const joined = await api.call('hill', { act: 'join', now: t0 });
+  assert.equal(joined.hill.status, 'live');
+  assert.ok(joined.hill.players.length >= 3);
+  const stolen = await api.call('hill', { act: 'take', x: HI.HILL_JOIN.x, y: HI.HILL_JOIN.y, now: t0 + 10 });
+  assert.equal(stolen.hill.holder, 'guest');
+  const done = await api.call('hill', { act: 'view', now: later });
+  assert.equal(done.hill.status, 'over');
+  assert.ok(done.gold > 100);
+  assert.ok(done.payout >= 5);
+  assert.equal((await api.call('hill', { act: 'view', now: later + 1 })).gold, done.gold);
+  const fresh = createLocalApi();
+  assert.equal((await fresh.call('load')).me.gold, 100);
+  await assert.rejects(() => api.call('hill', { act: 'take', x: HI.HILL_JOIN.x, y: HI.HILL_JOIN.y, now: later + 2 }), /結束|hill_over/);
+});
+test('hill timeout pays longest hold, even if next op is join', () => {
+  const t0 = 1000;
+  let rnd = HI.newHill();
+  rnd = HI.hillJoin(rnd, 'a', 'A', t0).round;
+  rnd = HI.hillJoin(rnd, 'b', 'B', t0).round;
+  rnd = HI.hillJoin(rnd, 'c', 'C', t0).round;
+  HI.maybeExpireHill(rnd, t0 + HI.HILL.countdownMs);
+  HI.hillTake(rnd, 'a', HI.HILL_JOIN.x, HI.HILL_JOIN.y, t0 + HI.HILL.countdownMs + 1);
+  const recs = { a: { gold: 100 }, b: { gold: 100 }, c: { gold: 100 } };
+  const end = t0 + HI.HILL.countdownMs + HI.HILL.roundMs;
+  HI.maybeExpireHill(rnd, end);
+  assert.deepEqual(rnd.payouts, { a: 40, b: 20, c: 10 });
+  assert.equal(HI.applyHillGold(recs.a, 'a', rnd), 40);
+  const nxt = HI.hillJoin(rnd, 'd', 'D', end);
+  assert.equal(nxt.ok, true);
+  assert.equal(nxt.round.status, 'open');
+  assert.equal(HI.applyHillGold(recs.a, 'a', nxt.round), 0);
+  assert.equal(recs.a.gold, 140);
+});
+test('plaza smash: three join, up hits score, down misses, most paid', () => {
+  let rnd = SM.newSmash();
+  rnd = SM.smashJoin(rnd, 'a', '阿派', 0).round;
+  rnd = SM.smashJoin(rnd, 'b', '小菲', 1).round;
+  const third = SM.smashJoin(rnd, 'c', '皮皮', 2);
+  assert.equal(third.ok, true);
+  rnd = third.round;
+  assert.equal(rnd.status, 'countdown');
+  const early = SM.smashHit(rnd, 'a', SM.SMASH_JOIN.x, SM.SMASH_JOIN.y, 3);
+  assert.equal(early.code, 'not_live');
+  SM.maybeExpireSmash(rnd, rnd.startedAt + SM.SMASH.countdownMs);
+  const liveAt = rnd.startedAt;
+  assert.equal(rnd.status, 'live');
+  assert.equal(SM.smashJoin(rnd, 'e', '晚到', liveAt + 1).code, 'smash_live');
+  assert.equal(SM.smashJoin(rnd, 'a', '阿派', liveAt + 2).code, 'already_in');
+  assert.equal(SM.smashHit(rnd, 'a', 0, 0, liveAt + 10).code, 'too_far');
+  assert.equal(SM.smashUp(rnd, liveAt + 10), true);
+  assert.equal(SM.smashHit(rnd, 'a', SM.SMASH_JOIN.x, SM.SMASH_JOIN.y, liveAt + 12).ok, true);
+  assert.equal(SM.smashHit(rnd, 'a', SM.SMASH_JOIN.x, SM.SMASH_JOIN.y, liveAt + 13).code, 'already_hit');
+  assert.equal(SM.smashHit(rnd, 'b', SM.SMASH_JOIN.x, SM.SMASH_JOIN.y, liveAt + 14).ok, true);
+  const downAt = liveAt + SM.SMASH.upMs + 10;
+  assert.equal(SM.smashUp(rnd, downAt), false);
+  assert.equal(SM.smashHit(rnd, 'a', SM.SMASH_JOIN.x, SM.SMASH_JOIN.y, downAt).code, 'not_up');
+  const pop1 = liveAt + SM.SMASH.upMs + SM.SMASH.downMs + 10;
+  assert.equal(SM.smashUp(rnd, pop1), true);
+  assert.equal(SM.smashHit(rnd, 'a', SM.SMASH_JOIN.x, SM.SMASH_JOIN.y, pop1).ok, true);
+  SM.maybeExpireSmash(rnd, liveAt + SM.SMASH.roundMs);
+  assert.equal(rnd.status, 'over');
+  assert.equal(rnd.payouts.a, 40);
+  assert.equal(rnd.payouts.b, 20);
+  assert.equal(rnd.payouts.c, 10);
+  assert.equal(SM.smashHit(rnd, 'a', SM.SMASH_JOIN.x, SM.SMASH_JOIN.y, 99).code, 'smash_over');
+});
+test('plaza smash countdown: leave below min reopens, full board goes live', () => {
+  let rnd = SM.newSmash();
+  for (const [id, name] of [['a', 'A'], ['b', 'B'], ['c', 'C']]) rnd = SM.smashJoin(rnd, id, name, 0).round;
+  assert.equal(rnd.status, 'countdown');
+  rnd = SM.smashLeave(rnd, 'c', 1).round;
+  assert.equal(rnd.status, 'open');
+  rnd = SM.smashJoin(rnd, 'c', 'C', 2).round;
+  for (const id of ['d', 'e', 'f', 'g', 'h']) rnd = SM.smashJoin(rnd, id, id.toUpperCase(), 3).round;
+  assert.equal(rnd.status, 'live');
+  assert.equal(rnd.order.length, 8);
+  assert.equal(SM.smashJoin(rnd, 'i', 'I', 4).code, 'smash_live');
+});
+test('plaza map exposes smash jar unique from contest show fountain', () => {
+  const sign = maps.plaza.signs.find((s) => s.action === 'smash');
+  assert.ok(sign && sign.x === SM.SMASH_JOIN.x && sign.y === SM.SMASH_JOIN.y);
+  const jar = maps.plaza.objects.find((o) => o.k === SM.SMASH_JOIN.k && o.x === sign.x && o.y === sign.y);
+  assert.ok(jar && ATLAS[jar.k], 'smash jarRed missing from ATLAS');
+  const fountain = maps.plaza.signs.find((s) => s.action === 'wish');
+  const contest = maps.plaza.signs.find((s) => s.action === 'contest');
+  const show = maps.plaza.signs.find((s) => s.action === 'show');
+  assert.ok(Math.hypot(SM.SMASH_JOIN.x - fountain.x, SM.SMASH_JOIN.y - fountain.y) > 64, 'smash vs fountain');
+  assert.ok(Math.hypot(SM.SMASH_JOIN.x - contest.x, SM.SMASH_JOIN.y - contest.y) > 48, 'smash vs contest');
+  assert.ok(Math.hypot(SM.SMASH_JOIN.x - show.x, SM.SMASH_JOIN.y - show.y) > 68, 'smash vs show');
+});
+test('guest sandbox smash fills bots and timeout pays once', async () => {
+  const api = createLocalApi();
+  const t0 = 5_000_000;
+  const joined = await api.call('smash', { act: 'join', now: t0 });
+  assert.equal(joined.smash.status, 'live');
+  assert.ok(joined.smash.players.length >= 3);
+  const hit = await api.call('smash', { act: 'hit', x: SM.SMASH_JOIN.x, y: SM.SMASH_JOIN.y, now: t0 + 10 });
+  assert.ok(hit.smash.players.find((p) => p.id === 'guest').score >= 1);
+  const later = t0 + SM.SMASH.roundMs + 50;
+  const done = await api.call('smash', { act: 'view', now: later });
+  assert.equal(done.smash.status, 'over');
+  assert.ok(done.payout >= 5);
+  assert.equal((await api.call('smash', { act: 'view', now: later + 1 })).gold, done.gold);
+  const fresh = createLocalApi();
+  assert.equal((await fresh.call('load')).me.gold, 100);
+  await assert.rejects(() => api.call('smash', { act: 'hit', x: SM.SMASH_JOIN.x, y: SM.SMASH_JOIN.y, now: later + 2 }), /結束|smash_over/);
+});
+test('smash timeout pays most hits, even if next op is join', () => {
+  const t0 = 1000;
+  let rnd = SM.newSmash();
+  rnd = SM.smashJoin(rnd, 'a', 'A', t0).round;
+  rnd = SM.smashJoin(rnd, 'b', 'B', t0).round;
+  rnd = SM.smashJoin(rnd, 'c', 'C', t0).round;
+  SM.maybeExpireSmash(rnd, t0 + SM.SMASH.countdownMs);
+  SM.smashHit(rnd, 'a', SM.SMASH_JOIN.x, SM.SMASH_JOIN.y, t0 + SM.SMASH.countdownMs + 1);
+  const recs = { a: { gold: 100 }, b: { gold: 100 }, c: { gold: 100 } };
+  const end = t0 + SM.SMASH.countdownMs + SM.SMASH.roundMs;
+  SM.maybeExpireSmash(rnd, end);
+  assert.deepEqual(rnd.payouts, { a: 40, b: 20, c: 10 });
+  assert.equal(SM.applySmashGold(recs.a, 'a', rnd), 40);
+  const nxt = SM.smashJoin(rnd, 'd', 'D', end);
+  assert.equal(nxt.ok, true);
+  assert.equal(nxt.round.status, 'open');
+  assert.equal(SM.applySmashGold(recs.a, 'a', nxt.round), 0);
+  assert.equal(recs.a.gold, 140);
+});
+test('smashUpFromPublic is visible when idle and matches smashUp while live', () => {
+  assert.equal(SM.smashUpFromPublic(null, 0), true);
+  assert.equal(SM.smashUpFromPublic({ status: 'open' }, 0), true);
+  const jar = maps.plaza.objects.find((o) => o.k === SM.SMASH_JOIN.k && o.x === SM.SMASH_JOIN.x && o.y === SM.SMASH_JOIN.y);
+  assert.ok(jar && !jar.hide);
+  let rnd = SM.newSmash();
+  rnd = SM.smashJoin(rnd, 'a', 'A', 0).round;
+  rnd = SM.smashJoin(rnd, 'b', 'B', 0).round;
+  rnd = SM.smashJoin(rnd, 'c', 'C', 0).round;
+  SM.maybeExpireSmash(rnd, rnd.startedAt + SM.SMASH.countdownMs);
+  const liveAt = rnd.startedAt;
+  const pub = SM.smashPublic(rnd, liveAt + 10);
+  assert.equal(SM.smashUpFromPublic(pub, liveAt + 10), true);
+  assert.equal(SM.smashUp(rnd, liveAt + 10), true);
+  const downAt = liveAt + SM.SMASH.upMs + 10;
+  assert.equal(SM.smashUpFromPublic(pub, downAt), false);
+  assert.equal(SM.smashUp(rnd, downAt), false);
+});
+test('plaza vase: three join, steal from other team, teammate blocked, winners paid', () => {
+  let rnd = VA.newVase();
+  rnd = VA.vaseJoin(rnd, 'a', '阿派', 0).round;
+  rnd = VA.vaseJoin(rnd, 'b', '小菲', 1).round;
+  const third = VA.vaseJoin(rnd, 'c', '皮皮', 2);
+  assert.equal(third.ok, true);
+  rnd = third.round;
+  assert.equal(rnd.status, 'countdown');
+  const early = VA.vaseTake(rnd, 'a', VA.VASE_JOIN.x, VA.VASE_JOIN.y, 3);
+  assert.equal(early.code, 'not_live');
+  VA.maybeExpireVase(rnd, rnd.startedAt + VA.VASE.countdownMs);
+  const liveAt = rnd.startedAt;
+  assert.equal(rnd.status, 'live');
+  assert.equal(rnd.team.a, 'red');
+  assert.equal(rnd.team.b, 'blue');
+  assert.equal(rnd.team.c, 'red');
+  assert.equal(VA.vaseJoin(rnd, 'e', '晚到', liveAt + 1).code, 'vase_live');
+  assert.equal(VA.vaseJoin(rnd, 'a', '阿派', liveAt + 2).code, 'already_in');
+  assert.equal(VA.vaseTake(rnd, 'a', 0, 0, liveAt + 10).code, 'too_far');
+  assert.equal(VA.vaseTake(rnd, 'a', VA.VASE_JOIN.x, VA.VASE_JOIN.y, liveAt + 12).ok, true);
+  assert.equal(VA.vaseTake(rnd, 'a', VA.VASE_JOIN.x, VA.VASE_JOIN.y, liveAt + 13).code, 'already_holding');
+  assert.equal(VA.vaseTake(rnd, 'c', VA.VASE_JOIN.x, VA.VASE_JOIN.y, liveAt + 14).code, 'already_ours');
+  assert.equal(VA.vaseTake(rnd, 'b', VA.VASE_JOIN.x, VA.VASE_JOIN.y, liveAt + 112).ok, true);
+  assert.equal(VA.vaseTake(rnd, 'a', VA.VASE_JOIN.x, VA.VASE_JOIN.y, liveAt + 200).ok, true);
+  VA.maybeExpireVase(rnd, liveAt + VA.VASE.roundMs);
+  assert.equal(rnd.status, 'over');
+  assert.equal(rnd.winner, 'red');
+  assert.equal(rnd.payouts.a, 40);
+  assert.equal(rnd.payouts.c, 20);
+  assert.equal(rnd.payouts.b, 5);
+  assert.equal(VA.vaseTake(rnd, 'a', VA.VASE_JOIN.x, VA.VASE_JOIN.y, 99).code, 'vase_over');
+});
+test('plaza vase countdown: leave below min reopens, full board goes live', () => {
+  let rnd = VA.newVase();
+  for (const [id, name] of [['a', 'A'], ['b', 'B'], ['c', 'C']]) rnd = VA.vaseJoin(rnd, id, name, 0).round;
+  assert.equal(rnd.status, 'countdown');
+  rnd = VA.vaseLeave(rnd, 'c', 1).round;
+  assert.equal(rnd.status, 'open');
+  rnd = VA.vaseJoin(rnd, 'c', 'C', 2).round;
+  for (const id of ['d', 'e', 'f', 'g', 'h']) rnd = VA.vaseJoin(rnd, id, id.toUpperCase(), 3).round;
+  assert.equal(rnd.status, 'live');
+  assert.equal(rnd.order.length, 8);
+  assert.equal(VA.vaseJoin(rnd, 'i', 'I', 4).code, 'vase_live');
+});
+test('plaza map exposes vase unique from tug smash show hill haul', () => {
+  const sign = maps.plaza.signs.find((s) => s.action === 'vase');
+  assert.ok(sign && sign.x === VA.VASE_JOIN.x && sign.y === VA.VASE_JOIN.y);
+  const flask = maps.plaza.objects.find((o) => o.k === VA.VASE_JOIN.k && o.x === sign.x && o.y === sign.y);
+  assert.ok(flask && ATLAS[flask.k], 'vase sprite missing from ATLAS');
+  const tug = maps.plaza.signs.find((s) => s.action === 'tug');
+  const smash = maps.plaza.signs.find((s) => s.action === 'smash');
+  const show = maps.plaza.signs.find((s) => s.action === 'show');
+  const hill = maps.plaza.signs.find((s) => s.action === 'hill');
+  const haulDrop = maps.plaza.signs.find((s) => s.action === 'haulDrop');
+  const fountain = maps.plaza.signs.find((s) => s.action === 'wish');
+  assert.ok(Math.hypot(VA.VASE_JOIN.x - tug.x, VA.VASE_JOIN.y - tug.y) > 48, 'vase vs tug');
+  assert.ok(Math.hypot(VA.VASE_JOIN.x - smash.x, VA.VASE_JOIN.y - smash.y) > 48, 'vase vs smash');
+  assert.ok(Math.hypot(VA.VASE_JOIN.x - show.x, VA.VASE_JOIN.y - show.y) > 68, 'vase vs show');
+  assert.ok(Math.hypot(VA.VASE_JOIN.x - hill.x, VA.VASE_JOIN.y - hill.y) > 48, 'vase vs hill');
+  assert.ok(Math.hypot(VA.VASE_JOIN.x - haulDrop.x, VA.VASE_JOIN.y - haulDrop.y) > 48, 'vase vs haul drop');
+  assert.ok(Math.hypot(VA.VASE_JOIN.x - fountain.x, VA.VASE_JOIN.y - fountain.y) > 64, 'vase vs fountain');
+  assert.ok(maps.plaza.grid.walkable(Math.floor(VA.VASE_JOIN.x / 16), Math.floor(VA.VASE_JOIN.y / 16)), 'vase stands on walkable grass');
+});
+test('plaza always-on joins unique by hypot > reach_a + reach_b + 8', () => {
+  const pts = [
+    { n: 'party', x: PTY.JOIN.x, y: PTY.JOIN.y, r: PTY.PARTY.reach },
+    { n: 'seek', x: SK.SEEK_JOIN.x, y: SK.SEEK_JOIN.y, r: SK.SEEK.reach },
+    { n: 'hot', x: HOT.HOT_JOIN.x, y: HOT.HOT_JOIN.y, r: HOT.HOT.reach },
+    { n: 'tug', x: TG.TUG_JOIN.x, y: TG.TUG_JOIN.y, r: TG.TUG.reach },
+    ...TG.TUG.spots.map((s) => ({ n: `tug-${s.id}`, x: s.x, y: s.y, r: TG.TUG.reach })),
+    { n: 'haul', x: HL.HAUL_JOIN.x, y: HL.HAUL_JOIN.y, r: HL.HAUL.reach },
+    { n: 'haulDrop', x: HL.HAUL_DROP.x, y: HL.HAUL_DROP.y, r: HL.HAUL.reach },
+    { n: 'light', x: LT.LIGHT_JOIN.x, y: LT.LIGHT_JOIN.y, r: LT.LIGHT.reach },
+    ...LT.LIGHT.spots.map((s) => ({ n: `light-${s.id}`, x: s.x, y: s.y, r: LT.LIGHT.reach })),
+    { n: 'hill', x: HI.HILL_JOIN.x, y: HI.HILL_JOIN.y, r: HI.HILL.reach },
+    { n: 'smash', x: SM.SMASH_JOIN.x, y: SM.SMASH_JOIN.y, r: SM.SMASH.reach },
+    { n: 'vase', x: VA.VASE_JOIN.x, y: VA.VASE_JOIN.y, r: VA.VASE.reach },
+    { n: 'wish', x: 240, y: 182, r: 36 },
+    { n: 'show', x: 389, y: 250, r: 40 },
+    { n: 'contest', x: CT.BOARD.x, y: CT.BOARD.y, r: 20 },
+  ];
+  const fam = (n) => n.split('-')[0];
+  for (let i = 0; i < pts.length; i++) {
+    for (let j = i + 1; j < pts.length; j++) {
+      if (fam(pts[i].n) === fam(pts[j].n)) continue;
+      const d = Math.hypot(pts[i].x - pts[j].x, pts[i].y - pts[j].y);
+      assert.ok(d > pts[i].r + pts[j].r + 8, `${pts[i].n} vs ${pts[j].n} d=${d.toFixed(1)} need > ${pts[i].r + pts[j].r + 8}`);
+    }
+  }
+});
+test('guest sandbox vase fills bots and timeout pays once', async () => {
+  const api = createLocalApi();
+  const t0 = 5_000_000;
+  const joined = await api.call('vase', { act: 'join', now: t0 });
+  assert.equal(joined.vase.status, 'live');
+  assert.ok(joined.vase.players.length >= 3);
+  const stolen = await api.call('vase', { act: 'take', x: VA.VASE_JOIN.x, y: VA.VASE_JOIN.y, now: t0 + 10 });
+  assert.equal(stolen.vase.holder, 'guest');
+  const later = t0 + VA.VASE.roundMs + 50;
+  const done = await api.call('vase', { act: 'view', now: later });
+  assert.equal(done.vase.status, 'over');
+  assert.ok(done.payout >= 5);
+  assert.equal((await api.call('vase', { act: 'view', now: later + 1 })).gold, done.gold);
+  const fresh = createLocalApi();
+  assert.equal((await fresh.call('load')).me.gold, 100);
+  await assert.rejects(() => api.call('vase', { act: 'take', x: VA.VASE_JOIN.x, y: VA.VASE_JOIN.y, now: later + 2 }), /結束|vase_over/);
+});
+test('vase timeout pays winning team, even if next op is join', () => {
+  const t0 = 1000;
+  let rnd = VA.newVase();
+  rnd = VA.vaseJoin(rnd, 'a', 'A', t0).round;
+  rnd = VA.vaseJoin(rnd, 'b', 'B', t0).round;
+  rnd = VA.vaseJoin(rnd, 'c', 'C', t0).round;
+  VA.maybeExpireVase(rnd, t0 + VA.VASE.countdownMs);
+  VA.vaseTake(rnd, 'a', VA.VASE_JOIN.x, VA.VASE_JOIN.y, t0 + VA.VASE.countdownMs + 1);
+  const recs = { a: { gold: 100 }, b: { gold: 100 }, c: { gold: 100 } };
+  const end = t0 + VA.VASE.countdownMs + VA.VASE.roundMs;
+  VA.maybeExpireVase(rnd, end);
+  assert.equal(rnd.winner, 'red');
+  assert.deepEqual(rnd.payouts, { a: 40, c: 20, b: 5 });
+  assert.equal(VA.applyVaseGold(recs.a, 'a', rnd), 40);
+  const nxt = VA.vaseJoin(rnd, 'd', 'D', end);
+  assert.equal(nxt.ok, true);
+  assert.equal(nxt.round.status, 'open');
+  assert.equal(VA.applyVaseGold(recs.a, 'a', nxt.round), 0);
+  assert.equal(recs.a.gold, 140);
+});
+test('countdownText ticks remaining seconds from startedAt', () => {
+  const p = { status: 'countdown', players: [{ id: 'a' }, { id: 'b' }, { id: 'c' }], max: 8, countdownMs: 9000, startedAt: 1000 };
+  assert.equal(CD.countdownText(p, '開搶，還可以加入。', 1000), '倒數上車（3/8）。9 秒後開搶，還可以加入。');
+  assert.equal(CD.countdownText(p, '開搶，還可以加入。', 1000 + 8500), '倒數上車（3/8）。1 秒後開搶，還可以加入。');
+  assert.equal(CD.countdownText(p, '開始占席。', 1000 + 9000), '倒數上車（3/8）。0 秒後開始占席。');
+});
+test('holdSeconds liveLeftSeconds liveScoreSeconds tick from heldAt', () => {
+  const p = { status: 'live', holder: 'a', heldAt: 1000, startedAt: 1000, roundMs: 45000, scores: { a: 5000, b: 0 }, teamScore: { red: 5000, blue: 0 }, players: [{ id: 'a', team: 'red' }, { id: 'b', team: 'blue' }] };
+  assert.equal(CD.holdSeconds(p, 1000), 0);
+  assert.equal(CD.holdSeconds(p, 1000 + 12500), 12);
+  assert.equal(CD.liveLeftSeconds(p, 1000), 45);
+  assert.equal(CD.liveLeftSeconds(p, 1000 + 44500), 1);
+  assert.equal(CD.liveLeftSeconds(p, 1000 + 45000), 0);
+  assert.equal(CD.holdSeconds({ status: 'countdown', heldAt: 1000 }, 2000), 0);
+  assert.equal(CD.liveScoreSeconds(p, 'a', 1000 + 7000), 12);
+  assert.equal(CD.liveScoreSeconds(p, 'b', 1000 + 7000), 0);
+  assert.deepEqual(CD.liveTeamSeconds(p, 1000 + 7000), { red: 12, blue: 0 });
+});
+test('occupancyLine and joinHint show boarders without remaining-seconds', () => {
+  assert.equal(EV.occupancyLine(null), '等人中');
+  assert.equal(EV.occupancyLine({ status: 'open', players: [], min: 3, max: 8 }), '等人中');
+  assert.equal(EV.occupancyLine({ status: 'open', players: [{ id: 'a' }, { id: 'b' }], min: 3, max: 8 }), '等人中 2/3');
+  assert.equal(EV.occupancyLine({ status: 'countdown', players: [{ id: 'a' }, { id: 'b' }, { id: 'c' }], min: 3, max: 8 }), '倒數上車 3/8');
+  assert.equal(EV.occupancyLine({ status: 'live', players: [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }], min: 3, max: 8 }), '進行中 4/8');
+  assert.equal(EV.occupancyLine({ status: 'over', players: [{ id: 'a' }], min: 3, max: 8 }), '剛結束');
+  const base = 'E 參加搶寶';
+  assert.equal(EV.joinHint(base, null, 'z'), base);
+  assert.equal(EV.joinHint(base, { status: 'open', players: [{ id: 'a' }, { id: 'b' }], min: 3, max: 8 }, 'z'), 'E 參加搶寶（2/3）');
+  assert.equal(EV.joinHint(base, { status: 'countdown', players: [{ id: 'a' }, { id: 'b' }, { id: 'c' }], min: 3, max: 8 }, 'z'), 'E 參加搶寶（3/8）倒數中');
+  assert.equal(EV.joinHint(base, { status: 'live', players: [{ id: 'a' }, { id: 'z' }], min: 3, max: 8 }, 'z'), null);
+  assert.equal(EV.joinHint(base, { status: 'live', players: [{ id: 'a' }, { id: 'b' }, { id: 'c' }], min: 3, max: 8 }, 'z'), '進行中（3/8）');
+  assert.ok(EV.ALWAYS_ON.every((s) => ['party', 'seek', 'hot', 'tug', 'haul', 'light', 'hill', 'smash', 'vase'].includes(s.id)));
+});
+test('countdownMark lights join spots only while boarding', () => {
+  assert.equal(EV.countdownMark(null, 1, 2), null);
+  assert.equal(EV.countdownMark({ status: 'open', players: [{ id: 'a' }] }, 1, 2), null);
+  assert.equal(EV.countdownMark({ status: 'live' }, 200, 126), null);
+  assert.equal(EV.countdownMark({ status: 'over' }, 200, 126), null);
+  assert.deepEqual(EV.countdownMark({ status: 'countdown' }, 200, 126), { x: 200, y: 126, color: 'rgba(255,240,120,.95)' });
+});
+test('seekLiveMark lights the join log only while live, never hide spots', () => {
+  assert.equal(EV.seekLiveMark(null, 140, 214), null);
+  assert.equal(EV.seekLiveMark({ status: 'open' }, 140, 214), null);
+  assert.equal(EV.seekLiveMark({ status: 'countdown' }, 140, 214), null);
+  assert.equal(EV.seekLiveMark({ status: 'over' }, 140, 214), null);
+  assert.deepEqual(EV.seekLiveMark({ status: 'live' }, 140, 214), { x: 140, y: 214, color: 'rgba(190,70,210,.95)' });
+});
+test('seekSpotHint does not spoil hiders to spectators', () => {
+  const snap = {
+    status: 'live',
+    players: [{ id: 'a', seeker: true, hidden: false }, { id: 'b', seeker: false, hidden: true }, { id: 'c', seeker: false, hidden: false }],
+    spots: [{ id: 'logW', takenBy: 'b' }, { id: 'rock', takenBy: null }],
+  };
+  assert.equal(EV.seekSpotHint(null, 'z', 'logW'), null);
+  assert.equal(EV.seekSpotHint({ status: 'open' }, 'a', 'logW'), null);
+  assert.equal(EV.seekSpotHint(snap, 'z', 'logW'), '進行中');
+  assert.equal(EV.seekSpotHint(snap, 'a', 'logW'), 'E 檢查');
+  assert.equal(EV.seekSpotHint(snap, 'a', 'rock'), 'E 檢查');
+  assert.equal(EV.seekSpotHint(snap, 'b', 'rock'), '你已經藏好了');
+  assert.equal(EV.seekSpotHint(snap, 'c', 'logW'), '已經有人了');
+  assert.equal(EV.seekSpotHint(snap, 'c', 'rock'), 'E 藏');
+});
+test('hill hot vase public expose heldAt while live', () => {
+  let hill = HI.newHill();
+  for (const [id, name] of [['a', 'A'], ['b', 'B'], ['c', 'C']]) hill = HI.hillJoin(hill, id, name, 0).round;
+  HI.maybeExpireHill(hill, HI.HILL.countdownMs);
+  HI.hillTake(hill, 'a', HI.HILL_JOIN.x, HI.HILL_JOIN.y, HI.HILL.countdownMs + 10);
+  assert.equal(HI.hillPublic(hill, HI.HILL.countdownMs + 10).heldAt, HI.HILL.countdownMs + 10);
+  let hot = HOT.newHot();
+  for (const [id, name] of [['a', 'A'], ['b', 'B'], ['c', 'C']]) hot = HOT.hotJoin(hot, id, name, 0).round;
+  HOT.maybeExpireHot(hot, HOT.HOT.countdownMs);
+  assert.equal(HOT.hotPublic(hot, HOT.HOT.countdownMs).heldAt, HOT.HOT.countdownMs);
+  HOT.hotTake(hot, 'b', HOT.HOT_JOIN.x, HOT.HOT_JOIN.y, HOT.HOT.countdownMs + 20);
+  assert.equal(HOT.hotPublic(hot, HOT.HOT.countdownMs + 20).heldAt, HOT.HOT.countdownMs + 20);
+  let vase = VA.newVase();
+  for (const [id, name] of [['a', 'A'], ['b', 'B'], ['c', 'C']]) vase = VA.vaseJoin(vase, id, name, 0).round;
+  VA.maybeExpireVase(vase, VA.VASE.countdownMs);
+  VA.vaseTake(vase, 'a', VA.VASE_JOIN.x, VA.VASE_JOIN.y, VA.VASE.countdownMs + 5);
+  assert.equal(VA.vasePublic(vase, VA.VASE.countdownMs + 5).heldAt, VA.VASE.countdownMs + 5);
 });

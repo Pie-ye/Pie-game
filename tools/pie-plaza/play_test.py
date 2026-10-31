@@ -220,6 +220,272 @@ def main() -> int:
         check(pg.locator("#panel-body button", has_text="買").first.is_disabled(), "訪客不能買賣")
         pg.locator(".frame").screenshot(path=str(OUT / "exchange.png"))
         pg.click("#panel-close")
+
+        # 9. 廣場搶寶：從廣場走到北邊寶箱，打開派對面板
+        pg.evaluate(f"{P}.warp('plaza', 'center')"); pg.wait_for_timeout(400)
+        check(pg.evaluate(f"{P}.area") == "plaza", "回到廣場")
+        sign = pg.evaluate(f"{P}.map.signs.find(s => s.action === 'party')")
+        check(bool(sign) and sign.get("title") == "廣場搶寶", "廣場有搶寶告示")
+        pg.evaluate(f"Object.assign({P}.me, {{x: {sign['x']}, y: {sign['y']} + 14, dir: 1}})")
+        pg.keyboard.press("e"); pg.wait_for_timeout(400)
+        check(pg.is_visible("#dialog") and "廣場搶寶" in pg.inner_text("#dialog-name"), "對寶箱按 E 出現搶寶對話")
+        for _ in range(6):
+            if not pg.is_visible("#dialog"): break
+            pg.keyboard.press("e"); pg.wait_for_timeout(250)
+        check(pg.is_visible("#panel") and "廣場搶寶" in pg.inner_text("#panel-title"), "對話結束後開啟搶寶面板")
+        pg.locator("#panel-body button", has_text="加入").click(); pg.wait_for_timeout(400)
+        body = pg.inner_text("#panel-body")
+        check("小傑" in body and "艾芙琳奶奶" in body, "訪客沙盒自動補兩個 NPC 湊局")
+        check("開搶" in body or "倒數" in body or "進行" in body or "件" in body, "加入後回合開始")
+        vis = pg.evaluate(
+            """() => {
+              const p = window.__plaza;
+              const marks = (p.marks && p.marks()) || [];
+              const a = marks.some(m => Math.abs(m.x - 180) < 1 && Math.abs(m.y - 106) < 1);
+              const b = marks.some(m => Math.abs(m.x - 228) < 1 && Math.abs(m.y - 106) < 1);
+              return { ok: !!(p.party && p.party.status === 'live' && a && b), a, b, status: p.party && p.party.status };
+            }"""
+        )
+        check(bool(vis) and vis.get("ok"), "搶寶世界未拿走的箱子在開場後亮標記")
+        pg.locator(".frame").screenshot(path=str(OUT / "party.png"))
+        pg.click("#panel-close")
+
+        # 10. 釣魚大賽記分板
+        sign = pg.evaluate(f"{P}.map.signs.find(s => s.action === 'contest')")
+        check(bool(sign) and sign.get("title") == "釣魚大賽", "廣場有釣魚大賽告示")
+        pg.evaluate(f"Object.assign({P}.me, {{x: {sign['x']}, y: {sign['y']} - 14, dir: 0}})")
+        pg.keyboard.press("e"); pg.wait_for_timeout(400)
+        check(pg.is_visible("#dialog") and "釣魚大賽" in pg.inner_text("#dialog-name"), "對記分板按 E 出現大賽對話")
+        for _ in range(6):
+            if not pg.is_visible("#dialog"): break
+            pg.keyboard.press("e"); pg.wait_for_timeout(250)
+        check(pg.is_visible("#panel") and "釣魚大賽" in pg.inner_text("#panel-title"), "對話結束後開啟大賽記分板")
+        body = pg.inner_text("#panel-body")
+        check("記分板" in body or "公分" in body or "時段" in body, "記分板說明大賽規則")
+        pg.locator(".frame").screenshot(path=str(OUT / "contest.png"))
+        pg.click("#panel-close")
+
+        # 11. 營火捉迷藏：西南草地圓木
+        sign = pg.evaluate(f"{P}.map.signs.find(s => s.action === 'seek')")
+        check(bool(sign) and sign.get("title") == "營火捉迷藏", "廣場有捉迷藏告示")
+        pg.evaluate(f"Object.assign({P}.me, {{x: {sign['x']}, y: {sign['y']} + 14, dir: 1}})")
+        pg.keyboard.press("e"); pg.wait_for_timeout(400)
+        check(pg.is_visible("#dialog") and "營火捉迷藏" in pg.inner_text("#dialog-name"), "對圓木按 E 出現捉迷藏對話")
+        for _ in range(6):
+            if not pg.is_visible("#dialog"): break
+            pg.keyboard.press("e"); pg.wait_for_timeout(250)
+        check(pg.is_visible("#panel") and "營火捉迷藏" in pg.inner_text("#panel-title"), "對話結束後開啟捉迷藏面板")
+        pg.locator("#panel-body button", has_text="加入").click(); pg.wait_for_timeout(400)
+        body = pg.inner_text("#panel-body")
+        check("小傑" in body and "艾芙琳奶奶" in body, "訪客沙盒自動補兩個 NPC 湊局")
+        check("尋人" in body or "倒數" in body or "藏" in body, "加入後捉迷藏開始")
+        vis = pg.evaluate(
+            """() => {
+              const p = window.__plaza, s = p.seek;
+              const marks = (p.marks && p.marks()) || [];
+              const hit = marks.some(m => Math.abs(m.x - 140) < 1 && Math.abs(m.y - 214) < 1);
+              const hide = marks.some(m => Math.abs(m.x - 196) < 1 && Math.abs(m.y - 184) < 1);
+              return { ok: !!(s && s.status === 'live' && hit && !hide), status: s && s.status, hit, hide };
+            }"""
+        )
+        check(bool(vis) and vis.get("ok"), "捉迷藏世界圓木在開場後亮標記且不爆藏點")
+        pg.locator(".frame").screenshot(path=str(OUT / "seek.png"))
+        pg.click("#panel-close")
+
+        # 12. 傳南瓜：雞舍旁邊
+        sign = pg.evaluate(f"{P}.map.signs.find(s => s.action === 'hot')")
+        check(bool(sign) and sign.get("title") == "傳南瓜", "廣場有傳南瓜告示")
+        pg.evaluate(f"Object.assign({P}.me, {{x: {sign['x']}, y: {sign['y']} + 14, dir: 1}})")
+        pg.keyboard.press("e"); pg.wait_for_timeout(400)
+        check(pg.is_visible("#dialog") and "傳南瓜" in pg.inner_text("#dialog-name"), "對南瓜按 E 出現傳南瓜對話")
+        for _ in range(6):
+            if not pg.is_visible("#dialog"): break
+            pg.keyboard.press("e"); pg.wait_for_timeout(250)
+        check(pg.is_visible("#panel") and "傳南瓜" in pg.inner_text("#panel-title"), "對話結束後開啟傳南瓜面板")
+        pg.locator("#panel-body button", has_text="加入").click(); pg.wait_for_timeout(400)
+        body = pg.inner_text("#panel-body")
+        check("小傑" in body and "艾芙琳奶奶" in body, "訪客沙盒自動補兩個 NPC 湊局")
+        check("南瓜" in body or "倒數" in body or "拿著" in body, "加入後傳南瓜開始")
+        vis = pg.evaluate(
+            """() => {
+              const p = window.__plaza, h = p.hot;
+              const o = p.map.objects.find(o => o.k === 'pumpkinItem' && o.x === 128 && o.y === 100);
+              const marks = (p.marks && p.marks()) || [];
+              const hit = marks.some(m => Math.abs(m.x - 128) < 1 && Math.abs(m.y - 100) < 1);
+              return { ok: !!(h && h.status === 'live' && h.holder && (hit || (o && o.z))), holder: h && h.holder, hit, z: o && o.z };
+            }"""
+        )
+        check(bool(vis) and vis.get("ok"), "傳南瓜世界南瓜在有人拿時會跳或亮標記")
+        pg.locator(".frame").screenshot(path=str(OUT / "hot.png"))
+        pg.click("#panel-close")
+
+        # 13. 廣場拔河：東邊草地乾草
+        sign = pg.evaluate(f"{P}.map.signs.find(s => s.action === 'tug')")
+        check(bool(sign) and sign.get("title") == "廣場拔河", "廣場有拔河告示")
+        pg.evaluate(f"Object.assign({P}.me, {{x: {sign['x']}, y: {sign['y']} + 14, dir: 1}})")
+        pg.keyboard.press("e"); pg.wait_for_timeout(400)
+        check(pg.is_visible("#dialog") and "廣場拔河" in pg.inner_text("#dialog-name"), "對乾草按 E 出現拔河對話")
+        for _ in range(6):
+            if not pg.is_visible("#dialog"): break
+            pg.keyboard.press("e"); pg.wait_for_timeout(250)
+        check(pg.is_visible("#panel") and "廣場拔河" in pg.inner_text("#panel-title"), "對話結束後開啟拔河面板")
+        pg.locator("#panel-body button", has_text="加入").click(); pg.wait_for_timeout(400)
+        body = pg.inner_text("#panel-body")
+        check("小傑" in body and "艾芙琳奶奶" in body, "訪客沙盒自動補兩個 NPC 湊局")
+        check("岸" in body or "拉" in body or "倒數" in body, "加入後拔河開始")
+        vis = pg.evaluate(
+            """() => {
+              const p = window.__plaza, t = p.tug;
+              const marks = (p.marks && p.marks()) || [];
+              const L = marks.some(m => Math.abs(m.x - 328) < 1 && Math.abs(m.y - 180) < 1);
+              const R = marks.some(m => Math.abs(m.x - 392) < 1 && Math.abs(m.y - 180) < 1);
+              return { ok: !!(t && t.status === 'live' && L && R), L, R, status: t && t.status };
+            }"""
+        )
+        check(bool(vis) and vis.get("ok"), "拔河世界兩岸乾草在開場後亮標記")
+        pg.locator(".frame").screenshot(path=str(OUT / "tug.png"))
+        pg.click("#panel-close")
+
+        # 14. 廣場搬寶：西邊木桶
+        sign = pg.evaluate(f"{P}.map.signs.find(s => s.action === 'haul')")
+        check(bool(sign) and sign.get("title") == "廣場搬寶", "廣場有搬寶告示")
+        pg.evaluate(f"Object.assign({P}.me, {{x: {sign['x']}, y: {sign['y']} + 14, dir: 1}})")
+        pg.keyboard.press("e"); pg.wait_for_timeout(400)
+        check(pg.is_visible("#dialog") and "廣場搬寶" in pg.inner_text("#dialog-name"), "對木桶按 E 出現搬寶對話")
+        for _ in range(6):
+            if not pg.is_visible("#dialog"): break
+            pg.keyboard.press("e"); pg.wait_for_timeout(250)
+        check(pg.is_visible("#panel") and "廣場搬寶" in pg.inner_text("#panel-title"), "對話結束後開啟搬寶面板")
+        pg.locator("#panel-body button", has_text="加入").click(); pg.wait_for_timeout(400)
+        body = pg.inner_text("#panel-body")
+        check("小傑" in body and "艾芙琳奶奶" in body, "訪客沙盒自動補兩個 NPC 湊局")
+        check("木桶" in body or "大鍋" in body or "倒數" in body or "扛" in body, "加入後搬寶開始")
+        vis = pg.evaluate(
+            """() => {
+              const p = window.__plaza, h = p.haul;
+              const o = p.map.objects.find(o => o.k === 'barrel' && o.x === 104 && o.y === 168);
+              const marks = (p.marks && p.marks()) || [];
+              const hit = marks.some(m => Math.abs(m.x - 104) < 1 && Math.abs(m.y - 168) < 1);
+              return { ok: !!(h && h.status === 'live' && h.holder && (hit || (o && o.z))), holder: h && h.holder, hit, z: o && o.z };
+            }"""
+        )
+        check(bool(vis) and vis.get("ok"), "搬寶世界木桶在有人扛時會跳或亮標記")
+        pg.locator(".frame").screenshot(path=str(OUT / "haul.png"))
+        pg.click("#panel-close")
+
+        # 15. 廣場紅綠燈：北邊欄杆
+        sign = pg.evaluate(f"{P}.map.signs.find(s => s.action === 'light')")
+        check(bool(sign) and sign.get("title") == "廣場紅綠燈", "廣場有紅綠燈告示")
+        pg.evaluate(f"Object.assign({P}.me, {{x: {sign['x']}, y: {sign['y']} + 14, dir: 1}})")
+        pg.keyboard.press("e"); pg.wait_for_timeout(400)
+        check(pg.is_visible("#dialog") and "廣場紅綠燈" in pg.inner_text("#dialog-name"), "對欄杆按 E 出現紅綠燈對話")
+        for _ in range(6):
+            if not pg.is_visible("#dialog"): break
+            pg.keyboard.press("e"); pg.wait_for_timeout(250)
+        check(pg.is_visible("#panel") and "廣場紅綠燈" in pg.inner_text("#panel-title"), "對話結束後開啟紅綠燈面板")
+        pg.locator("#panel-body button", has_text="加入").click(); pg.wait_for_timeout(400)
+        body = pg.inner_text("#panel-body")
+        check("小傑" in body and "艾芙琳奶奶" in body, "訪客沙盒自動補兩個 NPC 湊局")
+        check("綠燈" in body or "紅燈" in body or "樁" in body or "倒數" in body, "加入後紅綠燈開始")
+        pg.locator(".frame").screenshot(path=str(OUT / "light.png"))
+        pg.click("#panel-close")
+
+        # 16. 廣場占席：東北草席
+        sign = pg.evaluate(f"{P}.map.signs.find(s => s.action === 'hill')")
+        check(bool(sign) and sign.get("title") == "廣場占席", "廣場有占席告示")
+        pg.evaluate(f"Object.assign({P}.me, {{x: {sign['x']}, y: {sign['y']} + 14, dir: 1}})")
+        pg.keyboard.press("e"); pg.wait_for_timeout(400)
+        check(pg.is_visible("#dialog") and "廣場占席" in pg.inner_text("#dialog-name"), "對草席按 E 出現占席對話")
+        for _ in range(6):
+            if not pg.is_visible("#dialog"): break
+            pg.keyboard.press("e"); pg.wait_for_timeout(250)
+        check(pg.is_visible("#panel") and "廣場占席" in pg.inner_text("#panel-title"), "對話結束後開啟占席面板")
+        pg.locator("#panel-body button", has_text="加入").click(); pg.wait_for_timeout(400)
+        body = pg.inner_text("#panel-body")
+        check("小傑" in body and "艾芙琳奶奶" in body, "訪客沙盒自動補兩個 NPC 湊局")
+        check("草席" in body or "占" in body or "倒數" in body, "加入後占席開始")
+        vis = pg.evaluate(
+            """() => {
+              const p = window.__plaza, h = p.hill;
+              const marks = (p.marks && p.marks()) || [];
+              const hit = marks.some(m => Math.abs(m.x - 424) < 1 && Math.abs(m.y - 56) < 1);
+              return { ok: !!(h && h.status === 'live' && h.holder && hit), holder: h && h.holder, n: marks.length };
+            }"""
+        )
+        check(bool(vis) and vis.get("ok"), "占席世界草席在有人占時亮標記")
+        pg.locator(".frame").screenshot(path=str(OUT / "hill.png"))
+        pg.click("#panel-close")
+
+        # 17. 廣場砸罐：南岸紅罐
+        sign = pg.evaluate(f"{P}.map.signs.find(s => s.action === 'smash')")
+        check(bool(sign) and sign.get("title") == "廣場砸罐", "廣場有砸罐告示")
+        pg.evaluate(f"Object.assign({P}.me, {{x: {sign['x']}, y: {sign['y']} + 14, dir: 1}})")
+        pg.keyboard.press("e"); pg.wait_for_timeout(400)
+        check(pg.is_visible("#dialog") and "廣場砸罐" in pg.inner_text("#dialog-name"), "對紅罐按 E 出現砸罐對話")
+        for _ in range(6):
+            if not pg.is_visible("#dialog"): break
+            pg.keyboard.press("e"); pg.wait_for_timeout(250)
+        check(pg.is_visible("#panel") and "廣場砸罐" in pg.inner_text("#panel-title"), "對話結束後開啟砸罐面板")
+        pg.locator("#panel-body button", has_text="加入").click(); pg.wait_for_timeout(400)
+        body = pg.inner_text("#panel-body")
+        check("小傑" in body and "艾芙琳奶奶" in body, "訪客沙盒自動補兩個 NPC 湊局")
+        check("罐" in body or "砸" in body or "倒數" in body, "加入後砸罐開始")
+        check("冒出來" in body or "縮回去" in body, "砸罐面板顯示罐子節奏")
+        vis = pg.evaluate(
+            """() => {
+              const p = window.__plaza, s = p.smash;
+              const jar = p.map.objects.find(o => o.k === 'jarRed' && o.x === 312 && o.y === 256);
+              if (!s || s.status !== 'live' || !jar) return { ok: false, status: s && s.status };
+              const t = Math.max(0, Date.now() - (s.startedAt || 0));
+              const up = (t % ((s.upMs || 1800) + (s.downMs || 1200))) < (s.upMs || 1800);
+              return { ok: (!!jar.hide) === (!up), hide: !!jar.hide, up };
+            }"""
+        )
+        check(bool(vis) and vis.get("ok"), "砸罐世界罐子隨節奏隱藏")
+        pg.locator(".frame").screenshot(path=str(OUT / "smash.png"))
+        pg.click("#panel-close")
+
+        # 18. 廣場搶瓶：東岸花瓶
+        sign = pg.evaluate(f"{P}.map.signs.find(s => s.action === 'vase')")
+        check(bool(sign) and sign.get("title") == "廣場搶瓶", "廣場有搶瓶告示")
+        pg.evaluate(f"Object.assign({P}.me, {{x: {sign['x']}, y: {sign['y']} + 14, dir: 1}})")
+        pg.keyboard.press("e"); pg.wait_for_timeout(400)
+        check(pg.is_visible("#dialog") and "廣場搶瓶" in pg.inner_text("#dialog-name"), "對花瓶按 E 出現搶瓶對話")
+        for _ in range(6):
+            if not pg.is_visible("#dialog"): break
+            pg.keyboard.press("e"); pg.wait_for_timeout(250)
+        check(pg.is_visible("#panel") and "廣場搶瓶" in pg.inner_text("#panel-title"), "對話結束後開啟搶瓶面板")
+        pg.locator("#panel-body button", has_text="加入").click(); pg.wait_for_timeout(400)
+        body = pg.inner_text("#panel-body")
+        check("小傑" in body and "艾芙琳奶奶" in body, "訪客沙盒自動補兩個 NPC 湊局")
+        check("瓶" in body or "隊" in body or "倒數" in body, "加入後搶瓶開始")
+        vis = pg.evaluate(
+            """() => {
+              const p = window.__plaza, h = p.vase;
+              const o = p.map.objects.find(o => o.k === 'vase' && o.x === 440 && o.y === 200);
+              const marks = (p.marks && p.marks()) || [];
+              const hit = marks.some(m => Math.abs(m.x - 440) < 1 && Math.abs(m.y - 200) < 1);
+              return { ok: !!(h && h.status === 'live' && h.holder && (hit || (o && o.z))), holder: h && h.holder, hit, z: o && o.z };
+            }"""
+        )
+        check(bool(vis) and vis.get("ok"), "搶瓶世界花瓶在有人拿時會跳或亮標記")
+        pg.locator(".frame").screenshot(path=str(OUT / "vase.png"))
+        pg.click("#panel-close")
+
+        # 19. 公告欄列出常駐派對
+        board = pg.evaluate(f"{P}.map.signs.find(s => s.action === 'events')")
+        check(bool(board) and any("搶瓶" in ln for ln in board.get("lines") or []), "公告欄文案提到搶瓶")
+        pg.evaluate(f"Object.assign({P}.me, {{x: {board['x']}, y: {board['y']} + 14, dir: 1}})")
+        pg.keyboard.press("e"); pg.wait_for_timeout(400)
+        for _ in range(6):
+            if not pg.is_visible("#dialog"): break
+            pg.keyboard.press("e"); pg.wait_for_timeout(250)
+        check(pg.is_visible("#panel") and "公告欄" in pg.inner_text("#panel-title"), "對話結束後開啟公告欄")
+        body = pg.inner_text("#panel-body")
+        check("搶寶" in body and "捉迷藏" in body and "傳南瓜" in body and "拔河" in body and "搬寶" in body and "紅綠燈" in body and "占席" in body and "砸罐" in body and "搶瓶" in body, "公告欄列出九個常駐派對")
+        check("進行中" in body or "剛結束" in body, "公告欄標出已開場的常駐人數")
+        pg.locator(".frame").screenshot(path=str(OUT / "bulletin.png"))
+        pg.click("#panel-close")
         b.close()
     srv.shutdown()
     check(not errors, "console 無錯誤" + ("" if not errors else "：" + "; ".join(errors[:3])))

@@ -1,4 +1,4 @@
-"""派派鎮的伺服器端遊戲服務：玩家資料、農場動作、拜訪、共同耕作、跳蚤市場、釣魚、許願池、海獅表演、鎮民交易所。
+"""派派鎮的伺服器端遊戲服務：玩家資料、農場動作、拜訪、共同耕作、跳蚤市場、釣魚、許願池、海獅表演、鎮民交易所、廣場常駐派對（搶寶／捉迷藏／傳南瓜／拔河／搬寶／紅綠燈／占席／砸罐／搶瓶）。
 
 所有規則在伺服器執行（plaza_logic.py），瀏覽器只送操作、收結果。資料存在與雲端存檔同一個 SQLite：
   plaza_players（每位玩家一份 JSON）與 plaza_market（市場掛單）。
@@ -81,6 +81,16 @@ class PlazaService:
         self._loading: dict[str, asyncio.Future] = {}
         self._tasks: list[asyncio.Task] = []
         self._cast_seq = 0
+        self.party: dict[str, Any] = L.new_party()
+        self.contest: dict[str, Any] = L.new_contest()
+        self.seek: dict[str, Any] = L.new_seek()
+        self.hot: dict[str, Any] = L.new_hot()
+        self.tug: dict[str, Any] = L.new_tug()
+        self.haul: dict[str, Any] = L.new_haul()
+        self.light: dict[str, Any] = L.new_light()
+        self.hill: dict[str, Any] = L.new_hill()
+        self.smash: dict[str, Any] = L.new_smash()
+        self.vase: dict[str, Any] = L.new_vase()
         with store._lock:
             for statement in SCHEMA:
                 store._db.execute(statement)
@@ -149,6 +159,66 @@ class PlazaService:
                         self.dirty.add(owner)
                         await self._broadcast_patch(relay, owner, changed, by=None, kind="grow")
                 await self._run_exchange(relay)
+                before = (self.party or {}).get("status")
+                L.maybe_expire_party(self.party, self.now_ms())
+                paid = await self._pay_party(relay)
+                after = (self.party or {}).get("status")
+                if paid or before != after:
+                    await self._broadcast_party(relay)
+                c_before = (self.contest or {}).get("status")
+                L.maybe_expire_contest(self.contest, self.now_ms())
+                c_paid = await self._pay_contest(relay)
+                c_after = (self.contest or {}).get("status")
+                if c_paid or c_before != c_after:
+                    await self._broadcast_contest(relay)
+                s_before = (self.seek or {}).get("status")
+                L.maybe_expire_seek(self.seek, self.now_ms())
+                s_paid = await self._pay_seek(relay)
+                s_after = (self.seek or {}).get("status")
+                if s_paid or s_before != s_after:
+                    await self._broadcast_seek(relay)
+                h_before = (self.hot or {}).get("status")
+                L.maybe_expire_hot(self.hot, self.now_ms())
+                h_paid = await self._pay_hot(relay)
+                h_after = (self.hot or {}).get("status")
+                if h_paid or h_before != h_after:
+                    await self._broadcast_hot(relay)
+                t_before = (self.tug or {}).get("status")
+                L.maybe_expire_tug(self.tug, self.now_ms())
+                t_paid = await self._pay_tug(relay)
+                t_after = (self.tug or {}).get("status")
+                if t_paid or t_before != t_after:
+                    await self._broadcast_tug(relay)
+                u_before = (self.haul or {}).get("status")
+                L.maybe_expire_haul(self.haul, self.now_ms())
+                u_paid = await self._pay_haul(relay)
+                u_after = (self.haul or {}).get("status")
+                if u_paid or u_before != u_after:
+                    await self._broadcast_haul(relay)
+                l_before = (self.light or {}).get("status")
+                L.maybe_expire_light(self.light, self.now_ms())
+                l_paid = await self._pay_light(relay)
+                l_after = (self.light or {}).get("status")
+                if l_paid or l_before != l_after:
+                    await self._broadcast_light(relay)
+                i_before = (self.hill or {}).get("status")
+                L.maybe_expire_hill(self.hill, self.now_ms())
+                i_paid = await self._pay_hill(relay)
+                i_after = (self.hill or {}).get("status")
+                if i_paid or i_before != i_after:
+                    await self._broadcast_hill(relay)
+                m_before = (self.smash or {}).get("status")
+                L.maybe_expire_smash(self.smash, self.now_ms())
+                m_paid = await self._pay_smash(relay)
+                m_after = (self.smash or {}).get("status")
+                if m_paid or m_before != m_after:
+                    await self._broadcast_smash(relay)
+                v_before = (self.vase or {}).get("status")
+                L.maybe_expire_vase(self.vase, self.now_ms())
+                v_paid = await self._pay_vase(relay)
+                v_after = (self.vase or {}).get("status")
+                if v_paid or v_before != v_after:
+                    await self._broadcast_vase(relay)
 
     # ---------- 玩家資料 ----------
     async def load(self, uid: str, name: str | None = None, *, create: bool = True) -> dict[str, Any] | None:
@@ -565,7 +635,19 @@ class PlazaService:
             L.note_act(self.ex, "FISH", 1)
             self.ex_dirty = True
             self.dirty.add(me)
-        return {"fish": fish["id"], "caught": True, "size": size, "contest": cast["contest"], **self._mine(rec)}
+        L.maybe_expire_contest(self.contest, now)
+        await self._pay_contest(relay)
+        if cast["contest"] and not fish.get("junk"):
+            r = L.contest_catch(self.contest, me, rec["name"], fish["id"], size, now)
+            if r.get("round") is not None:
+                self.contest = r["round"]
+            if r.get("ok"):
+                await self._broadcast_contest(relay)
+        view = L.contest_view(self.contest, me, now)
+        return {
+            "fish": fish["id"], "caught": True, "size": size, "contest": cast["contest"],
+            "board": view, "payout": view.get("payout") or 0, **self._mine(rec),
+        }
 
     # ---------- 地標：菲比女神噴水池、瑞吉海獅秀 ----------
     async def op_wish(self, relay, conn, me, rec, p):
@@ -636,6 +718,503 @@ class PlazaService:
         rec["divDay"] = due
         self.dirty.add(uid)
         return gold
+
+    async def _pay_party(self, relay) -> dict[str, int]:
+        rnd = self.party
+        paid: dict[str, int] = {}
+        if not rnd or rnd.get("status") != "over":
+            return paid
+        for uid in rnd.get("order") or []:
+            if str(uid).startswith("npc:"):
+                continue
+            rec = self.players.get(uid)
+            if rec is None:
+                continue
+            n = L.apply_party_gold(rec, uid, rnd)
+            if n:
+                self.dirty.add(uid)
+                paid[uid] = n
+                await self._push_me(relay, uid)
+        return paid
+
+    async def _broadcast_party(self, relay) -> None:
+        view = L.party_public(self.party, self.now_ms())
+        payload = {"type": "game", "op": "party", "party": view}
+        for c in list(relay.connections):
+            if c.game_id == GAME_ID:
+                await self._send(c, payload)
+
+    async def _pay_contest(self, relay) -> dict[str, int]:
+        rnd = self.contest
+        paid: dict[str, int] = {}
+        if not rnd or rnd.get("status") != "over":
+            return paid
+        for uid in rnd.get("order") or []:
+            if str(uid).startswith("npc:"):
+                continue
+            rec = self.players.get(uid)
+            if rec is None:
+                continue
+            n = L.apply_contest_gold(rec, uid, rnd)
+            if n:
+                self.dirty.add(uid)
+                paid[uid] = n
+                await self._push_me(relay, uid)
+        return paid
+
+    async def _broadcast_contest(self, relay) -> None:
+        view = L.contest_public(self.contest, self.now_ms())
+        payload = {"type": "game", "op": "contest", "contest": view}
+        for c in list(relay.connections):
+            if c.game_id == GAME_ID:
+                await self._send(c, payload)
+
+    async def op_contest(self, relay, conn, me, rec, p):
+        now = self.now_ms()
+        L.maybe_expire_contest(self.contest, now)
+        paid = await self._pay_contest(relay)
+        if paid:
+            await self._broadcast_contest(relay)
+        view = L.contest_view(self.contest, me, now)
+        return {"contest": view, "payout": view.get("payout") or 0, **self._mine(rec)}
+
+    async def _pay_seek(self, relay) -> dict[str, int]:
+        rnd = self.seek
+        paid: dict[str, int] = {}
+        if not rnd or rnd.get("status") != "over":
+            return paid
+        for uid in rnd.get("order") or []:
+            if str(uid).startswith("npc:"):
+                continue
+            rec = self.players.get(uid)
+            if rec is None:
+                continue
+            n = L.apply_seek_gold(rec, uid, rnd)
+            if n:
+                self.dirty.add(uid)
+                paid[uid] = n
+                await self._push_me(relay, uid)
+        return paid
+
+    async def _broadcast_seek(self, relay) -> None:
+        view = L.seek_public(self.seek, self.now_ms())
+        payload = {"type": "game", "op": "seek", "seek": view}
+        for c in list(relay.connections):
+            if c.game_id == GAME_ID:
+                await self._send(c, payload)
+
+    async def op_seek(self, relay, conn, me, rec, p):
+        act = p.get("act")
+        if act not in ("join", "hide", "check", "leave", "view"):
+            raise GameError("bad_message", "無效的捉迷藏動作")
+        now = self.now_ms()
+        L.maybe_expire_seek(self.seek, now)
+        await self._pay_seek(relay)
+        rnd = self.seek
+        if act == "join":
+            r = L.seek_join(rnd, me, rec["name"], now)
+        elif act == "hide":
+            r = L.seek_hide(rnd, me, p.get("spot"), p.get("x"), p.get("y"), now)
+        elif act == "check":
+            r = L.seek_check(rnd, me, p.get("spot"), p.get("x"), p.get("y"), now)
+        elif act == "leave":
+            r = L.seek_leave(rnd, me, now)
+        else:
+            r = {"ok": True, "round": rnd}
+        if "round" in r and r["round"] is not None:
+            self.seek = r["round"]
+        if act != "view" and not r.get("ok"):
+            await self._broadcast_seek(relay)
+            raise GameError(r["code"], r.get("msg") or r["code"])
+        await self._pay_seek(relay)
+        await self._broadcast_seek(relay)
+        view = L.seek_view(self.seek, me, now)
+        return {"seek": view, "payout": view.get("payout") or 0, **self._mine(rec)}
+
+    async def _pay_hot(self, relay) -> dict[str, int]:
+        rnd = self.hot
+        paid: dict[str, int] = {}
+        if not rnd or rnd.get("status") != "over":
+            return paid
+        for uid in rnd.get("order") or []:
+            if str(uid).startswith("npc:"):
+                continue
+            rec = self.players.get(uid)
+            if rec is None:
+                continue
+            n = L.apply_hot_gold(rec, uid, rnd)
+            if n:
+                self.dirty.add(uid)
+                paid[uid] = n
+                await self._push_me(relay, uid)
+        return paid
+
+    async def _broadcast_hot(self, relay) -> None:
+        view = L.hot_public(self.hot, self.now_ms())
+        payload = {"type": "game", "op": "hot", "hot": view}
+        for c in list(relay.connections):
+            if c.game_id == GAME_ID:
+                await self._send(c, payload)
+
+    async def op_hot(self, relay, conn, me, rec, p):
+        act = p.get("act")
+        if act not in ("join", "take", "leave", "view"):
+            raise GameError("bad_message", "無效的傳南瓜動作")
+        now = self.now_ms()
+        L.maybe_expire_hot(self.hot, now)
+        await self._pay_hot(relay)
+        rnd = self.hot
+        if act == "join":
+            r = L.hot_join(rnd, me, rec["name"], now)
+        elif act == "take":
+            r = L.hot_take(rnd, me, p.get("x"), p.get("y"), now)
+        elif act == "leave":
+            r = L.hot_leave(rnd, me, now)
+        else:
+            r = {"ok": True, "round": rnd}
+        if "round" in r and r["round"] is not None:
+            self.hot = r["round"]
+        if act != "view" and not r.get("ok"):
+            await self._broadcast_hot(relay)
+            raise GameError(r["code"], r.get("msg") or r["code"])
+        await self._pay_hot(relay)
+        await self._broadcast_hot(relay)
+        view = L.hot_view(self.hot, me, now)
+        return {"hot": view, "payout": view.get("payout") or 0, **self._mine(rec)}
+
+    async def _pay_tug(self, relay) -> dict[str, int]:
+        rnd = self.tug
+        paid: dict[str, int] = {}
+        if not rnd or rnd.get("status") != "over":
+            return paid
+        for uid in rnd.get("order") or []:
+            if str(uid).startswith("npc:"):
+                continue
+            rec = self.players.get(uid)
+            if rec is None:
+                continue
+            n = L.apply_tug_gold(rec, uid, rnd)
+            if n:
+                self.dirty.add(uid)
+                paid[uid] = n
+                await self._push_me(relay, uid)
+        return paid
+
+    async def _broadcast_tug(self, relay) -> None:
+        view = L.tug_public(self.tug, self.now_ms())
+        payload = {"type": "game", "op": "tug", "tug": view}
+        for c in list(relay.connections):
+            if c.game_id == GAME_ID:
+                await self._send(c, payload)
+
+    async def op_tug(self, relay, conn, me, rec, p):
+        act = p.get("act")
+        if act not in ("join", "pull", "leave", "view"):
+            raise GameError("bad_message", "無效的拔河動作")
+        now = self.now_ms()
+        L.maybe_expire_tug(self.tug, now)
+        await self._pay_tug(relay)
+        rnd = self.tug
+        if act == "join":
+            r = L.tug_join(rnd, me, rec["name"], now)
+        elif act == "pull":
+            r = L.tug_pull(rnd, me, p.get("side"), p.get("x"), p.get("y"), now)
+        elif act == "leave":
+            r = L.tug_leave(rnd, me, now)
+        else:
+            r = {"ok": True, "round": rnd}
+        if "round" in r and r["round"] is not None:
+            self.tug = r["round"]
+        if act != "view" and not r.get("ok"):
+            await self._broadcast_tug(relay)
+            raise GameError(r["code"], r.get("msg") or r["code"])
+        await self._pay_tug(relay)
+        await self._broadcast_tug(relay)
+        view = L.tug_view(self.tug, me, now)
+        return {"tug": view, "payout": view.get("payout") or 0, **self._mine(rec)}
+
+    async def _pay_haul(self, relay) -> dict[str, int]:
+        rnd = self.haul
+        paid: dict[str, int] = {}
+        if not rnd or rnd.get("status") != "over":
+            return paid
+        for uid in rnd.get("order") or []:
+            if str(uid).startswith("npc:"):
+                continue
+            rec = self.players.get(uid)
+            if rec is None:
+                continue
+            n = L.apply_haul_gold(rec, uid, rnd)
+            if n:
+                self.dirty.add(uid)
+                paid[uid] = n
+                await self._push_me(relay, uid)
+        return paid
+
+    async def _broadcast_haul(self, relay) -> None:
+        view = L.haul_public(self.haul, self.now_ms())
+        payload = {"type": "game", "op": "haul", "haul": view}
+        for c in list(relay.connections):
+            if c.game_id == GAME_ID:
+                await self._send(c, payload)
+
+    async def op_haul(self, relay, conn, me, rec, p):
+        act = p.get("act")
+        if act not in ("join", "take", "drop", "leave", "view"):
+            raise GameError("bad_message", "無效的搬寶動作")
+        now = self.now_ms()
+        L.maybe_expire_haul(self.haul, now)
+        await self._pay_haul(relay)
+        rnd = self.haul
+        if act == "join":
+            r = L.haul_join(rnd, me, rec["name"], now)
+        elif act == "take":
+            r = L.haul_take(rnd, me, p.get("x"), p.get("y"), now)
+        elif act == "drop":
+            r = L.haul_drop(rnd, me, p.get("x"), p.get("y"), now)
+        elif act == "leave":
+            r = L.haul_leave(rnd, me, now)
+        else:
+            r = {"ok": True, "round": rnd}
+        if "round" in r and r["round"] is not None:
+            self.haul = r["round"]
+        if act != "view" and not r.get("ok"):
+            await self._broadcast_haul(relay)
+            raise GameError(r["code"], r.get("msg") or r["code"])
+        await self._pay_haul(relay)
+        await self._broadcast_haul(relay)
+        view = L.haul_view(self.haul, me, now)
+        return {"haul": view, "payout": view.get("payout") or 0, **self._mine(rec)}
+
+    async def _pay_light(self, relay) -> dict[str, int]:
+        rnd = self.light
+        paid: dict[str, int] = {}
+        if not rnd or rnd.get("status") != "over":
+            return paid
+        for uid in rnd.get("order") or []:
+            if str(uid).startswith("npc:"):
+                continue
+            rec = self.players.get(uid)
+            if rec is None:
+                continue
+            n = L.apply_light_gold(rec, uid, rnd)
+            if n:
+                self.dirty.add(uid)
+                paid[uid] = n
+                await self._push_me(relay, uid)
+        return paid
+
+    async def _broadcast_light(self, relay) -> None:
+        view = L.light_public(self.light, self.now_ms())
+        payload = {"type": "game", "op": "light", "light": view}
+        for c in list(relay.connections):
+            if c.game_id == GAME_ID:
+                await self._send(c, payload)
+
+    async def op_light(self, relay, conn, me, rec, p):
+        act = p.get("act")
+        if act not in ("join", "dash", "leave", "view"):
+            raise GameError("bad_message", "無效的紅綠燈動作")
+        now = self.now_ms()
+        L.maybe_expire_light(self.light, now)
+        await self._pay_light(relay)
+        rnd = self.light
+        if act == "join":
+            r = L.light_join(rnd, me, rec["name"], now)
+        elif act == "dash":
+            r = L.light_dash(rnd, me, p.get("spot"), p.get("x"), p.get("y"), now)
+        elif act == "leave":
+            r = L.light_leave(rnd, me, now)
+        else:
+            r = {"ok": True, "round": rnd}
+        if "round" in r and r["round"] is not None:
+            self.light = r["round"]
+        if act != "view" and not r.get("ok"):
+            await self._broadcast_light(relay)
+            raise GameError(r["code"], r.get("msg") or r["code"])
+        await self._pay_light(relay)
+        await self._broadcast_light(relay)
+        view = L.light_view(self.light, me, now)
+        return {"light": view, "payout": view.get("payout") or 0, **self._mine(rec)}
+
+    async def _pay_hill(self, relay) -> dict[str, int]:
+        rnd = self.hill
+        paid: dict[str, int] = {}
+        if not rnd or rnd.get("status") != "over":
+            return paid
+        for uid in rnd.get("order") or []:
+            if str(uid).startswith("npc:"):
+                continue
+            rec = self.players.get(uid)
+            if rec is None:
+                continue
+            n = L.apply_hill_gold(rec, uid, rnd)
+            if n:
+                self.dirty.add(uid)
+                paid[uid] = n
+                await self._push_me(relay, uid)
+        return paid
+
+    async def _broadcast_hill(self, relay) -> None:
+        view = L.hill_public(self.hill, self.now_ms())
+        payload = {"type": "game", "op": "hill", "hill": view}
+        for c in list(relay.connections):
+            if c.game_id == GAME_ID:
+                await self._send(c, payload)
+
+    async def op_hill(self, relay, conn, me, rec, p):
+        act = p.get("act")
+        if act not in ("join", "take", "leave", "view"):
+            raise GameError("bad_message", "無效的占席動作")
+        now = self.now_ms()
+        L.maybe_expire_hill(self.hill, now)
+        await self._pay_hill(relay)
+        rnd = self.hill
+        if act == "join":
+            r = L.hill_join(rnd, me, rec["name"], now)
+        elif act == "take":
+            r = L.hill_take(rnd, me, p.get("x"), p.get("y"), now)
+        elif act == "leave":
+            r = L.hill_leave(rnd, me, now)
+        else:
+            r = {"ok": True, "round": rnd}
+        if "round" in r and r["round"] is not None:
+            self.hill = r["round"]
+        if act != "view" and not r.get("ok"):
+            await self._broadcast_hill(relay)
+            raise GameError(r["code"], r.get("msg") or r["code"])
+        await self._pay_hill(relay)
+        await self._broadcast_hill(relay)
+        view = L.hill_view(self.hill, me, now)
+        return {"hill": view, "payout": view.get("payout") or 0, **self._mine(rec)}
+
+    async def _pay_smash(self, relay) -> dict[str, int]:
+        rnd = self.smash
+        paid: dict[str, int] = {}
+        if not rnd or rnd.get("status") != "over":
+            return paid
+        for uid in rnd.get("order") or []:
+            if str(uid).startswith("npc:"):
+                continue
+            rec = self.players.get(uid)
+            if rec is None:
+                continue
+            n = L.apply_smash_gold(rec, uid, rnd)
+            if n:
+                self.dirty.add(uid)
+                paid[uid] = n
+                await self._push_me(relay, uid)
+        return paid
+
+    async def _broadcast_smash(self, relay) -> None:
+        view = L.smash_public(self.smash, self.now_ms())
+        payload = {"type": "game", "op": "smash", "smash": view}
+        for c in list(relay.connections):
+            if c.game_id == GAME_ID:
+                await self._send(c, payload)
+
+    async def op_smash(self, relay, conn, me, rec, p):
+        act = p.get("act")
+        if act not in ("join", "hit", "leave", "view"):
+            raise GameError("bad_message", "無效的砸罐動作")
+        now = self.now_ms()
+        L.maybe_expire_smash(self.smash, now)
+        await self._pay_smash(relay)
+        rnd = self.smash
+        if act == "join":
+            r = L.smash_join(rnd, me, rec["name"], now)
+        elif act == "hit":
+            r = L.smash_hit(rnd, me, p.get("x"), p.get("y"), now)
+        elif act == "leave":
+            r = L.smash_leave(rnd, me, now)
+        else:
+            r = {"ok": True, "round": rnd}
+        if "round" in r and r["round"] is not None:
+            self.smash = r["round"]
+        if act != "view" and not r.get("ok"):
+            await self._broadcast_smash(relay)
+            raise GameError(r["code"], r.get("msg") or r["code"])
+        await self._pay_smash(relay)
+        await self._broadcast_smash(relay)
+        view = L.smash_view(self.smash, me, now)
+        return {"smash": view, "payout": view.get("payout") or 0, **self._mine(rec)}
+
+    async def _pay_vase(self, relay) -> dict[str, int]:
+        rnd = self.vase
+        paid: dict[str, int] = {}
+        if not rnd or rnd.get("status") != "over":
+            return paid
+        for uid in rnd.get("order") or []:
+            if str(uid).startswith("npc:"):
+                continue
+            rec = self.players.get(uid)
+            if rec is None:
+                continue
+            n = L.apply_vase_gold(rec, uid, rnd)
+            if n:
+                self.dirty.add(uid)
+                paid[uid] = n
+                await self._push_me(relay, uid)
+        return paid
+
+    async def _broadcast_vase(self, relay) -> None:
+        view = L.vase_public(self.vase, self.now_ms())
+        payload = {"type": "game", "op": "vase", "vase": view}
+        for c in list(relay.connections):
+            if c.game_id == GAME_ID:
+                await self._send(c, payload)
+
+    async def op_vase(self, relay, conn, me, rec, p):
+        act = p.get("act")
+        if act not in ("join", "take", "leave", "view"):
+            raise GameError("bad_message", "無效的搶瓶動作")
+        now = self.now_ms()
+        L.maybe_expire_vase(self.vase, now)
+        await self._pay_vase(relay)
+        rnd = self.vase
+        if act == "join":
+            r = L.vase_join(rnd, me, rec["name"], now)
+        elif act == "take":
+            r = L.vase_take(rnd, me, p.get("x"), p.get("y"), now)
+        elif act == "leave":
+            r = L.vase_leave(rnd, me, now)
+        else:
+            r = {"ok": True, "round": rnd}
+        if "round" in r and r["round"] is not None:
+            self.vase = r["round"]
+        if act != "view" and not r.get("ok"):
+            await self._broadcast_vase(relay)
+            raise GameError(r["code"], r.get("msg") or r["code"])
+        await self._pay_vase(relay)
+        await self._broadcast_vase(relay)
+        view = L.vase_view(self.vase, me, now)
+        return {"vase": view, "payout": view.get("payout") or 0, **self._mine(rec)}
+
+    async def op_party(self, relay, conn, me, rec, p):
+        act = p.get("act")
+        if act not in ("join", "grab", "leave", "view"):
+            raise GameError("bad_message", "無效的搶寶動作")
+        now = self.now_ms()
+        L.maybe_expire_party(self.party, now)
+        await self._pay_party(relay)
+        rnd = self.party
+        if act == "join":
+            r = L.party_join(rnd, me, rec["name"], now)
+        elif act == "grab":
+            r = L.party_grab(rnd, me, p.get("spot"), p.get("x"), p.get("y"), now)
+        elif act == "leave":
+            r = L.party_leave(rnd, me, now)
+        else:
+            r = {"ok": True, "round": rnd}
+        if "round" in r and r["round"] is not None:
+            self.party = r["round"]
+        if act != "view" and not r.get("ok"):
+            await self._broadcast_party(relay)
+            raise GameError(r["code"], r.get("msg") or r["code"])
+        await self._pay_party(relay)
+        await self._broadcast_party(relay)
+        view = L.party_view(self.party, me, now)
+        return {"party": view, "payout": view.get("payout") or 0, **self._mine(rec)}
 
     async def op_quote(self, relay, conn, me, rec, p):
         await self._run_exchange(relay)

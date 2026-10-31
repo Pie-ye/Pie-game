@@ -2,7 +2,7 @@
 import { FURNITURE, FLOORS, WALLS, HOUSE_STYLES } from '../house/catalog.js';
 import { ROOF, ROOF_NAMES, WALL, WALL_NAMES, YARD, YARD_NAMES } from '../house/exterior.js';
 import { CROPS } from '../farm/state.js';
-import { todaySchedule, dayLabel, hhmm } from '../events/schedule.js';
+import { todaySchedule, dayLabel, hhmm, ALWAYS_ON, occupancyLine } from '../events/schedule.js';
 import { hslToRgb } from '../avatar/look.js';
 import { atlasIcon } from './icon.js';
 
@@ -13,6 +13,7 @@ export function closePanel() { panel().hidden = true; const cb = onClose; onClos
 export const panelOpen = () => !panel().hidden;
 
 export function openPanel(title, close) { return open(title, close); }
+export { attachCountdown, countdownText, holdSeconds, liveLeftSeconds, liveScoreSeconds, liveTeamSeconds } from './countdown.js';
 function open(title, close) {
   document.getElementById('panel-title').textContent = title;
   const body = document.getElementById('panel-body'); body.textContent = '';
@@ -90,12 +91,23 @@ export function openSeedShop(title, gold, buy, discount = 1, close) {
   }
 }
 
-/** 公告欄：今天的活動表。 */
-export function openEventBoard(ms, close) {
+/** 公告欄：今天的活動表。snaps 是九個常駐的 public 快照（沒有就當空場等人）。 */
+export function openEventBoard(ms, close, snaps) {
   const body = open('派派鎮公告欄', close);
   const d = document.createElement('p'); d.textContent = `今天是 ${dayLabel(ms)}（台北時間）`; body.append(d);
+  const stand = document.createElement('h3'); stand.textContent = '常駐派對'; body.append(stand);
+  const how = document.createElement('p'); how.className = 'note'; how.textContent = '走近地標按 E。三個人湊齊開始倒數，最多八人。'; body.append(how);
+  for (const s of ALWAYS_ON) {
+    const snap = snaps && snaps[s.id];
+    const st = snap && snap.status;
+    const card = document.createElement('div'); card.className = 'event' + (st === 'live' || st === 'countdown' ? ' now' : '');
+    const h = document.createElement('b'); h.textContent = `${s.icon} ${s.name}`;
+    const tag = document.createElement('span'); tag.className = 'tag'; tag.textContent = occupancyLine(snap);
+    const p = document.createElement('p'); p.textContent = s.where;
+    card.append(h, tag, p); body.append(card);
+  }
   const list = todaySchedule(ms);
-  if (!list.length) { const p = document.createElement('p'); p.textContent = '今天沒有活動。'; body.append(p); }
+  if (!list.length) { const p = document.createElement('p'); p.textContent = '今天沒有時段活動。'; body.append(p); }
   for (const { e, from, to, state } of list) {
     const card = document.createElement('div'); card.className = `event ${state}`;
     const h = document.createElement('b'); h.textContent = `${e.icon} ${e.name}　${hhmm(from)}–${hhmm(to)}`;
@@ -103,7 +115,7 @@ export function openEventBoard(ms, close) {
     const p = document.createElement('p'); p.textContent = `${e.desc}（地點：${e.area === 'town' ? '商店街' : '廣場'}）`;
     card.append(h, tag, p); body.append(card);
   }
-  const all = document.createElement('p'); all.className = 'note'; all.textContent = '每天：早市 07–10、瑞吉海獅秀 10–11／15–16／19–20、釣魚大賽 12–13 與 18–19、營火晚會 20–23；週末另有花祭 09–21。';
+  const all = document.createElement('p'); all.className = 'note'; all.textContent = '每天：早市 07–10、瑞吉海獅秀 10–11／15–16／19–20、釣魚大賽 12–13 與 18–19、營火晚會 20–23；週末另有花祭 09–21。常駐派對隨時可湊人。';
   body.append(all);
 }
 

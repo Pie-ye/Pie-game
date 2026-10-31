@@ -345,3 +345,1098 @@ async def test_exchange_ops_activity_and_persist(aiohttp_client, tmp_path) -> No
     clock.value = taipei_ts(2026, 11, 2, 16)
     assert (await call(alice, "trade", side="buy", ticker="FISH", n=1))["code"] == "closed"
     await alice.close()
+
+
+def test_party_rules_match_frontend() -> None:
+    script = r"""
+    const P = await import('./site/games/community/pie-plaza/src/game/party.js');
+    let rnd = P.newParty();
+    for (const [id, name] of [['a','A'],['b','B'],['c','C']]) rnd = P.partyJoin(rnd, id, name, 0).round;
+    const early = P.partyGrab(rnd, 'a', P.PARTY.spots[0].id, P.PARTY.spots[0].x, P.PARTY.spots[0].y, 1);
+    const boarded = P.partyJoin(rnd, 'd', 'D', 2);
+    const boardedStatus = boarded.round.status;
+    rnd = boarded.round;
+    P.maybeExpire(rnd, (rnd.startedAt || 0) + P.PARTY.countdownMs);
+    const fourth = P.partyJoin(rnd, 'e', 'E', (rnd.startedAt || 0) + 1);
+    const grabs = [];
+    [['a',0],['b',1],['c',2],['a',3],['b',4],['c',5]].forEach(([u, i]) => {
+      const s = P.PARTY.spots[i];
+      const r = P.partyGrab(rnd, u, s.id, s.x, s.y, P.PARTY.countdownMs + 10 + i);
+      rnd = r.round;
+      grabs.push([r.ok, rnd.players[u].score, rnd.status]);
+    });
+    const rec = { gold: 100 };
+    const pay = P.applyPartyGold(rec, 'a', rnd);
+    const over = P.partyGrab(rnd, 'a', P.PARTY.spots[0].id, P.PARTY.spots[0].x, P.PARTY.spots[0].y, 99);
+    console.log(JSON.stringify({ third: 'countdown', early: early.code, boarded: boardedStatus, fourth: fourth.code, payouts: rnd.payouts, pay, gold: rec.gold, over: over.code, grabs }));
+    """
+    js = json.loads(subprocess.run(
+        ["node", "--input-type=module", "-e", script], cwd=REPO, capture_output=True, text=True, check=True,
+    ).stdout)
+    rnd = L.new_party()
+    for uid, name in (("a", "A"), ("b", "B"), ("c", "C")):
+        rnd = L.party_join(rnd, uid, name, 0)["round"]
+    assert rnd["status"] == js["third"] == "countdown"
+    early = L.party_grab(rnd, "a", L.PARTY_SPOTS[0]["id"], L.PARTY_SPOTS[0]["x"], L.PARTY_SPOTS[0]["y"], 1)
+    boarded = L.party_join(rnd, "d", "D", 2)
+    boarded_status = boarded["round"]["status"]
+    rnd = boarded["round"]
+    L.maybe_expire_party(rnd, (rnd.get("startedAt") or 0) + L.PARTY_COUNTDOWN_MS)
+    fourth = L.party_join(rnd, "e", "E", (rnd.get("startedAt") or 0) + 1)
+    grabs = []
+    for i, uid in enumerate(("a", "b", "c", "a", "b", "c")):
+        s = L.PARTY_SPOTS[i]
+        r = L.party_grab(rnd, uid, s["id"], s["x"], s["y"], L.PARTY_COUNTDOWN_MS + 10 + i)
+        rnd = r["round"]
+        grabs.append([r["ok"], rnd["players"][uid]["score"], rnd["status"]])
+    rec = {"gold": 100}
+    pay = L.apply_party_gold(rec, "a", rnd)
+    over = L.party_grab(rnd, "a", L.PARTY_SPOTS[0]["id"], L.PARTY_SPOTS[0]["x"], L.PARTY_SPOTS[0]["y"], 99)
+    assert early["code"] == js["early"] == "not_live"
+    assert boarded_status == js["boarded"] == "countdown"
+    assert fourth["code"] == js["fourth"] == "party_live"
+    assert rnd["payouts"] == js["payouts"]
+    assert pay == js["pay"] == 40 and rec["gold"] == js["gold"] == 140
+    assert over["code"] == js["over"] == "party_over"
+    assert grabs == js["grabs"]
+
+
+@pytest.mark.asyncio
+async def test_party_ops_score_persist_and_reject(aiohttp_client, tmp_path) -> None:
+    client, plaza, store, _clock = await make(aiohttp_client, tmp_path)
+    alice = await connect_and_auth(client, "alice", G)
+    bob = await connect_and_auth(client, "bob", G)
+    carol = await connect_and_auth(client, "carol", G)
+    dave = await connect_and_auth(client, "dave", G)
+    await call(alice, "load")
+    await call(bob, "load")
+    await call(carol, "load")
+    await call(dave, "load")
+    g0 = plaza.players["alice"]["gold"]
+    j1 = await call(alice, "party", act="join")
+    j2 = await call(bob, "party", act="join")
+    j3 = await call(carol, "party", act="join")
+    assert j1["ok"] and j2["ok"] and j3["party"]["status"] == "countdown"
+    boarded = await call(dave, "party", act="join")
+    assert boarded["ok"] and boarded["party"]["status"] == "countdown"
+    assert len(boarded["party"]["players"]) == 4
+    _clock.value = plaza.party["startedAt"] / 1000 + L.PARTY_COUNTDOWN_MS / 1000 + 0.05
+    live = await call(alice, "party", act="view")
+    assert live["party"]["status"] == "live"
+    assert (await call(dave, "party", act="join"))["code"] == "already_in"
+    eve = await connect_and_auth(client, "eve", G)
+    await call(eve, "load")
+    assert (await call(eve, "party", act="join"))["code"] == "party_live"
+    assert (await call(alice, "party", act="nope"))["code"] == "bad_message"
+    spots = L.PARTY_SPOTS
+    owners = ["alice", "bob", "carol", "alice", "bob", "carol"]
+    last = None
+    for i, uid in enumerate(owners):
+        ws = { "alice": alice, "bob": bob, "carol": carol }[uid]
+        s = spots[i]
+        last = await call(ws, "party", act="grab", spot=s["id"], x=s["x"], y=s["y"])
+        assert last.get("ok"), last
+    assert last["party"]["status"] == "over"
+    assert last["party"]["payouts"]["alice"] == 40
+    assert plaza.players["alice"]["gold"] == g0 + 40
+    assert plaza.players["bob"]["gold"] == g0 + 20
+    assert plaza.players["carol"]["gold"] == g0 + 10
+    assert (await call(alice, "party", act="grab", spot=spots[0]["id"], x=spots[0]["x"], y=spots[0]["y"]))["code"] == "party_over"
+    await plaza.flush()
+    again = PlazaService(store, clock=_clock, rng=random.Random(1))
+    rec = await again.load("alice", "Alice")
+    assert rec["gold"] == g0 + 40
+    await alice.close()
+    await bob.close()
+    await carol.close()
+    await dave.close()
+    await eve.close()
+
+
+@pytest.mark.asyncio
+async def test_party_timeout_pays_before_next_join_or_grab(aiohttp_client, tmp_path) -> None:
+    client, plaza, store, clock = await make(aiohttp_client, tmp_path)
+    alice = await connect_and_auth(client, "alice", G)
+    bob = await connect_and_auth(client, "bob", G)
+    carol = await connect_and_auth(client, "carol", G)
+    dave = await connect_and_auth(client, "dave", G)
+    await call(alice, "load")
+    await call(bob, "load")
+    await call(carol, "load")
+    await call(dave, "load")
+    g0 = plaza.players["alice"]["gold"]
+    assert (await call(alice, "party", act="join"))["ok"]
+    assert (await call(bob, "party", act="join"))["ok"]
+    live = await call(carol, "party", act="join")
+    assert live["party"]["status"] == "countdown"
+    started = plaza.party["startedAt"]
+    clock.value = started / 1000 + L.PARTY_COUNTDOWN_MS / 1000 + L.PARTY_ROUND_MS / 1000 + 0.05
+    s = L.PARTY_SPOTS[0]
+    err = await call(alice, "party", act="grab", spot=s["id"], x=s["x"], y=s["y"])
+    assert err["code"] == "party_over"
+    assert plaza.players["alice"]["gold"] == g0 + 40
+    assert plaza.players["bob"]["gold"] == g0 + 20
+    assert plaza.players["carol"]["gold"] == g0 + 10
+    view = await call(alice, "party", act="view")
+    assert view["ok"] and plaza.players["alice"]["gold"] == g0 + 40
+    nxt = await call(dave, "party", act="join")
+    assert nxt["ok"] and nxt["party"]["status"] == "open"
+    assert plaza.players["alice"]["gold"] == g0 + 40
+    assert plaza.players["dave"]["gold"] == g0
+    await plaza.flush()
+    again = PlazaService(store, clock=clock, rng=random.Random(1))
+    rec = await again.load("alice", "Alice")
+    assert rec["gold"] == g0 + 40
+    await alice.close()
+    await bob.close()
+    await carol.close()
+    await dave.close()
+
+
+def test_contest_rules_match_frontend() -> None:
+    script = r"""
+    const C = await import('./site/games/community/pie-plaza/src/game/contest.js');
+    const noon = Date.UTC(2026, 9, 31, 4, 30);
+    const end = Date.UTC(2026, 9, 31, 5, 30);
+    let rnd = C.newContest();
+    rnd = C.contestCatch(rnd, 'a', 'A', 'sardine', 20, noon).round;
+    rnd = C.contestCatch(rnd, 'b', 'B', 'golden', 20, noon).round;
+    rnd = C.contestCatch(rnd, 'c', 'C', 'tuna', 30, noon).round;
+    const closed = C.contestCatch(rnd, 'd', 'D', 'bass', 10, end);
+    C.maybeExpireContest(rnd, end);
+    const rec = { gold: 100 };
+    const pay = C.applyContestGold(rec, 'b', rnd);
+    console.log(JSON.stringify({ slot: C.fishingSlot(noon), closed: closed.code, payouts: rnd.payouts, pay, gold: rec.gold, status: rnd.status }));
+    """
+    js = json.loads(subprocess.run(
+        ["node", "--input-type=module", "-e", script], cwd=REPO, capture_output=True, text=True, check=True,
+    ).stdout)
+    noon = int(taipei_ts(2026, 10, 31, 12, 30) * 1000)
+    end = int(taipei_ts(2026, 10, 31, 13, 30) * 1000)
+    rnd = L.new_contest()
+    rnd = L.contest_catch(rnd, "a", "A", "sardine", 20, noon)["round"]
+    rnd = L.contest_catch(rnd, "b", "B", "golden", 20, noon)["round"]
+    rnd = L.contest_catch(rnd, "c", "C", "tuna", 30, noon)["round"]
+    closed = L.contest_catch(rnd, "d", "D", "bass", 10, end)
+    L.maybe_expire_contest(rnd, end)
+    rec = {"gold": 100}
+    pay = L.apply_contest_gold(rec, "b", rnd)
+    assert js["slot"] == L.fishing_slot(noon) == "12-13"
+    assert closed["code"] == js["closed"] == "contest_closed"
+    assert rnd["payouts"] == js["payouts"] == {"b": 40, "c": 20, "a": 10}
+    assert pay == js["pay"] == 40 and rec["gold"] == js["gold"] == 140
+    assert rnd["status"] == js["status"] == "over"
+
+
+@pytest.mark.asyncio
+async def test_contest_ops_score_persist_and_pay_at_slot_end(aiohttp_client, tmp_path) -> None:
+    client, plaza, store, clock = await make(aiohttp_client, tmp_path)
+    clock.value = taipei_ts(2026, 10, 31, 12, 10)
+    alice = await connect_and_auth(client, "alice", G)
+    bob = await connect_and_auth(client, "bob", G)
+    carol = await connect_and_auth(client, "carol", G)
+    await call(alice, "load")
+    await call(bob, "load")
+    await call(carol, "load")
+    g0 = plaza.players["alice"]["gold"]
+    scored = False
+    for _ in range(12):
+        c = await call(alice, "cast", where="sea")
+        assert c.get("contest") is True
+        clock.value += (c["bite"] + 1500) / 1000.0
+        land = await call(alice, "land", cast=c["cast"], ok=True)
+        if land.get("ok") and land.get("caught") and land.get("size", 0) > 0:
+            assert land["board"]["players"][0]["id"] == "alice"
+            scored = True
+            break
+    assert scored, "alice should land a scoring sea fish during the contest slot"
+    r = L.contest_catch(plaza.contest, "bob", "Bob", "golden", 20, plaza.now_ms())
+    plaza.contest = r["round"]
+    r = L.contest_catch(plaza.contest, "carol", "Carol", "tuna", 30, plaza.now_ms())
+    plaza.contest = r["round"]
+    clock.value = taipei_ts(2026, 10, 31, 13, 5)
+    view = await call(alice, "contest")
+    assert view["ok"] and view["contest"]["status"] == "over"
+    assert plaza.players["alice"]["gold"] >= g0 + 5
+    assert (await call(alice, "contest"))["gold"] == plaza.players["alice"]["gold"]
+    await plaza.flush()
+    again = PlazaService(store, clock=clock, rng=random.Random(1))
+    rec = await again.load("alice", "Alice")
+    assert rec["gold"] == plaza.players["alice"]["gold"]
+    await alice.close()
+    await bob.close()
+    await carol.close()
+
+
+def test_seek_rules_match_frontend() -> None:
+    script = r"""
+    const S = await import('./site/games/community/pie-plaza/src/game/seek.js');
+    let rnd = S.newSeek();
+    for (const [id, name] of [['a','A'],['b','B'],['c','C']]) rnd = S.seekJoin(rnd, id, name, 0).round;
+    const early = S.seekHide(rnd, 'b', S.SEEK.spots[0].id, S.SEEK.spots[0].x, S.SEEK.spots[0].y, 1);
+    const boarded = S.seekJoin(rnd, 'd', 'D', 2);
+    const boardedStatus = boarded.round.status;
+    rnd = boarded.round;
+    S.maybeExpireSeek(rnd, (rnd.startedAt || 0) + S.SEEK.countdownMs);
+    const fourth = S.seekJoin(rnd, 'e', 'E', (rnd.startedAt || 0) + 1);
+    const already = S.seekJoin(rnd, 'a', 'A', (rnd.startedAt || 0) + 2);
+    const notHider = S.seekHide(rnd, 'a', S.SEEK.spots[0].id, S.SEEK.spots[0].x, S.SEEK.spots[0].y, S.SEEK.countdownMs + 10);
+    const s0 = S.SEEK.spots[0], s1 = S.SEEK.spots[1];
+    const hidB = S.seekHide(rnd, 'b', s0.id, s0.x, s0.y, S.SEEK.countdownMs + 12);
+    const hidC = S.seekHide(rnd, 'c', s1.id, s1.x, s1.y, S.SEEK.countdownMs + 15);
+    const tagged = S.seekCheck(rnd, 'a', s0.id, s0.x, s0.y, S.SEEK.countdownMs + 18);
+    S.maybeExpireSeek(rnd, rnd.startedAt + S.SEEK.roundMs);
+    const rec = { gold: 100 };
+    const pay = S.applySeekGold(rec, 'c', rnd);
+    const over = S.seekHide(rnd, 'c', s1.id, s1.x, s1.y, 99);
+    console.log(JSON.stringify({ third: 'countdown', early: early.code, boarded: boardedStatus, fourth: fourth.code, already: already.code, notHider: notHider.code, hidB: hidB.ok, hidC: hidC.ok, tagged: tagged.found, seeker: rnd.seeker, payouts: rnd.payouts, pay, gold: rec.gold, over: over.code }));
+    """
+    js = json.loads(subprocess.run(
+        ["node", "--input-type=module", "-e", script], cwd=REPO, capture_output=True, text=True, check=True,
+    ).stdout)
+    rnd = L.new_seek()
+    for uid, name in (("a", "A"), ("b", "B"), ("c", "C")):
+        rnd = L.seek_join(rnd, uid, name, 0)["round"]
+    assert rnd["status"] == js["third"] == "countdown"
+    early = L.seek_hide(rnd, "b", L.SEEK_SPOTS[0]["id"], L.SEEK_SPOTS[0]["x"], L.SEEK_SPOTS[0]["y"], 1)
+    boarded = L.seek_join(rnd, "d", "D", 2)
+    boarded_status = boarded["round"]["status"]
+    rnd = boarded["round"]
+    L.maybe_expire_seek(rnd, (rnd.get("startedAt") or 0) + L.SEEK_COUNTDOWN_MS)
+    fourth = L.seek_join(rnd, "e", "E", (rnd.get("startedAt") or 0) + 1)
+    already = L.seek_join(rnd, "a", "A", (rnd.get("startedAt") or 0) + 2)
+    not_hider = L.seek_hide(rnd, "a", L.SEEK_SPOTS[0]["id"], L.SEEK_SPOTS[0]["x"], L.SEEK_SPOTS[0]["y"], L.SEEK_COUNTDOWN_MS + 10)
+    s0, s1 = L.SEEK_SPOTS[0], L.SEEK_SPOTS[1]
+    hid_b = L.seek_hide(rnd, "b", s0["id"], s0["x"], s0["y"], L.SEEK_COUNTDOWN_MS + 12)
+    hid_c = L.seek_hide(rnd, "c", s1["id"], s1["x"], s1["y"], L.SEEK_COUNTDOWN_MS + 15)
+    tagged = L.seek_check(rnd, "a", s0["id"], s0["x"], s0["y"], L.SEEK_COUNTDOWN_MS + 18)
+    L.maybe_expire_seek(rnd, rnd["startedAt"] + L.SEEK_ROUND_MS)
+    rec = {"gold": 100}
+    pay = L.apply_seek_gold(rec, "c", rnd)
+    over = L.seek_hide(rnd, "c", s1["id"], s1["x"], s1["y"], 99)
+    assert early["code"] == js["early"] == "not_live"
+    assert boarded_status == js["boarded"] == "countdown"
+    assert fourth["code"] == js["fourth"] == "seek_live"
+    assert already["code"] == js["already"] == "already_in"
+    assert not_hider["code"] == js["notHider"] == "not_hider"
+    assert hid_b["ok"] is True and hid_c["ok"] is True
+    assert tagged["found"] == js["tagged"] == "b"
+    assert rnd["seeker"] == js["seeker"] == "b"
+    assert rnd["payouts"] == js["payouts"]
+    assert pay == js["pay"] == 40 and rec["gold"] == js["gold"] == 140
+    assert over["code"] == js["over"] == "seek_over"
+
+
+@pytest.mark.asyncio
+async def test_seek_ops_tag_persist_and_reject(aiohttp_client, tmp_path) -> None:
+    client, plaza, store, _clock = await make(aiohttp_client, tmp_path)
+    alice = await connect_and_auth(client, "alice", G)
+    bob = await connect_and_auth(client, "bob", G)
+    carol = await connect_and_auth(client, "carol", G)
+    dave = await connect_and_auth(client, "dave", G)
+    await call(alice, "load")
+    await call(bob, "load")
+    await call(carol, "load")
+    await call(dave, "load")
+    g0 = plaza.players["alice"]["gold"]
+    j1 = await call(alice, "seek", act="join")
+    j2 = await call(bob, "seek", act="join")
+    j3 = await call(carol, "seek", act="join")
+    assert j1["ok"] and j2["ok"] and j3["seek"]["status"] == "countdown"
+    boarded = await call(dave, "seek", act="join")
+    assert boarded["ok"] and boarded["seek"]["status"] == "countdown"
+    assert len(boarded["seek"]["players"]) == 4
+    _clock.value = plaza.seek["startedAt"] / 1000 + L.SEEK_COUNTDOWN_MS / 1000 + 0.05
+    live = await call(alice, "seek", act="view")
+    assert live["seek"]["status"] == "live"
+    assert live["seek"]["seeker"] == "alice"
+    assert (await call(dave, "seek", act="join"))["code"] == "already_in"
+    eve = await connect_and_auth(client, "eve", G)
+    await call(eve, "load")
+    assert (await call(eve, "seek", act="join"))["code"] == "seek_live"
+    assert (await call(alice, "seek", act="nope"))["code"] == "bad_message"
+    s0, s1 = L.SEEK_SPOTS[0], L.SEEK_SPOTS[1]
+    assert (await call(alice, "seek", act="hide", spot=s0["id"], x=s0["x"], y=s0["y"]))["code"] == "not_hider"
+    assert (await call(bob, "seek", act="hide", spot=s0["id"], x=s0["x"], y=s0["y"]))["ok"]
+    assert (await call(carol, "seek", act="hide", spot=s1["id"], x=s1["x"], y=s1["y"]))["ok"]
+    tagged = await call(alice, "seek", act="check", spot=s0["id"], x=s0["x"], y=s0["y"])
+    assert tagged["ok"] and tagged["seek"]["seeker"] == "bob"
+    _clock.value = plaza.seek["startedAt"] / 1000 + L.SEEK_ROUND_MS / 1000 + 0.05
+    view = await call(alice, "seek", act="view")
+    assert view["seek"]["status"] == "over"
+    assert plaza.players["carol"]["gold"] == g0 + 40
+    assert plaza.players["alice"]["gold"] == g0 + 20
+    assert plaza.players["bob"]["gold"] == g0 + 10
+    assert plaza.players["dave"]["gold"] == g0 + 5
+    assert (await call(carol, "seek", act="hide", spot=s1["id"], x=s1["x"], y=s1["y"]))["code"] == "seek_over"
+    await plaza.flush()
+    again = PlazaService(store, clock=_clock, rng=random.Random(1))
+    rec = await again.load("carol", "Carol")
+    assert rec["gold"] == g0 + 40
+    await alice.close()
+    await bob.close()
+    await carol.close()
+    await dave.close()
+    await eve.close()
+
+
+@pytest.mark.asyncio
+async def test_seek_timeout_pays_before_next_join(aiohttp_client, tmp_path) -> None:
+    client, plaza, store, clock = await make(aiohttp_client, tmp_path)
+    alice = await connect_and_auth(client, "alice", G)
+    bob = await connect_and_auth(client, "bob", G)
+    carol = await connect_and_auth(client, "carol", G)
+    dave = await connect_and_auth(client, "dave", G)
+    await call(alice, "load")
+    await call(bob, "load")
+    await call(carol, "load")
+    await call(dave, "load")
+    g0 = plaza.players["alice"]["gold"]
+    assert (await call(alice, "seek", act="join"))["ok"]
+    assert (await call(bob, "seek", act="join"))["ok"]
+    live = await call(carol, "seek", act="join")
+    assert live["seek"]["status"] == "countdown"
+    started = plaza.seek["startedAt"]
+    clock.value = started / 1000 + L.SEEK_COUNTDOWN_MS / 1000 + 0.05
+    s0 = L.SEEK_SPOTS[0]
+    assert (await call(bob, "seek", act="hide", spot=s0["id"], x=s0["x"], y=s0["y"]))["ok"]
+    clock.value = started / 1000 + L.SEEK_COUNTDOWN_MS / 1000 + L.SEEK_ROUND_MS / 1000 + 0.05
+    err = await call(alice, "seek", act="hide", spot=s0["id"], x=s0["x"], y=s0["y"])
+    assert err["code"] == "seek_over"
+    assert plaza.players["bob"]["gold"] == g0 + 40
+    assert plaza.players["alice"]["gold"] == g0 + 20
+    assert plaza.players["carol"]["gold"] == g0 + 10
+    view = await call(alice, "seek", act="view")
+    assert view["ok"] and plaza.players["alice"]["gold"] == g0 + 20
+    nxt = await call(dave, "seek", act="join")
+    assert nxt["ok"] and nxt["seek"]["status"] == "open"
+    assert plaza.players["bob"]["gold"] == g0 + 40
+    assert plaza.players["dave"]["gold"] == g0
+    await plaza.flush()
+    again = PlazaService(store, clock=clock, rng=random.Random(1))
+    rec = await again.load("bob", "Bob")
+    assert rec["gold"] == g0 + 40
+    await alice.close()
+    await bob.close()
+    await carol.close()
+    await dave.close()
+
+
+def test_hot_rules_match_frontend() -> None:
+    script = r"""
+    const H = await import('./site/games/community/pie-plaza/src/game/hot.js');
+    let rnd = H.newHot();
+    for (const [id, name] of [['a','A'],['b','B'],['c','C']]) rnd = H.hotJoin(rnd, id, name, 0).round;
+    const early = H.hotTake(rnd, 'b', H.HOT_JOIN.x, H.HOT_JOIN.y, 1);
+    const boarded = H.hotJoin(rnd, 'd', 'D', 2);
+    const boardedStatus = boarded.round.status;
+    rnd = boarded.round;
+    H.maybeExpireHot(rnd, (rnd.startedAt || 0) + H.HOT.countdownMs);
+    const fourth = H.hotJoin(rnd, 'e', 'E', (rnd.startedAt || 0) + 1);
+    const already = H.hotJoin(rnd, 'a', 'A', (rnd.startedAt || 0) + 2);
+    const holding = H.hotTake(rnd, 'a', H.HOT_JOIN.x, H.HOT_JOIN.y, H.HOT.countdownMs + 10);
+    const took = H.hotTake(rnd, 'b', H.HOT_JOIN.x, H.HOT_JOIN.y, H.HOT.countdownMs + 12);
+    H.maybeExpireHot(rnd, rnd.startedAt + H.HOT.roundMs);
+    const rec = { gold: 100 };
+    const pay = H.applyHotGold(rec, 'a', rnd);
+    const over = H.hotTake(rnd, 'c', H.HOT_JOIN.x, H.HOT_JOIN.y, 99);
+    console.log(JSON.stringify({ third: 'countdown', early: early.code, boarded: boardedStatus, fourth: fourth.code, already: already.code, holding: holding.code, took: took.ok, holder: rnd.holder, payouts: rnd.payouts, pay, gold: rec.gold, over: over.code }));
+    """
+    js = json.loads(subprocess.run(
+        ["node", "--input-type=module", "-e", script], cwd=REPO, capture_output=True, text=True, check=True,
+    ).stdout)
+    rnd = L.new_hot()
+    for uid, name in (("a", "A"), ("b", "B"), ("c", "C")):
+        rnd = L.hot_join(rnd, uid, name, 0)["round"]
+    assert rnd["status"] == js["third"] == "countdown"
+    early = L.hot_take(rnd, "b", L.HOT_JOIN["x"], L.HOT_JOIN["y"], 1)
+    boarded = L.hot_join(rnd, "d", "D", 2)
+    boarded_status = boarded["round"]["status"]
+    rnd = boarded["round"]
+    L.maybe_expire_hot(rnd, (rnd.get("startedAt") or 0) + L.HOT_COUNTDOWN_MS)
+    fourth = L.hot_join(rnd, "e", "E", (rnd.get("startedAt") or 0) + 1)
+    already = L.hot_join(rnd, "a", "A", (rnd.get("startedAt") or 0) + 2)
+    holding = L.hot_take(rnd, "a", L.HOT_JOIN["x"], L.HOT_JOIN["y"], L.HOT_COUNTDOWN_MS + 10)
+    took = L.hot_take(rnd, "b", L.HOT_JOIN["x"], L.HOT_JOIN["y"], L.HOT_COUNTDOWN_MS + 12)
+    L.maybe_expire_hot(rnd, rnd["startedAt"] + L.HOT_ROUND_MS)
+    rec = {"gold": 100}
+    pay = L.apply_hot_gold(rec, "a", rnd)
+    over = L.hot_take(rnd, "c", L.HOT_JOIN["x"], L.HOT_JOIN["y"], 99)
+    assert early["code"] == js["early"] == "not_live"
+    assert boarded_status == js["boarded"] == "countdown"
+    assert fourth["code"] == js["fourth"] == "hot_live"
+    assert already["code"] == js["already"] == "already_in"
+    assert holding["code"] == js["holding"] == "already_holding"
+    assert took["ok"] is True and js["took"] is True
+    assert rnd["holder"] == js["holder"] == "b"
+    assert rnd["payouts"] == js["payouts"]
+    assert pay == js["pay"] == 40 and rec["gold"] == js["gold"] == 140
+    assert over["code"] == js["over"] == "hot_over"
+
+
+@pytest.mark.asyncio
+async def test_hot_ops_take_persist_and_reject(aiohttp_client, tmp_path) -> None:
+    client, plaza, store, _clock = await make(aiohttp_client, tmp_path)
+    alice = await connect_and_auth(client, "alice", G)
+    bob = await connect_and_auth(client, "bob", G)
+    carol = await connect_and_auth(client, "carol", G)
+    dave = await connect_and_auth(client, "dave", G)
+    await call(alice, "load")
+    await call(bob, "load")
+    await call(carol, "load")
+    await call(dave, "load")
+    g0 = plaza.players["alice"]["gold"]
+    j1 = await call(alice, "hot", act="join")
+    j2 = await call(bob, "hot", act="join")
+    j3 = await call(carol, "hot", act="join")
+    assert j1["ok"] and j2["ok"] and j3["hot"]["status"] == "countdown"
+    boarded = await call(dave, "hot", act="join")
+    assert boarded["ok"] and boarded["hot"]["status"] == "countdown"
+    _clock.value = plaza.hot["startedAt"] / 1000 + L.HOT_COUNTDOWN_MS / 1000 + 0.05
+    live = await call(alice, "hot", act="view")
+    assert live["hot"]["status"] == "live"
+    assert live["hot"]["holder"] == "alice"
+    assert (await call(dave, "hot", act="join"))["code"] == "already_in"
+    eve = await connect_and_auth(client, "eve", G)
+    await call(eve, "load")
+    assert (await call(eve, "hot", act="join"))["code"] == "hot_live"
+    assert (await call(alice, "hot", act="nope"))["code"] == "bad_message"
+    x, y = L.HOT_JOIN["x"], L.HOT_JOIN["y"]
+    assert (await call(alice, "hot", act="take", x=x, y=y))["code"] == "already_holding"
+    took = await call(bob, "hot", act="take", x=x, y=y)
+    assert took["ok"] and took["hot"]["holder"] == "bob"
+    _clock.value = plaza.hot["startedAt"] / 1000 + L.HOT_ROUND_MS / 1000 + 0.05
+    view = await call(alice, "hot", act="view")
+    assert view["hot"]["status"] == "over"
+    assert plaza.players["alice"]["gold"] == g0 + 40
+    assert plaza.players["carol"]["gold"] == g0 + 20
+    assert plaza.players["dave"]["gold"] == g0 + 10
+    assert plaza.players["bob"]["gold"] == g0 + 5
+    assert (await call(carol, "hot", act="take", x=x, y=y))["code"] == "hot_over"
+    await plaza.flush()
+    again = PlazaService(store, clock=_clock, rng=random.Random(1))
+    rec = await again.load("alice", "Alice")
+    assert rec["gold"] == g0 + 40
+    await alice.close()
+    await bob.close()
+    await carol.close()
+    await dave.close()
+    await eve.close()
+
+
+@pytest.mark.asyncio
+async def test_hot_timeout_pays_before_next_join(aiohttp_client, tmp_path) -> None:
+    client, plaza, store, clock = await make(aiohttp_client, tmp_path)
+    alice = await connect_and_auth(client, "alice", G)
+    bob = await connect_and_auth(client, "bob", G)
+    carol = await connect_and_auth(client, "carol", G)
+    dave = await connect_and_auth(client, "dave", G)
+    await call(alice, "load")
+    await call(bob, "load")
+    await call(carol, "load")
+    await call(dave, "load")
+    g0 = plaza.players["alice"]["gold"]
+    assert (await call(alice, "hot", act="join"))["ok"]
+    assert (await call(bob, "hot", act="join"))["ok"]
+    live = await call(carol, "hot", act="join")
+    assert live["hot"]["status"] == "countdown"
+    started = plaza.hot["startedAt"]
+    clock.value = started / 1000 + L.HOT_COUNTDOWN_MS / 1000 + 0.05
+    x, y = L.HOT_JOIN["x"], L.HOT_JOIN["y"]
+    assert (await call(bob, "hot", act="take", x=x, y=y))["ok"]
+    clock.value = started / 1000 + L.HOT_COUNTDOWN_MS / 1000 + L.HOT_ROUND_MS / 1000 + 0.05
+    err = await call(alice, "hot", act="take", x=x, y=y)
+    assert err["code"] == "hot_over"
+    assert plaza.players["alice"]["gold"] == g0 + 40
+    assert plaza.players["carol"]["gold"] == g0 + 20
+    assert plaza.players["bob"]["gold"] == g0 + 10
+    view = await call(alice, "hot", act="view")
+    assert view["ok"] and plaza.players["alice"]["gold"] == g0 + 40
+    nxt = await call(dave, "hot", act="join")
+    assert nxt["ok"] and nxt["hot"]["status"] == "open"
+    assert plaza.players["alice"]["gold"] == g0 + 40
+    assert plaza.players["dave"]["gold"] == g0
+    await plaza.flush()
+    again = PlazaService(store, clock=clock, rng=random.Random(1))
+    rec = await again.load("alice", "Alice")
+    assert rec["gold"] == g0 + 40
+    await alice.close()
+    await bob.close()
+    await carol.close()
+    await dave.close()
+
+
+def test_tug_rules_match_frontend() -> None:
+    script = r"""
+    const T = await import('./site/games/community/pie-plaza/src/game/tug.js');
+    let rnd = T.newTug();
+    for (const [id, name] of [['a','A'],['b','B'],['c','C']]) rnd = T.tugJoin(rnd, id, name, 0).round;
+    const L = T.TUG.spots[0], R = T.TUG.spots[1];
+    const early = T.tugPull(rnd, 'a', L.id, L.x, L.y, 1);
+    T.maybeExpireTug(rnd, (rnd.startedAt || 0) + T.TUG.countdownMs);
+    const fourth = T.tugJoin(rnd, 'e', 'E', (rnd.startedAt || 0) + 1);
+    const already = T.tugJoin(rnd, 'a', 'A', (rnd.startedAt || 0) + 2);
+    const wrong = T.tugPull(rnd, 'a', R.id, R.x, R.y, T.TUG.countdownMs + 10);
+    T.tugPull(rnd, 'a', L.id, L.x, L.y, T.TUG.countdownMs + 12);
+    T.tugPull(rnd, 'b', R.id, R.x, R.y, T.TUG.countdownMs + 13);
+    T.tugPull(rnd, 'b', R.id, R.x, R.y, T.TUG.countdownMs + 14);
+    T.maybeExpireTug(rnd, rnd.startedAt + T.TUG.roundMs);
+    const rec = { gold: 100 };
+    const pay = T.applyTugGold(rec, 'b', rnd);
+    const over = T.tugPull(rnd, 'a', L.id, L.x, L.y, 99);
+    console.log(JSON.stringify({ third: 'countdown', early: early.code, fourth: fourth.code, already: already.code, wrong: wrong.code, winner: rnd.winner, payouts: rnd.payouts, pay, gold: rec.gold, over: over.code, teamA: rnd.team.a }));
+    """
+    js = json.loads(subprocess.run(
+        ["node", "--input-type=module", "-e", script], cwd=REPO, capture_output=True, text=True, check=True,
+    ).stdout)
+    rnd = L.new_tug()
+    for uid, name in (("a", "A"), ("b", "B"), ("c", "C")):
+        rnd = L.tug_join(rnd, uid, name, 0)["round"]
+    assert rnd["status"] == js["third"] == "countdown"
+    left, right = L.TUG_SPOTS[0], L.TUG_SPOTS[1]
+    early = L.tug_pull(rnd, "a", left["id"], left["x"], left["y"], 1)
+    L.maybe_expire_tug(rnd, (rnd.get("startedAt") or 0) + L.TUG_COUNTDOWN_MS)
+    fourth = L.tug_join(rnd, "e", "E", (rnd.get("startedAt") or 0) + 1)
+    already = L.tug_join(rnd, "a", "A", (rnd.get("startedAt") or 0) + 2)
+    wrong = L.tug_pull(rnd, "a", right["id"], right["x"], right["y"], L.TUG_COUNTDOWN_MS + 10)
+    L.tug_pull(rnd, "a", left["id"], left["x"], left["y"], L.TUG_COUNTDOWN_MS + 12)
+    L.tug_pull(rnd, "b", right["id"], right["x"], right["y"], L.TUG_COUNTDOWN_MS + 13)
+    L.tug_pull(rnd, "b", right["id"], right["x"], right["y"], L.TUG_COUNTDOWN_MS + 14)
+    L.maybe_expire_tug(rnd, rnd["startedAt"] + L.TUG_ROUND_MS)
+    rec = {"gold": 100}
+    pay = L.apply_tug_gold(rec, "b", rnd)
+    over = L.tug_pull(rnd, "a", left["id"], left["x"], left["y"], 99)
+    assert early["code"] == js["early"] == "not_live"
+    assert fourth["code"] == js["fourth"] == "tug_live"
+    assert already["code"] == js["already"] == "already_in"
+    assert wrong["code"] == js["wrong"] == "wrong_side"
+    assert rnd["winner"] == js["winner"] == "R"
+    assert rnd["payouts"] == js["payouts"]
+    assert pay == js["pay"] == 40 and rec["gold"] == js["gold"] == 140
+    assert over["code"] == js["over"] == "tug_over"
+    assert rnd["team"]["a"] == js["teamA"] == "L"
+
+
+@pytest.mark.asyncio
+async def test_tug_ops_pull_persist_and_reject(aiohttp_client, tmp_path) -> None:
+    client, plaza, store, _clock = await make(aiohttp_client, tmp_path)
+    alice = await connect_and_auth(client, "alice", G)
+    bob = await connect_and_auth(client, "bob", G)
+    carol = await connect_and_auth(client, "carol", G)
+    await call(alice, "load")
+    await call(bob, "load")
+    await call(carol, "load")
+    g0 = plaza.players["alice"]["gold"]
+    assert (await call(alice, "tug", act="join"))["ok"]
+    assert (await call(bob, "tug", act="join"))["ok"]
+    j3 = await call(carol, "tug", act="join")
+    assert j3["tug"]["status"] == "countdown"
+    _clock.value = plaza.tug["startedAt"] / 1000 + L.TUG_COUNTDOWN_MS / 1000 + 0.05
+    live = await call(alice, "tug", act="view")
+    assert live["tug"]["status"] == "live"
+    assert live["tug"]["yourTeam"] == "L"
+    assert (await call(alice, "tug", act="join"))["code"] == "already_in"
+    eve = await connect_and_auth(client, "eve", G)
+    await call(eve, "load")
+    assert (await call(eve, "tug", act="join"))["code"] == "tug_live"
+    left, right = L.TUG_SPOTS[0], L.TUG_SPOTS[1]
+    assert (await call(alice, "tug", act="pull", side=right["id"], x=right["x"], y=right["y"]))["code"] == "wrong_side"
+    assert (await call(alice, "tug", act="pull", side=left["id"], x=left["x"], y=left["y"]))["ok"]
+    assert (await call(bob, "tug", act="pull", side=right["id"], x=right["x"], y=right["y"]))["ok"]
+    assert (await call(bob, "tug", act="pull", side=right["id"], x=right["x"], y=right["y"]))["ok"]
+    _clock.value = plaza.tug["startedAt"] / 1000 + L.TUG_ROUND_MS / 1000 + 0.05
+    view = await call(alice, "tug", act="view")
+    assert view["tug"]["status"] == "over"
+    assert view["tug"]["winner"] == "R"
+    assert plaza.players["bob"]["gold"] == g0 + 40
+    assert plaza.players["alice"]["gold"] == g0 + 5
+    assert plaza.players["carol"]["gold"] == g0 + 5
+    await plaza.flush()
+    again = PlazaService(store, clock=_clock, rng=random.Random(1))
+    rec = await again.load("bob", "Bob")
+    assert rec["gold"] == g0 + 40
+    await alice.close()
+    await bob.close()
+    await carol.close()
+    await eve.close()
+
+
+def test_haul_rules_match_frontend() -> None:
+    script = r"""
+    const H = await import('./site/games/community/pie-plaza/src/game/haul.js');
+    let rnd = H.newHaul();
+    for (const [id, name] of [['a','A'],['b','B'],['c','C']]) rnd = H.haulJoin(rnd, id, name, 0).round;
+    const early = H.haulTake(rnd, 'a', H.HAUL_JOIN.x, H.HAUL_JOIN.y, 1);
+    H.maybeExpireHaul(rnd, (rnd.startedAt || 0) + H.HAUL.countdownMs);
+    const fourth = H.haulJoin(rnd, 'e', 'E', (rnd.startedAt || 0) + 1);
+    const already = H.haulJoin(rnd, 'a', 'A', (rnd.startedAt || 0) + 2);
+    const empty = H.haulDrop(rnd, 'a', H.HAUL_DROP.x, H.HAUL_DROP.y, H.HAUL.countdownMs + 10);
+    H.haulTake(rnd, 'a', H.HAUL_JOIN.x, H.HAUL_JOIN.y, H.HAUL.countdownMs + 12);
+    H.haulTake(rnd, 'b', H.HAUL_JOIN.x, H.HAUL_JOIN.y, H.HAUL.countdownMs + 13);
+    H.haulDrop(rnd, 'b', H.HAUL_DROP.x, H.HAUL_DROP.y, H.HAUL.countdownMs + 14);
+    H.haulTake(rnd, 'a', H.HAUL_JOIN.x, H.HAUL_JOIN.y, H.HAUL.countdownMs + 15);
+    H.haulDrop(rnd, 'a', H.HAUL_DROP.x, H.HAUL_DROP.y, H.HAUL.countdownMs + 16);
+    H.haulTake(rnd, 'a', H.HAUL_JOIN.x, H.HAUL_JOIN.y, H.HAUL.countdownMs + 17);
+    H.haulDrop(rnd, 'a', H.HAUL_DROP.x, H.HAUL_DROP.y, H.HAUL.countdownMs + 18);
+    H.maybeExpireHaul(rnd, rnd.startedAt + H.HAUL.roundMs);
+    const rec = { gold: 100 };
+    const pay = H.applyHaulGold(rec, 'a', rnd);
+    const over = H.haulTake(rnd, 'a', H.HAUL_JOIN.x, H.HAUL_JOIN.y, 99);
+    console.log(JSON.stringify({ third: 'countdown', early: early.code, fourth: fourth.code, already: already.code, empty: empty.code, payouts: rnd.payouts, pay, gold: rec.gold, over: over.code, scores: rnd.scores }));
+    """
+    js = json.loads(subprocess.run(
+        ["node", "--input-type=module", "-e", script], cwd=REPO, capture_output=True, text=True, check=True,
+    ).stdout)
+    rnd = L.new_haul()
+    for uid, name in (("a", "A"), ("b", "B"), ("c", "C")):
+        rnd = L.haul_join(rnd, uid, name, 0)["round"]
+    assert rnd["status"] == js["third"] == "countdown"
+    early = L.haul_take(rnd, "a", L.HAUL_JOIN["x"], L.HAUL_JOIN["y"], 1)
+    L.maybe_expire_haul(rnd, (rnd.get("startedAt") or 0) + L.HAUL_COUNTDOWN_MS)
+    fourth = L.haul_join(rnd, "e", "E", (rnd.get("startedAt") or 0) + 1)
+    already = L.haul_join(rnd, "a", "A", (rnd.get("startedAt") or 0) + 2)
+    empty = L.haul_drop(rnd, "a", L.HAUL_DROP["x"], L.HAUL_DROP["y"], L.HAUL_COUNTDOWN_MS + 10)
+    L.haul_take(rnd, "a", L.HAUL_JOIN["x"], L.HAUL_JOIN["y"], L.HAUL_COUNTDOWN_MS + 12)
+    L.haul_take(rnd, "b", L.HAUL_JOIN["x"], L.HAUL_JOIN["y"], L.HAUL_COUNTDOWN_MS + 13)
+    L.haul_drop(rnd, "b", L.HAUL_DROP["x"], L.HAUL_DROP["y"], L.HAUL_COUNTDOWN_MS + 14)
+    L.haul_take(rnd, "a", L.HAUL_JOIN["x"], L.HAUL_JOIN["y"], L.HAUL_COUNTDOWN_MS + 15)
+    L.haul_drop(rnd, "a", L.HAUL_DROP["x"], L.HAUL_DROP["y"], L.HAUL_COUNTDOWN_MS + 16)
+    L.haul_take(rnd, "a", L.HAUL_JOIN["x"], L.HAUL_JOIN["y"], L.HAUL_COUNTDOWN_MS + 17)
+    L.haul_drop(rnd, "a", L.HAUL_DROP["x"], L.HAUL_DROP["y"], L.HAUL_COUNTDOWN_MS + 18)
+    L.maybe_expire_haul(rnd, rnd["startedAt"] + L.HAUL_ROUND_MS)
+    rec = {"gold": 100}
+    pay = L.apply_haul_gold(rec, "a", rnd)
+    over = L.haul_take(rnd, "a", L.HAUL_JOIN["x"], L.HAUL_JOIN["y"], 99)
+    assert early["code"] == js["early"] == "not_live"
+    assert fourth["code"] == js["fourth"] == "haul_live"
+    assert already["code"] == js["already"] == "already_in"
+    assert empty["code"] == js["empty"] == "empty_hands"
+    assert rnd["payouts"] == js["payouts"]
+    assert pay == js["pay"] == 40 and rec["gold"] == js["gold"] == 140
+    assert over["code"] == js["over"] == "haul_over"
+    assert rnd["scores"] == js["scores"]
+
+
+@pytest.mark.asyncio
+async def test_haul_ops_take_drop_persist_and_reject(aiohttp_client, tmp_path) -> None:
+    client, plaza, store, _clock = await make(aiohttp_client, tmp_path)
+    alice = await connect_and_auth(client, "alice", G)
+    bob = await connect_and_auth(client, "bob", G)
+    carol = await connect_and_auth(client, "carol", G)
+    await call(alice, "load")
+    await call(bob, "load")
+    await call(carol, "load")
+    g0 = plaza.players["alice"]["gold"]
+    assert (await call(alice, "haul", act="join"))["ok"]
+    assert (await call(bob, "haul", act="join"))["ok"]
+    j3 = await call(carol, "haul", act="join")
+    assert j3["haul"]["status"] == "countdown"
+    _clock.value = plaza.haul["startedAt"] / 1000 + L.HAUL_COUNTDOWN_MS / 1000 + 0.05
+    live = await call(alice, "haul", act="view")
+    assert live["haul"]["status"] == "live"
+    assert (await call(alice, "haul", act="join"))["code"] == "already_in"
+    fran = await connect_and_auth(client, "fran", G)
+    await call(fran, "load")
+    assert (await call(fran, "haul", act="join"))["code"] == "haul_live"
+    jx, jy = L.HAUL_JOIN["x"], L.HAUL_JOIN["y"]
+    dx, dy = L.HAUL_DROP["x"], L.HAUL_DROP["y"]
+    assert (await call(alice, "haul", act="drop", x=dx, y=dy))["code"] == "empty_hands"
+    assert (await call(alice, "haul", act="take", x=jx, y=jy))["ok"]
+    assert (await call(bob, "haul", act="take", x=jx, y=jy))["ok"]
+    assert (await call(bob, "haul", act="drop", x=dx, y=dy))["ok"]
+    assert (await call(alice, "haul", act="take", x=jx, y=jy))["ok"]
+    assert (await call(alice, "haul", act="drop", x=dx, y=dy))["ok"]
+    assert (await call(alice, "haul", act="take", x=jx, y=jy))["ok"]
+    assert (await call(alice, "haul", act="drop", x=dx, y=dy))["ok"]
+    _clock.value = plaza.haul["startedAt"] / 1000 + L.HAUL_ROUND_MS / 1000 + 0.05
+    view = await call(alice, "haul", act="view")
+    assert view["haul"]["status"] == "over"
+    assert plaza.players["alice"]["gold"] == g0 + 40
+    assert plaza.players["bob"]["gold"] == g0 + 20
+    assert plaza.players["carol"]["gold"] == g0 + 10
+    await plaza.flush()
+    again = PlazaService(store, clock=_clock, rng=random.Random(1))
+    rec = await again.load("alice", "Alice")
+    assert rec["gold"] == g0 + 40
+    await alice.close()
+    await bob.close()
+    await carol.close()
+    await fran.close()
+
+
+def test_light_rules_match_frontend() -> None:
+    script = r"""
+    const G = await import('./site/games/community/pie-plaza/src/game/light.js');
+    let rnd = G.newLight();
+    for (const [id, name] of [['a','A'],['b','B'],['c','C']]) rnd = G.lightJoin(rnd, id, name, 0).round;
+    const S = G.LIGHT.spots;
+    const early = G.lightDash(rnd, 'a', S[0].id, S[0].x, S[0].y, 1);
+    G.maybeExpireLight(rnd, (rnd.startedAt || 0) + G.LIGHT.countdownMs);
+    const fourth = G.lightJoin(rnd, 'e', 'E', (rnd.startedAt || 0) + 1);
+    const already = G.lightJoin(rnd, 'a', 'A', (rnd.startedAt || 0) + 2);
+    const wrong = G.lightDash(rnd, 'a', S[1].id, S[1].x, S[1].y, G.LIGHT.countdownMs + 10);
+    const far = G.lightDash(rnd, 'a', S[0].id, 0, 0, G.LIGHT.countdownMs + 11);
+    G.lightDash(rnd, 'a', S[0].id, S[0].x, S[0].y, G.LIGHT.countdownMs + 12);
+    const redAt = G.LIGHT.countdownMs + G.LIGHT.greenMs + 10;
+    const red = G.lightDash(rnd, 'b', S[0].id, S[0].x, S[0].y, redAt);
+    G.maybeExpireLight(rnd, rnd.startedAt + G.LIGHT.roundMs);
+    const rec = { gold: 100 };
+    const pay = G.applyLightGold(rec, 'a', rnd);
+    const over = G.lightDash(rnd, 'a', S[0].id, S[0].x, S[0].y, 99);
+    console.log(JSON.stringify({ third: 'countdown', early: early.code, fourth: fourth.code, already: already.code, wrong: wrong.code, far: far.code, redOut: !!red.out, payouts: rnd.payouts, pay, gold: rec.gold, over: over.code, scores: { a: rnd.players.a.score, b: rnd.players.b.score, c: rnd.players.c.score } }));
+    """
+    js = json.loads(subprocess.run(
+        ["node", "--input-type=module", "-e", script], cwd=REPO, capture_output=True, text=True, check=True,
+    ).stdout)
+    rnd = L.new_light()
+    for uid, name in (("a", "A"), ("b", "B"), ("c", "C")):
+        rnd = L.light_join(rnd, uid, name, 0)["round"]
+    assert rnd["status"] == js["third"] == "countdown"
+    s0, s1 = L.LIGHT_SPOTS[0], L.LIGHT_SPOTS[1]
+    early = L.light_dash(rnd, "a", s0["id"], s0["x"], s0["y"], 1)
+    L.maybe_expire_light(rnd, (rnd.get("startedAt") or 0) + L.LIGHT_COUNTDOWN_MS)
+    fourth = L.light_join(rnd, "e", "E", (rnd.get("startedAt") or 0) + 1)
+    already = L.light_join(rnd, "a", "A", (rnd.get("startedAt") or 0) + 2)
+    wrong = L.light_dash(rnd, "a", s1["id"], s1["x"], s1["y"], L.LIGHT_COUNTDOWN_MS + 10)
+    far = L.light_dash(rnd, "a", s0["id"], 0, 0, L.LIGHT_COUNTDOWN_MS + 11)
+    L.light_dash(rnd, "a", s0["id"], s0["x"], s0["y"], L.LIGHT_COUNTDOWN_MS + 12)
+    red_at = L.LIGHT_COUNTDOWN_MS + L.LIGHT_GREEN_MS + 10
+    red = L.light_dash(rnd, "b", s0["id"], s0["x"], s0["y"], red_at)
+    L.maybe_expire_light(rnd, rnd["startedAt"] + L.LIGHT_ROUND_MS)
+    rec = {"gold": 100}
+    pay = L.apply_light_gold(rec, "a", rnd)
+    over = L.light_dash(rnd, "a", s0["id"], s0["x"], s0["y"], 99)
+    assert early["code"] == js["early"] == "not_live"
+    assert fourth["code"] == js["fourth"] == "light_live"
+    assert already["code"] == js["already"] == "already_in"
+    assert wrong["code"] == js["wrong"] == "wrong_spot"
+    assert far["code"] == js["far"] == "too_far"
+    assert red.get("out") is True and js["redOut"] is True
+    assert rnd["payouts"] == js["payouts"]
+    assert pay == js["pay"] == 40 and rec["gold"] == js["gold"] == 140
+    assert over["code"] == js["over"] == "light_over"
+    assert {uid: rnd["players"][uid]["score"] for uid in ("a", "b", "c")} == js["scores"]
+
+
+@pytest.mark.asyncio
+async def test_light_ops_dash_persist_and_reject(aiohttp_client, tmp_path) -> None:
+    client, plaza, store, _clock = await make(aiohttp_client, tmp_path)
+    alice = await connect_and_auth(client, "alice", G)
+    bob = await connect_and_auth(client, "bob", G)
+    carol = await connect_and_auth(client, "carol", G)
+    await call(alice, "load")
+    await call(bob, "load")
+    await call(carol, "load")
+    g0 = plaza.players["alice"]["gold"]
+    assert (await call(alice, "light", act="join"))["ok"]
+    assert (await call(bob, "light", act="join"))["ok"]
+    j3 = await call(carol, "light", act="join")
+    assert j3["light"]["status"] == "countdown"
+    _clock.value = plaza.light["startedAt"] / 1000 + L.LIGHT_COUNTDOWN_MS / 1000 + 0.05
+    live = await call(alice, "light", act="view")
+    assert live["light"]["status"] == "live"
+    assert live["light"]["light"] == "green"
+    assert (await call(alice, "light", act="join"))["code"] == "already_in"
+    fran = await connect_and_auth(client, "fran", G)
+    await call(fran, "load")
+    assert (await call(fran, "light", act="join"))["code"] == "light_live"
+    s0, s1 = L.LIGHT_SPOTS[0], L.LIGHT_SPOTS[1]
+    assert (await call(alice, "light", act="dash", spot=s1["id"], x=s1["x"], y=s1["y"]))["code"] == "wrong_spot"
+    assert (await call(alice, "light", act="dash", spot=s0["id"], x=0, y=0))["code"] == "too_far"
+    stepped = await call(alice, "light", act="dash", spot=s0["id"], x=s0["x"], y=s0["y"])
+    assert stepped["ok"]
+    assert stepped["light"]["yourScore"] == 1
+    _clock.value = plaza.light["startedAt"] / 1000 + L.LIGHT_GREEN_MS / 1000 + 0.05
+    red = await call(bob, "light", act="dash", spot=s0["id"], x=s0["x"], y=s0["y"])
+    assert red["ok"]
+    bob_row = next(p for p in red["light"]["players"] if p["id"] == "bob")
+    assert bob_row["out"] is True
+    _clock.value = plaza.light["startedAt"] / 1000 + L.LIGHT_ROUND_MS / 1000 + 0.05
+    view = await call(alice, "light", act="view")
+    assert view["light"]["status"] == "over"
+    assert plaza.players["alice"]["gold"] == g0 + 40
+    assert plaza.players["carol"]["gold"] == g0 + 20
+    assert plaza.players["bob"]["gold"] == g0 + 10
+    await plaza.flush()
+    again = PlazaService(store, clock=_clock, rng=random.Random(1))
+    rec = await again.load("alice", "Alice")
+    assert rec["gold"] == g0 + 40
+    await alice.close()
+    await bob.close()
+    await carol.close()
+    await fran.close()
+
+
+def test_hill_rules_match_frontend() -> None:
+    script = r"""
+    const H = await import('./site/games/community/pie-plaza/src/game/hill.js');
+    let rnd = H.newHill();
+    for (const [id, name] of [['a','A'],['b','B'],['c','C']]) rnd = H.hillJoin(rnd, id, name, 0).round;
+    const early = H.hillTake(rnd, 'a', H.HILL_JOIN.x, H.HILL_JOIN.y, 1);
+    H.maybeExpireHill(rnd, (rnd.startedAt || 0) + H.HILL.countdownMs);
+    const fourth = H.hillJoin(rnd, 'e', 'E', (rnd.startedAt || 0) + 1);
+    const already = H.hillJoin(rnd, 'a', 'A', (rnd.startedAt || 0) + 2);
+    const liveAt = rnd.startedAt;
+    H.hillTake(rnd, 'a', H.HILL_JOIN.x, H.HILL_JOIN.y, liveAt + 12);
+    H.hillTake(rnd, 'b', H.HILL_JOIN.x, H.HILL_JOIN.y, liveAt + 112);
+    H.hillTake(rnd, 'a', H.HILL_JOIN.x, H.HILL_JOIN.y, liveAt + 200);
+    H.maybeExpireHill(rnd, liveAt + H.HILL.roundMs);
+    const rec = { gold: 100 };
+    const pay = H.applyHillGold(rec, 'a', rnd);
+    const over = H.hillTake(rnd, 'a', H.HILL_JOIN.x, H.HILL_JOIN.y, 99);
+    console.log(JSON.stringify({ third: 'countdown', early: early.code, fourth: fourth.code, already: already.code, payouts: rnd.payouts, pay, gold: rec.gold, over: over.code }));
+    """
+    js = json.loads(subprocess.run(
+        ["node", "--input-type=module", "-e", script], cwd=REPO, capture_output=True, text=True, check=True,
+    ).stdout)
+    rnd = L.new_hill()
+    for uid, name in (("a", "A"), ("b", "B"), ("c", "C")):
+        rnd = L.hill_join(rnd, uid, name, 0)["round"]
+    assert rnd["status"] == js["third"] == "countdown"
+    early = L.hill_take(rnd, "a", L.HILL_JOIN["x"], L.HILL_JOIN["y"], 1)
+    L.maybe_expire_hill(rnd, (rnd.get("startedAt") or 0) + L.HILL_COUNTDOWN_MS)
+    fourth = L.hill_join(rnd, "e", "E", (rnd.get("startedAt") or 0) + 1)
+    already = L.hill_join(rnd, "a", "A", (rnd.get("startedAt") or 0) + 2)
+    live_at = rnd["startedAt"]
+    L.hill_take(rnd, "a", L.HILL_JOIN["x"], L.HILL_JOIN["y"], live_at + 12)
+    L.hill_take(rnd, "b", L.HILL_JOIN["x"], L.HILL_JOIN["y"], live_at + 112)
+    L.hill_take(rnd, "a", L.HILL_JOIN["x"], L.HILL_JOIN["y"], live_at + 200)
+    L.maybe_expire_hill(rnd, live_at + L.HILL_ROUND_MS)
+    rec = {"gold": 100}
+    pay = L.apply_hill_gold(rec, "a", rnd)
+    over = L.hill_take(rnd, "a", L.HILL_JOIN["x"], L.HILL_JOIN["y"], 99)
+    assert early["code"] == js["early"] == "not_live"
+    assert fourth["code"] == js["fourth"] == "hill_live"
+    assert already["code"] == js["already"] == "already_in"
+    assert rnd["payouts"] == js["payouts"]
+    assert pay == js["pay"] == 40 and rec["gold"] == js["gold"] == 140
+    assert over["code"] == js["over"] == "hill_over"
+
+
+@pytest.mark.asyncio
+async def test_hill_ops_take_persist_and_reject(aiohttp_client, tmp_path) -> None:
+    client, plaza, store, _clock = await make(aiohttp_client, tmp_path)
+    alice = await connect_and_auth(client, "alice", G)
+    bob = await connect_and_auth(client, "bob", G)
+    carol = await connect_and_auth(client, "carol", G)
+    await call(alice, "load")
+    await call(bob, "load")
+    await call(carol, "load")
+    g0 = plaza.players["alice"]["gold"]
+    assert (await call(alice, "hill", act="join"))["ok"]
+    assert (await call(bob, "hill", act="join"))["ok"]
+    j3 = await call(carol, "hill", act="join")
+    assert j3["hill"]["status"] == "countdown"
+    _clock.value = plaza.hill["startedAt"] / 1000 + L.HILL_COUNTDOWN_MS / 1000 + 0.05
+    live = await call(alice, "hill", act="view")
+    assert live["hill"]["status"] == "live"
+    assert (await call(alice, "hill", act="join"))["code"] == "already_in"
+    hugo = await connect_and_auth(client, "hugo", G)
+    await call(hugo, "load")
+    assert (await call(hugo, "hill", act="join"))["code"] == "hill_live"
+    jx, jy = L.HILL_JOIN["x"], L.HILL_JOIN["y"]
+    assert (await call(alice, "hill", act="take", x=jx, y=jy))["ok"]
+    assert (await call(alice, "hill", act="take", x=jx, y=jy))["code"] == "already_holding"
+    _clock.value = plaza.hill["startedAt"] / 1000 + 30
+    assert (await call(bob, "hill", act="take", x=jx, y=jy))["ok"]
+    _clock.value = plaza.hill["startedAt"] / 1000 + 32
+    assert (await call(alice, "hill", act="take", x=jx, y=jy))["ok"]
+    _clock.value = plaza.hill["startedAt"] / 1000 + L.HILL_ROUND_MS / 1000 + 0.05
+    view = await call(alice, "hill", act="view")
+    assert view["hill"]["status"] == "over"
+    assert plaza.players["alice"]["gold"] == g0 + 40
+    await plaza.flush()
+    again = PlazaService(store, clock=_clock, rng=random.Random(1))
+    rec = await again.load("alice", "Alice")
+    assert rec["gold"] == g0 + 40
+    await alice.close()
+    await bob.close()
+    await carol.close()
+    await hugo.close()
+
+
+def test_smash_rules_match_frontend() -> None:
+    script = r"""
+    const S = await import('./site/games/community/pie-plaza/src/game/smash.js');
+    let rnd = S.newSmash();
+    for (const [id, name] of [['a','A'],['b','B'],['c','C']]) rnd = S.smashJoin(rnd, id, name, 0).round;
+    const early = S.smashHit(rnd, 'a', S.SMASH_JOIN.x, S.SMASH_JOIN.y, 1);
+    S.maybeExpireSmash(rnd, (rnd.startedAt || 0) + S.SMASH.countdownMs);
+    const fourth = S.smashJoin(rnd, 'e', 'E', (rnd.startedAt || 0) + 1);
+    const already = S.smashJoin(rnd, 'a', 'A', (rnd.startedAt || 0) + 2);
+    const liveAt = rnd.startedAt;
+    S.smashHit(rnd, 'a', S.SMASH_JOIN.x, S.SMASH_JOIN.y, liveAt + 12);
+    S.smashHit(rnd, 'b', S.SMASH_JOIN.x, S.SMASH_JOIN.y, liveAt + 14);
+    const downAt = liveAt + S.SMASH.upMs + 10;
+    const miss = S.smashHit(rnd, 'a', S.SMASH_JOIN.x, S.SMASH_JOIN.y, downAt);
+    const pop1 = liveAt + S.SMASH.upMs + S.SMASH.downMs + 10;
+    S.smashHit(rnd, 'a', S.SMASH_JOIN.x, S.SMASH_JOIN.y, pop1);
+    S.maybeExpireSmash(rnd, liveAt + S.SMASH.roundMs);
+    const rec = { gold: 100 };
+    const pay = S.applySmashGold(rec, 'a', rnd);
+    const over = S.smashHit(rnd, 'a', S.SMASH_JOIN.x, S.SMASH_JOIN.y, 99);
+    console.log(JSON.stringify({ third: 'countdown', early: early.code, fourth: fourth.code, already: already.code, miss: miss.code, payouts: rnd.payouts, pay, gold: rec.gold, over: over.code }));
+    """
+    js = json.loads(subprocess.run(
+        ["node", "--input-type=module", "-e", script], cwd=REPO, capture_output=True, text=True, check=True,
+    ).stdout)
+    rnd = L.new_smash()
+    for uid, name in (("a", "A"), ("b", "B"), ("c", "C")):
+        rnd = L.smash_join(rnd, uid, name, 0)["round"]
+    assert rnd["status"] == js["third"] == "countdown"
+    early = L.smash_hit(rnd, "a", L.SMASH_JOIN["x"], L.SMASH_JOIN["y"], 1)
+    L.maybe_expire_smash(rnd, (rnd.get("startedAt") or 0) + L.SMASH_COUNTDOWN_MS)
+    fourth = L.smash_join(rnd, "e", "E", (rnd.get("startedAt") or 0) + 1)
+    already = L.smash_join(rnd, "a", "A", (rnd.get("startedAt") or 0) + 2)
+    live_at = rnd["startedAt"]
+    L.smash_hit(rnd, "a", L.SMASH_JOIN["x"], L.SMASH_JOIN["y"], live_at + 12)
+    L.smash_hit(rnd, "b", L.SMASH_JOIN["x"], L.SMASH_JOIN["y"], live_at + 14)
+    down_at = live_at + L.SMASH_UP_MS + 10
+    miss = L.smash_hit(rnd, "a", L.SMASH_JOIN["x"], L.SMASH_JOIN["y"], down_at)
+    pop1 = live_at + L.SMASH_UP_MS + L.SMASH_DOWN_MS + 10
+    L.smash_hit(rnd, "a", L.SMASH_JOIN["x"], L.SMASH_JOIN["y"], pop1)
+    L.maybe_expire_smash(rnd, live_at + L.SMASH_ROUND_MS)
+    rec = {"gold": 100}
+    pay = L.apply_smash_gold(rec, "a", rnd)
+    over = L.smash_hit(rnd, "a", L.SMASH_JOIN["x"], L.SMASH_JOIN["y"], 99)
+    assert early["code"] == js["early"] == "not_live"
+    assert fourth["code"] == js["fourth"] == "smash_live"
+    assert already["code"] == js["already"] == "already_in"
+    assert miss["code"] == js["miss"] == "not_up"
+    assert rnd["payouts"] == js["payouts"]
+    assert pay == js["pay"] == 40 and rec["gold"] == js["gold"] == 140
+    assert over["code"] == js["over"] == "smash_over"
+
+
+@pytest.mark.asyncio
+async def test_smash_ops_hit_persist_and_reject(aiohttp_client, tmp_path) -> None:
+    client, plaza, store, _clock = await make(aiohttp_client, tmp_path)
+    alice = await connect_and_auth(client, "alice", G)
+    bob = await connect_and_auth(client, "bob", G)
+    carol = await connect_and_auth(client, "carol", G)
+    await call(alice, "load")
+    await call(bob, "load")
+    await call(carol, "load")
+    g0 = plaza.players["alice"]["gold"]
+    assert (await call(alice, "smash", act="join"))["ok"]
+    assert (await call(bob, "smash", act="join"))["ok"]
+    j3 = await call(carol, "smash", act="join")
+    assert j3["smash"]["status"] == "countdown"
+    _clock.value = plaza.smash["startedAt"] / 1000 + L.SMASH_COUNTDOWN_MS / 1000 + 0.05
+    live = await call(alice, "smash", act="view")
+    assert live["smash"]["status"] == "live"
+    assert (await call(alice, "smash", act="join"))["code"] == "already_in"
+    iris = await connect_and_auth(client, "iris", G)
+    await call(iris, "load")
+    assert (await call(iris, "smash", act="join"))["code"] == "smash_live"
+    jx, jy = L.SMASH_JOIN["x"], L.SMASH_JOIN["y"]
+    assert (await call(alice, "smash", act="hit", x=jx, y=jy))["ok"]
+    assert (await call(alice, "smash", act="hit", x=jx, y=jy))["code"] == "already_hit"
+    assert (await call(bob, "smash", act="hit", x=jx, y=jy))["ok"]
+    _clock.value = plaza.smash["startedAt"] / 1000 + (L.SMASH_UP_MS + L.SMASH_DOWN_MS) / 1000 + 0.05
+    assert (await call(alice, "smash", act="hit", x=jx, y=jy))["ok"]
+    _clock.value = plaza.smash["startedAt"] / 1000 + L.SMASH_ROUND_MS / 1000 + 0.05
+    view = await call(alice, "smash", act="view")
+    assert view["smash"]["status"] == "over"
+    assert plaza.players["alice"]["gold"] == g0 + 40
+    await plaza.flush()
+    again = PlazaService(store, clock=_clock, rng=random.Random(1))
+    rec = await again.load("alice", "Alice")
+    assert rec["gold"] == g0 + 40
+    await alice.close()
+    await bob.close()
+    await carol.close()
+    await iris.close()
+
+
+def test_vase_rules_match_frontend() -> None:
+    script = r"""
+    const V = await import('./site/games/community/pie-plaza/src/game/vase.js');
+    let rnd = V.newVase();
+    for (const [id, name] of [['a','A'],['b','B'],['c','C']]) rnd = V.vaseJoin(rnd, id, name, 0).round;
+    const early = V.vaseTake(rnd, 'a', V.VASE_JOIN.x, V.VASE_JOIN.y, 1);
+    V.maybeExpireVase(rnd, (rnd.startedAt || 0) + V.VASE.countdownMs);
+    const fourth = V.vaseJoin(rnd, 'e', 'E', (rnd.startedAt || 0) + 1);
+    const already = V.vaseJoin(rnd, 'a', 'A', (rnd.startedAt || 0) + 2);
+    const liveAt = rnd.startedAt;
+    V.vaseTake(rnd, 'a', V.VASE_JOIN.x, V.VASE_JOIN.y, liveAt + 12);
+    const ours = V.vaseTake(rnd, 'c', V.VASE_JOIN.x, V.VASE_JOIN.y, liveAt + 14);
+    V.vaseTake(rnd, 'b', V.VASE_JOIN.x, V.VASE_JOIN.y, liveAt + 112);
+    V.vaseTake(rnd, 'a', V.VASE_JOIN.x, V.VASE_JOIN.y, liveAt + 200);
+    V.maybeExpireVase(rnd, liveAt + V.VASE.roundMs);
+    const rec = { gold: 100 };
+    const pay = V.applyVaseGold(rec, 'a', rnd);
+    const over = V.vaseTake(rnd, 'a', V.VASE_JOIN.x, V.VASE_JOIN.y, 99);
+    console.log(JSON.stringify({ third: 'countdown', early: early.code, fourth: fourth.code, already: already.code, ours: ours.code, winner: rnd.winner, payouts: rnd.payouts, pay, gold: rec.gold, over: over.code }));
+    """
+    js = json.loads(subprocess.run(
+        ["node", "--input-type=module", "-e", script], cwd=REPO, capture_output=True, text=True, check=True,
+    ).stdout)
+    rnd = L.new_vase()
+    for uid, name in (("a", "A"), ("b", "B"), ("c", "C")):
+        rnd = L.vase_join(rnd, uid, name, 0)["round"]
+    assert rnd["status"] == js["third"] == "countdown"
+    early = L.vase_take(rnd, "a", L.VASE_JOIN["x"], L.VASE_JOIN["y"], 1)
+    L.maybe_expire_vase(rnd, (rnd.get("startedAt") or 0) + L.VASE_COUNTDOWN_MS)
+    fourth = L.vase_join(rnd, "e", "E", (rnd.get("startedAt") or 0) + 1)
+    already = L.vase_join(rnd, "a", "A", (rnd.get("startedAt") or 0) + 2)
+    live_at = rnd["startedAt"]
+    L.vase_take(rnd, "a", L.VASE_JOIN["x"], L.VASE_JOIN["y"], live_at + 12)
+    ours = L.vase_take(rnd, "c", L.VASE_JOIN["x"], L.VASE_JOIN["y"], live_at + 14)
+    L.vase_take(rnd, "b", L.VASE_JOIN["x"], L.VASE_JOIN["y"], live_at + 112)
+    L.vase_take(rnd, "a", L.VASE_JOIN["x"], L.VASE_JOIN["y"], live_at + 200)
+    L.maybe_expire_vase(rnd, live_at + L.VASE_ROUND_MS)
+    rec = {"gold": 100}
+    pay = L.apply_vase_gold(rec, "a", rnd)
+    over = L.vase_take(rnd, "a", L.VASE_JOIN["x"], L.VASE_JOIN["y"], 99)
+    assert early["code"] == js["early"] == "not_live"
+    assert fourth["code"] == js["fourth"] == "vase_live"
+    assert already["code"] == js["already"] == "already_in"
+    assert ours["code"] == js["ours"] == "already_ours"
+    assert rnd["winner"] == js["winner"] == "red"
+    assert rnd["payouts"] == js["payouts"]
+    assert pay == js["pay"] == 40 and rec["gold"] == js["gold"] == 140
+    assert over["code"] == js["over"] == "vase_over"
+
+
+@pytest.mark.asyncio
+async def test_vase_ops_take_persist_and_reject(aiohttp_client, tmp_path) -> None:
+    client, plaza, store, _clock = await make(aiohttp_client, tmp_path)
+    alice = await connect_and_auth(client, "alice", G)
+    bob = await connect_and_auth(client, "bob", G)
+    carol = await connect_and_auth(client, "carol", G)
+    await call(alice, "load")
+    await call(bob, "load")
+    await call(carol, "load")
+    g0 = plaza.players["alice"]["gold"]
+    assert (await call(alice, "vase", act="join"))["ok"]
+    assert (await call(bob, "vase", act="join"))["ok"]
+    j3 = await call(carol, "vase", act="join")
+    assert j3["vase"]["status"] == "countdown"
+    _clock.value = plaza.vase["startedAt"] / 1000 + L.VASE_COUNTDOWN_MS / 1000 + 0.05
+    live = await call(alice, "vase", act="view")
+    assert live["vase"]["status"] == "live"
+    assert (await call(alice, "vase", act="join"))["code"] == "already_in"
+    jade = await connect_and_auth(client, "jade", G)
+    await call(jade, "load")
+    assert (await call(jade, "vase", act="join"))["code"] == "vase_live"
+    jx, jy = L.VASE_JOIN["x"], L.VASE_JOIN["y"]
+    assert (await call(alice, "vase", act="take", x=jx, y=jy))["ok"]
+    assert (await call(alice, "vase", act="take", x=jx, y=jy))["code"] == "already_holding"
+    assert (await call(carol, "vase", act="take", x=jx, y=jy))["code"] == "already_ours"
+    _clock.value = plaza.vase["startedAt"] / 1000 + 30
+    assert (await call(bob, "vase", act="take", x=jx, y=jy))["ok"]
+    _clock.value = plaza.vase["startedAt"] / 1000 + 32
+    assert (await call(alice, "vase", act="take", x=jx, y=jy))["ok"]
+    _clock.value = plaza.vase["startedAt"] / 1000 + L.VASE_ROUND_MS / 1000 + 0.05
+    view = await call(alice, "vase", act="view")
+    assert view["vase"]["status"] == "over"
+    assert plaza.players["alice"]["gold"] == g0 + 40
+    await plaza.flush()
+    again = PlazaService(store, clock=_clock, rng=random.Random(1))
+    rec = await again.load("alice", "Alice")
+    assert rec["gold"] == g0 + 40
+    await alice.close()
+    await bob.close()
+    await carol.close()
+    await jade.close()

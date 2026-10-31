@@ -568,6 +568,1775 @@ def quote_view(ex: dict[str, Any], rec: dict[str, Any], ms: float) -> dict[str, 
     return {"open": market_open(ms), "hours": list(X_HOURS), "quotes": quotes, "shares": shares, "gold": rec["gold"]}
 
 
+# ---------- 廣場搶寶（與前端 src/game/party.js 相同） ----------
+_P = RULES.get("party") or {}
+PARTY_MIN = int(_P.get("min", 3))
+PARTY_MAX = int(_P.get("max", 8))
+PARTY_REACH = int(_P.get("reach", 20))
+PARTY_COUNTDOWN_MS = int(_P.get("countdownMs", 9000))
+PARTY_ROUND_MS = int(_P.get("roundMs", 45000))
+PARTY_PAYOUT = list(_P.get("payout") or [40, 20, 10])
+PARTY_REST = int(_P.get("restPay", 5))
+PARTY_SPOTS = list(_P.get("spots") or [])
+PARTY_SPOT_BY = {s["id"]: s for s in PARTY_SPOTS if isinstance(s, dict) and "id" in s}
+
+
+def new_party() -> dict[str, Any]:
+    return {
+        "status": "open", "players": {}, "order": [], "taken": {},
+        "startedAt": None, "endedAt": None, "payouts": None, "paid": {}, "rank": [],
+    }
+
+
+def _party_fail(code: str, msg: str, rnd: dict[str, Any] | None = None) -> dict[str, Any]:
+    out: dict[str, Any] = {"ok": False, "code": code, "msg": msg}
+    if rnd is not None:
+        out["round"] = rnd
+    return out
+
+
+def settle_party(rnd: dict[str, Any], now: int) -> None:
+    ranking = sorted(rnd["order"], key=lambda u: (-rnd["players"][u]["score"], rnd["order"].index(u)))
+    payouts = {uid: (PARTY_PAYOUT[i] if i < len(PARTY_PAYOUT) else PARTY_REST) for i, uid in enumerate(ranking)}
+    rnd["status"] = "over"
+    rnd["endedAt"] = now
+    rnd["payouts"] = payouts
+    rnd["rank"] = ranking
+
+
+def maybe_expire_party(rnd: dict[str, Any] | None, now: int) -> dict[str, Any] | None:
+    if not rnd:
+        return rnd
+    if rnd.get("status") == "countdown":
+        live_at = (rnd.get("startedAt") or 0) + PARTY_COUNTDOWN_MS
+        if now < live_at:
+            return rnd
+        rnd["status"] = "live"
+        rnd["startedAt"] = live_at
+    if rnd.get("status") != "live":
+        return rnd
+    started = rnd.get("startedAt") or 0
+    if now - started >= PARTY_ROUND_MS:
+        settle_party(rnd, now)
+    return rnd
+
+
+def party_public(rnd: dict[str, Any] | None, now: int = 0) -> dict[str, Any]:
+    rnd = maybe_expire_party(rnd, now) or new_party()
+    spots = [{**s, "takenBy": rnd["taken"].get(s["id"])} for s in PARTY_SPOTS]
+    players = [{"id": uid, "name": rnd["players"][uid]["name"], "score": rnd["players"][uid]["score"]} for uid in rnd["order"]]
+    return {
+        "status": rnd["status"], "players": players, "spots": spots, "taken": dict(rnd["taken"]),
+        "startedAt": rnd["startedAt"], "endedAt": rnd["endedAt"],
+        "payouts": dict(rnd["payouts"]) if rnd.get("payouts") else None,
+        "rank": list(rnd.get("rank") or []), "min": PARTY_MIN, "max": PARTY_MAX,
+        "countdownMs": PARTY_COUNTDOWN_MS, "roundMs": PARTY_ROUND_MS,
+    }
+
+
+def party_view(rnd: dict[str, Any] | None, uid: str, now: int = 0) -> dict[str, Any]:
+    v = party_public(rnd, now)
+    v["you"] = uid
+    v["payout"] = (rnd.get("payouts") or {}).get(uid, 0) if rnd else 0
+    return v
+
+
+def party_join(rnd: dict[str, Any] | None, uid: str, name: str, now: int) -> dict[str, Any]:
+    if not isinstance(uid, str) or not uid:
+        return _party_fail("bad_message", "無效的玩家")
+    cur = new_party() if (rnd is None or rnd.get("status") == "over") else rnd
+    if uid in cur["players"]:
+        return {**_party_fail("already_in", "你已經在隊伍裡"), "round": cur}
+    if cur["status"] == "live":
+        return {**_party_fail("party_live", "搶寶已經開始了"), "round": cur}
+    if len(cur["order"]) >= PARTY_MAX:
+        return {**_party_fail("party_full", "人滿了"), "round": cur}
+    cur["players"][uid] = {"name": str(name or "訪客")[:16], "score": 0}
+    cur["order"].append(uid)
+    if len(cur["order"]) >= PARTY_MAX:
+        cur["status"] = "live"
+        cur["startedAt"] = now
+    elif len(cur["order"]) >= PARTY_MIN and cur["status"] == "open":
+        cur["status"] = "countdown"
+        cur["startedAt"] = now
+    return {"ok": True, "round": cur}
+
+
+def party_grab(rnd: dict[str, Any] | None, uid: str, spot: Any, x: Any, y: Any, now: int) -> dict[str, Any]:
+    if not rnd:
+        return _party_fail("party_none", "現在沒有搶寶")
+    maybe_expire_party(rnd, now)
+    if rnd["status"] == "over":
+        return {**_party_fail("party_over", "這一輪已經結束"), "round": rnd}
+    if rnd["status"] != "live":
+        return {**_party_fail("not_live", "還沒開始，先去寶箱報名"), "round": rnd}
+    if uid not in rnd["players"]:
+        return {**_party_fail("not_in_party", "你不在這一輪"), "round": rnd}
+    s = PARTY_SPOT_BY.get(spot) if isinstance(spot, str) else None
+    if not s:
+        return {**_party_fail("bad_message", "沒有這個寶點"), "round": rnd}
+    if rnd["taken"].get(s["id"]):
+        return {**_party_fail("spot_taken", "已經被拿走了"), "round": rnd}
+    if isinstance(x, bool) or isinstance(y, bool) or not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
+        return {**_party_fail("bad_message", "位置不對"), "round": rnd}
+    if math.hypot(float(x) - s["x"], float(y) - s["y"]) > PARTY_REACH:
+        return {**_party_fail("too_far", "再走近一點"), "round": rnd}
+    rnd["taken"][s["id"]] = uid
+    rnd["players"][uid]["score"] += 1
+    if len(rnd["taken"]) >= len(PARTY_SPOTS):
+        settle_party(rnd, now)
+    return {"ok": True, "round": rnd, "grabbed": s["id"]}
+
+
+def party_leave(rnd: dict[str, Any] | None, uid: str, now: int) -> dict[str, Any]:
+    if not rnd:
+        return _party_fail("party_none", "現在沒有搶寶")
+    maybe_expire_party(rnd, now)
+    if rnd["status"] == "over":
+        return {**_party_fail("party_over", "這一輪已經結束"), "round": rnd}
+    if uid not in rnd["players"]:
+        return {**_party_fail("not_in_party", "你不在這一輪"), "round": rnd}
+    if rnd["status"] == "live":
+        return {**_party_fail("party_live", "開始後就不能退出"), "round": rnd}
+    del rnd["players"][uid]
+    rnd["order"] = [i for i in rnd["order"] if i != uid]
+    if rnd["status"] == "countdown" and len(rnd["order"]) < PARTY_MIN:
+        rnd["status"] = "open"
+        rnd["startedAt"] = None
+    return {"ok": True, "round": rnd}
+
+
+def apply_party_gold(rec: dict[str, Any], uid: str, rnd: dict[str, Any] | None) -> int:
+    if not rnd or rnd.get("status") != "over" or not rnd.get("payouts"):
+        return 0
+    paid = rnd.setdefault("paid", {})
+    if paid.get(uid):
+        return 0
+    n = int(rnd["payouts"].get(uid, 0) or 0)
+    rec["gold"] = int(rec.get("gold") or 0) + n
+    paid[uid] = n
+    return n
+
+
+# ---------- 釣魚大賽（與前端 src/game/contest.js 相同） ----------
+_C = RULES.get("contest") or {}
+CONTEST_PAYOUT = list(_C.get("payout") or [40, 20, 10])
+CONTEST_REST = int(_C.get("restPay", 5))
+CONTEST_GOLDEN = int(_C.get("goldenMult", 2))
+
+
+def fishing_slot(ms: int) -> str | None:
+    if not event_active("fishing", ms):
+        return None
+    t = taipei(ms)
+    for e in RULES["events"]:
+        if e["id"] != "fishing":
+            continue
+        for a, b in e["slots"]:
+            if a <= t.tm_hour < b:
+                return f"{a}-{b}"
+    return None
+
+
+def new_contest(slot: str | None = None) -> dict[str, Any]:
+    return {
+        "status": "open", "slot": slot, "players": {}, "order": [],
+        "startedAt": None, "endedAt": None, "payouts": None, "paid": {}, "rank": [],
+    }
+
+
+def settle_contest(rnd: dict[str, Any], now: int) -> None:
+    ranking = sorted(rnd["order"], key=lambda u: (-rnd["players"][u]["score"], rnd["order"].index(u)))
+    payouts = {uid: (CONTEST_PAYOUT[i] if i < len(CONTEST_PAYOUT) else CONTEST_REST) for i, uid in enumerate(ranking)}
+    rnd["status"] = "over"
+    rnd["endedAt"] = now
+    rnd["payouts"] = payouts
+    rnd["rank"] = ranking
+
+
+def maybe_expire_contest(rnd: dict[str, Any] | None, now: int) -> dict[str, Any] | None:
+    if not rnd or rnd.get("status") != "open":
+        return rnd
+    slot = fishing_slot(now)
+    if slot and slot == rnd.get("slot"):
+        return rnd
+    if rnd.get("order"):
+        settle_contest(rnd, now)
+    else:
+        rnd["status"] = "over"
+        rnd["endedAt"] = now
+    return rnd
+
+
+def contest_public(rnd: dict[str, Any] | None, now: int = 0) -> dict[str, Any]:
+    if rnd:
+        maybe_expire_contest(rnd, now)
+    cur = rnd or new_contest(fishing_slot(now))
+    players = [{"id": uid, "name": cur["players"][uid]["name"], "score": cur["players"][uid]["score"], "n": cur["players"][uid]["n"]} for uid in cur.get("order") or []]
+    return {
+        "status": cur["status"], "slot": cur.get("slot"), "active": bool(fishing_slot(now)),
+        "players": players, "startedAt": cur.get("startedAt"), "endedAt": cur.get("endedAt"),
+        "payouts": dict(cur["payouts"]) if cur.get("payouts") else None,
+        "rank": list(cur.get("rank") or []),
+    }
+
+
+def contest_view(rnd: dict[str, Any] | None, uid: str, now: int = 0) -> dict[str, Any]:
+    v = contest_public(rnd, now)
+    v["you"] = uid
+    v["payout"] = (rnd.get("payouts") or {}).get(uid, 0) if rnd else 0
+    return v
+
+
+def contest_catch(rnd: dict[str, Any] | None, uid: str, name: str, fish_id: Any, size: Any, now: int) -> dict[str, Any]:
+    if not isinstance(uid, str) or not uid:
+        return {"ok": False, "code": "bad_message", "msg": "無效的玩家"}
+    slot = fishing_slot(now)
+    if not slot:
+        return {"ok": False, "code": "contest_closed", "msg": "現在不是釣魚大賽時段", "round": rnd}
+    try:
+        sz = int(size)
+    except (TypeError, ValueError):
+        sz = 0
+    if sz <= 0:
+        return {"ok": True, "round": rnd, "points": 0}
+    cur = new_contest(slot) if (rnd is None or rnd.get("status") == "over" or rnd.get("slot") != slot) else rnd
+    if uid not in cur["players"]:
+        cur["players"][uid] = {"name": str(name or "訪客")[:16], "score": 0, "n": 0}
+        cur["order"].append(uid)
+        if not cur.get("startedAt"):
+            cur["startedAt"] = now
+    pts = sz * CONTEST_GOLDEN if fish_id == "golden" else sz
+    cur["players"][uid]["score"] += pts
+    cur["players"][uid]["n"] += 1
+    return {"ok": True, "round": cur, "points": pts}
+
+
+def apply_contest_gold(rec: dict[str, Any], uid: str, rnd: dict[str, Any] | None) -> int:
+    if not rnd or rnd.get("status") != "over" or not rnd.get("payouts"):
+        return 0
+    paid = rnd.setdefault("paid", {})
+    if paid.get(uid):
+        return 0
+    n = int(rnd["payouts"].get(uid, 0) or 0)
+    rec["gold"] = int(rec.get("gold") or 0) + n
+    paid[uid] = n
+    return n
+
+
+# ---------- 營火捉迷藏（與前端 src/game/seek.js 相同） ----------
+_S = RULES.get("seek") or {}
+SEEK_MIN = int(_S.get("min", 3))
+SEEK_MAX = int(_S.get("max", 8))
+SEEK_REACH = int(_S.get("reach", 20))
+SEEK_COUNTDOWN_MS = int(_S.get("countdownMs", 9000))
+SEEK_ROUND_MS = int(_S.get("roundMs", 45000))
+SEEK_PAYOUT = list(_S.get("payout") or [40, 20, 10])
+SEEK_REST = int(_S.get("restPay", 5))
+SEEK_SPOTS = list(_S.get("spots") or [])
+SEEK_SPOT_BY = {s["id"]: s for s in SEEK_SPOTS if isinstance(s, dict) and "id" in s}
+
+
+def new_seek() -> dict[str, Any]:
+    return {
+        "status": "open", "players": {}, "order": [], "seeker": None, "hidden": {},
+        "startedAt": None, "endedAt": None, "payouts": None, "paid": {}, "rank": [],
+    }
+
+
+def _seek_fail(code: str, msg: str, rnd: dict[str, Any] | None = None) -> dict[str, Any]:
+    out: dict[str, Any] = {"ok": False, "code": code, "msg": msg}
+    if rnd is not None:
+        out["round"] = rnd
+    return out
+
+
+def _seek_go_live(rnd: dict[str, Any], now: int) -> None:
+    rnd["status"] = "live"
+    rnd["startedAt"] = now
+    rnd["seeker"] = rnd["order"][0] if rnd["order"] else None
+
+
+def settle_seek(rnd: dict[str, Any], now: int) -> None:
+    hiders = [u for u in rnd["order"] if rnd.get("hidden", {}).get(u)]
+    if hiders:
+        ranking = sorted(hiders, key=lambda u: rnd["order"].index(u))
+        ranking += [u for u in rnd["order"] if u not in hiders]
+    else:
+        ranking = list(rnd["order"])
+    payouts = {uid: (SEEK_PAYOUT[i] if i < len(SEEK_PAYOUT) else SEEK_REST) for i, uid in enumerate(ranking)}
+    rnd["status"] = "over"
+    rnd["endedAt"] = now
+    rnd["payouts"] = payouts
+    rnd["rank"] = ranking
+
+
+def maybe_expire_seek(rnd: dict[str, Any] | None, now: int) -> dict[str, Any] | None:
+    if not rnd:
+        return rnd
+    if rnd.get("status") == "countdown":
+        live_at = (rnd.get("startedAt") or 0) + SEEK_COUNTDOWN_MS
+        if now < live_at:
+            return rnd
+        _seek_go_live(rnd, live_at)
+    if rnd.get("status") != "live":
+        return rnd
+    if now - (rnd.get("startedAt") or 0) >= SEEK_ROUND_MS:
+        settle_seek(rnd, now)
+    return rnd
+
+
+def seek_public(rnd: dict[str, Any] | None, now: int = 0) -> dict[str, Any]:
+    rnd = maybe_expire_seek(rnd, now) or new_seek()
+    hidden = rnd.get("hidden") or {}
+    inv = {spot: uid for uid, spot in hidden.items()}
+    spots = [{**s, "takenBy": inv.get(s["id"])} for s in SEEK_SPOTS]
+    players = [{"id": uid, "name": rnd["players"][uid]["name"], "seeker": rnd.get("seeker") == uid, "hidden": uid in hidden} for uid in rnd["order"]]
+    return {
+        "status": rnd["status"], "players": players, "spots": spots, "seeker": rnd.get("seeker"),
+        "hidden": dict(hidden), "startedAt": rnd.get("startedAt"), "endedAt": rnd.get("endedAt"),
+        "payouts": dict(rnd["payouts"]) if rnd.get("payouts") else None,
+        "rank": list(rnd.get("rank") or []), "min": SEEK_MIN, "max": SEEK_MAX,
+        "countdownMs": SEEK_COUNTDOWN_MS, "roundMs": SEEK_ROUND_MS,
+    }
+
+
+def seek_view(rnd: dict[str, Any] | None, uid: str, now: int = 0) -> dict[str, Any]:
+    v = seek_public(rnd, now)
+    v["you"] = uid
+    v["payout"] = (rnd.get("payouts") or {}).get(uid, 0) if rnd else 0
+    return v
+
+
+def seek_join(rnd: dict[str, Any] | None, uid: str, name: str, now: int) -> dict[str, Any]:
+    if not isinstance(uid, str) or not uid:
+        return _seek_fail("bad_message", "無效的玩家")
+    cur = new_seek() if (rnd is None or rnd.get("status") == "over") else rnd
+    if uid in cur["players"]:
+        return {**_seek_fail("already_in", "你已經在隊伍裡"), "round": cur}
+    if cur["status"] == "live":
+        return {**_seek_fail("seek_live", "捉迷藏已經開始了"), "round": cur}
+    if len(cur["order"]) >= SEEK_MAX:
+        return {**_seek_fail("seek_full", "人滿了"), "round": cur}
+    cur["players"][uid] = {"name": str(name or "訪客")[:16]}
+    cur["order"].append(uid)
+    if len(cur["order"]) >= SEEK_MAX:
+        _seek_go_live(cur, now)
+    elif len(cur["order"]) >= SEEK_MIN and cur["status"] == "open":
+        cur["status"] = "countdown"
+        cur["startedAt"] = now
+    return {"ok": True, "round": cur}
+
+
+def _seek_near(s: dict[str, Any], x: Any, y: Any) -> dict[str, Any] | None:
+    if isinstance(x, bool) or isinstance(y, bool) or not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
+        return _seek_fail("bad_message", "位置不對")
+    if math.hypot(float(x) - s["x"], float(y) - s["y"]) > SEEK_REACH:
+        return _seek_fail("too_far", "再走近一點")
+    return None
+
+
+def seek_hide(rnd: dict[str, Any] | None, uid: str, spot: Any, x: Any, y: Any, now: int) -> dict[str, Any]:
+    if not rnd:
+        return _seek_fail("seek_none", "現在沒有捉迷藏")
+    maybe_expire_seek(rnd, now)
+    if rnd["status"] == "over":
+        return {**_seek_fail("seek_over", "這一輪已經結束"), "round": rnd}
+    if rnd["status"] != "live":
+        return {**_seek_fail("not_live", "還沒開始，先去西南草地報名"), "round": rnd}
+    if uid not in rnd["players"]:
+        return {**_seek_fail("not_in_seek", "你不在這一輪"), "round": rnd}
+    if rnd.get("seeker") == uid:
+        return {**_seek_fail("not_hider", "尋人要去檢查藏點，不能自己藏"), "round": rnd}
+    if rnd.get("hidden", {}).get(uid):
+        return {**_seek_fail("already_hidden", "你已經藏好了"), "round": rnd}
+    s = SEEK_SPOT_BY.get(spot) if isinstance(spot, str) else None
+    if not s:
+        return {**_seek_fail("bad_message", "沒有這個藏點"), "round": rnd}
+    if s["id"] in (rnd.get("hidden") or {}).values():
+        return {**_seek_fail("spot_taken", "這裡已經有人了"), "round": rnd}
+    bad = _seek_near(s, x, y)
+    if bad:
+        bad["round"] = rnd
+        return bad
+    rnd.setdefault("hidden", {})[uid] = s["id"]
+    return {"ok": True, "round": rnd, "hid": s["id"]}
+
+
+def seek_check(rnd: dict[str, Any] | None, uid: str, spot: Any, x: Any, y: Any, now: int) -> dict[str, Any]:
+    if not rnd:
+        return _seek_fail("seek_none", "現在沒有捉迷藏")
+    maybe_expire_seek(rnd, now)
+    if rnd["status"] == "over":
+        return {**_seek_fail("seek_over", "這一輪已經結束"), "round": rnd}
+    if rnd["status"] != "live":
+        return {**_seek_fail("not_live", "還沒開始，先去西南草地報名"), "round": rnd}
+    if uid not in rnd["players"]:
+        return {**_seek_fail("not_in_seek", "你不在這一輪"), "round": rnd}
+    if rnd.get("seeker") != uid:
+        return {**_seek_fail("not_seeker", "你不是尋人"), "round": rnd}
+    s = SEEK_SPOT_BY.get(spot) if isinstance(spot, str) else None
+    if not s:
+        return {**_seek_fail("bad_message", "沒有這個藏點"), "round": rnd}
+    bad = _seek_near(s, x, y)
+    if bad:
+        bad["round"] = rnd
+        return bad
+    found = next((u for u, sp in (rnd.get("hidden") or {}).items() if sp == s["id"]), None)
+    if not found:
+        return {**_seek_fail("empty_spot", "這裡沒有人"), "round": rnd}
+    del rnd["hidden"][found]
+    rnd["seeker"] = found
+    return {"ok": True, "round": rnd, "found": found}
+
+
+def seek_leave(rnd: dict[str, Any] | None, uid: str, now: int) -> dict[str, Any]:
+    if not rnd:
+        return _seek_fail("seek_none", "現在沒有捉迷藏")
+    maybe_expire_seek(rnd, now)
+    if rnd["status"] == "over":
+        return {**_seek_fail("seek_over", "這一輪已經結束"), "round": rnd}
+    if uid not in rnd["players"]:
+        return {**_seek_fail("not_in_seek", "你不在這一輪"), "round": rnd}
+    if rnd["status"] == "live":
+        return {**_seek_fail("seek_live", "開始後就不能退出"), "round": rnd}
+    del rnd["players"][uid]
+    rnd["order"] = [i for i in rnd["order"] if i != uid]
+    if rnd["status"] == "countdown" and len(rnd["order"]) < SEEK_MIN:
+        rnd["status"] = "open"
+        rnd["startedAt"] = None
+    return {"ok": True, "round": rnd}
+
+
+def apply_seek_gold(rec: dict[str, Any], uid: str, rnd: dict[str, Any] | None) -> int:
+    if not rnd or rnd.get("status") != "over" or not rnd.get("payouts"):
+        return 0
+    paid = rnd.setdefault("paid", {})
+    if paid.get(uid):
+        return 0
+    n = int(rnd["payouts"].get(uid, 0) or 0)
+    rec["gold"] = int(rec.get("gold") or 0) + n
+    paid[uid] = n
+    return n
+
+
+# ---------- 傳南瓜（與前端 src/game/hot.js 相同） ----------
+_H = RULES.get("hot") or {}
+HOT_MIN = int(_H.get("min", 3))
+HOT_MAX = int(_H.get("max", 8))
+HOT_REACH = int(_H.get("reach", 20))
+HOT_COUNTDOWN_MS = int(_H.get("countdownMs", 9000))
+HOT_ROUND_MS = int(_H.get("roundMs", 45000))
+HOT_PAYOUT = list(_H.get("payout") or [40, 20, 10])
+HOT_REST = int(_H.get("restPay", 5))
+_HJ = _H.get("join") or {}
+HOT_JOIN = {"x": int(_HJ.get("x", 128)), "y": int(_HJ.get("y", 100)), "k": _HJ.get("k") or "pumpkinItem"}
+
+
+def new_hot() -> dict[str, Any]:
+    return {
+        "status": "open", "players": {}, "order": [], "holder": None, "heldAt": None,
+        "startedAt": None, "endedAt": None, "payouts": None, "paid": {}, "rank": [],
+    }
+
+
+def _hot_fail(code: str, msg: str, rnd: dict[str, Any] | None = None) -> dict[str, Any]:
+    out: dict[str, Any] = {"ok": False, "code": code, "msg": msg}
+    if rnd is not None:
+        out["round"] = rnd
+    return out
+
+
+def _hot_go_live(rnd: dict[str, Any], now: int) -> None:
+    rnd["status"] = "live"
+    rnd["startedAt"] = now
+    rnd["holder"] = rnd["order"][0] if rnd["order"] else None
+    rnd["heldAt"] = now if rnd["holder"] else None
+
+
+def settle_hot(rnd: dict[str, Any], now: int) -> None:
+    holder = rnd.get("holder")
+    rest = [u for u in rnd["order"] if u != holder]
+    ranking = rest + ([holder] if holder and holder in rnd["order"] else [])
+    payouts = {uid: (HOT_PAYOUT[i] if i < len(HOT_PAYOUT) else HOT_REST) for i, uid in enumerate(ranking)}
+    rnd["status"] = "over"
+    rnd["endedAt"] = now
+    rnd["payouts"] = payouts
+    rnd["rank"] = ranking
+
+
+def maybe_expire_hot(rnd: dict[str, Any] | None, now: int) -> dict[str, Any] | None:
+    if not rnd:
+        return rnd
+    if rnd.get("status") == "countdown":
+        live_at = (rnd.get("startedAt") or 0) + HOT_COUNTDOWN_MS
+        if now < live_at:
+            return rnd
+        _hot_go_live(rnd, live_at)
+    if rnd.get("status") != "live":
+        return rnd
+    if now - (rnd.get("startedAt") or 0) >= HOT_ROUND_MS:
+        settle_hot(rnd, now)
+    return rnd
+
+
+def hot_public(rnd: dict[str, Any] | None, now: int = 0) -> dict[str, Any]:
+    rnd = maybe_expire_hot(rnd, now) or new_hot()
+    players = [{"id": uid, "name": rnd["players"][uid]["name"], "holder": rnd.get("holder") == uid} for uid in rnd["order"]]
+    return {
+        "status": rnd["status"], "players": players, "holder": rnd.get("holder"),
+        "heldAt": rnd.get("heldAt"),
+        "startedAt": rnd.get("startedAt"), "endedAt": rnd.get("endedAt"),
+        "payouts": dict(rnd["payouts"]) if rnd.get("payouts") else None,
+        "rank": list(rnd.get("rank") or []), "min": HOT_MIN, "max": HOT_MAX,
+        "countdownMs": HOT_COUNTDOWN_MS, "roundMs": HOT_ROUND_MS,
+        "join": dict(HOT_JOIN),
+    }
+
+
+def hot_view(rnd: dict[str, Any] | None, uid: str, now: int = 0) -> dict[str, Any]:
+    v = hot_public(rnd, now)
+    v["you"] = uid
+    v["payout"] = (rnd.get("payouts") or {}).get(uid, 0) if rnd else 0
+    return v
+
+
+def hot_join(rnd: dict[str, Any] | None, uid: str, name: str, now: int) -> dict[str, Any]:
+    if not isinstance(uid, str) or not uid:
+        return _hot_fail("bad_message", "無效的玩家")
+    cur = new_hot() if (rnd is None or rnd.get("status") == "over") else rnd
+    if uid in cur["players"]:
+        return {**_hot_fail("already_in", "你已經在隊伍裡"), "round": cur}
+    if cur["status"] == "live":
+        return {**_hot_fail("hot_live", "傳南瓜已經開始了"), "round": cur}
+    if len(cur["order"]) >= HOT_MAX:
+        return {**_hot_fail("hot_full", "人滿了"), "round": cur}
+    cur["players"][uid] = {"name": str(name or "訪客")[:16]}
+    cur["order"].append(uid)
+    if len(cur["order"]) >= HOT_MAX:
+        _hot_go_live(cur, now)
+    elif len(cur["order"]) >= HOT_MIN and cur["status"] == "open":
+        cur["status"] = "countdown"
+        cur["startedAt"] = now
+    return {"ok": True, "round": cur}
+
+
+def _hot_near(x: Any, y: Any) -> dict[str, Any] | None:
+    if isinstance(x, bool) or isinstance(y, bool) or not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
+        return _hot_fail("bad_message", "位置不對")
+    if math.hypot(float(x) - HOT_JOIN["x"], float(y) - HOT_JOIN["y"]) > HOT_REACH:
+        return _hot_fail("too_far", "再走近南瓜一點")
+    return None
+
+
+def hot_take(rnd: dict[str, Any] | None, uid: str, x: Any, y: Any, now: int) -> dict[str, Any]:
+    if not rnd:
+        return _hot_fail("hot_none", "現在沒有傳南瓜")
+    maybe_expire_hot(rnd, now)
+    if rnd["status"] == "over":
+        return {**_hot_fail("hot_over", "這一輪已經結束"), "round": rnd}
+    if rnd["status"] != "live":
+        return {**_hot_fail("not_live", "還沒開始，先去雞舍旁邊報名"), "round": rnd}
+    if uid not in rnd["players"]:
+        return {**_hot_fail("not_in_hot", "你不在這一輪"), "round": rnd}
+    if rnd.get("holder") == uid:
+        return {**_hot_fail("already_holding", "南瓜已經在你手上"), "round": rnd}
+    bad = _hot_near(x, y)
+    if bad:
+        bad["round"] = rnd
+        return bad
+    rnd["holder"] = uid
+    rnd["heldAt"] = now
+    return {"ok": True, "round": rnd, "holder": uid}
+
+
+def hot_leave(rnd: dict[str, Any] | None, uid: str, now: int) -> dict[str, Any]:
+    if not rnd:
+        return _hot_fail("hot_none", "現在沒有傳南瓜")
+    maybe_expire_hot(rnd, now)
+    if rnd["status"] == "over":
+        return {**_hot_fail("hot_over", "這一輪已經結束"), "round": rnd}
+    if uid not in rnd["players"]:
+        return {**_hot_fail("not_in_hot", "你不在這一輪"), "round": rnd}
+    if rnd["status"] == "live":
+        return {**_hot_fail("hot_live", "開始後就不能退出"), "round": rnd}
+    del rnd["players"][uid]
+    rnd["order"] = [i for i in rnd["order"] if i != uid]
+    if rnd["status"] == "countdown" and len(rnd["order"]) < HOT_MIN:
+        rnd["status"] = "open"
+        rnd["startedAt"] = None
+    return {"ok": True, "round": rnd}
+
+
+def apply_hot_gold(rec: dict[str, Any], uid: str, rnd: dict[str, Any] | None) -> int:
+    if not rnd or rnd.get("status") != "over" or not rnd.get("payouts"):
+        return 0
+    paid = rnd.setdefault("paid", {})
+    if paid.get(uid):
+        return 0
+    n = int(rnd["payouts"].get(uid, 0) or 0)
+    rec["gold"] = int(rec.get("gold") or 0) + n
+    paid[uid] = n
+    return n
+
+
+# ---------- 廣場拔河（與前端 src/game/tug.js 相同） ----------
+_T = RULES.get("tug") or {}
+TUG_MIN = int(_T.get("min", 3))
+TUG_MAX = int(_T.get("max", 8))
+TUG_REACH = int(_T.get("reach", 20))
+TUG_COUNTDOWN_MS = int(_T.get("countdownMs", 9000))
+TUG_ROUND_MS = int(_T.get("roundMs", 45000))
+TUG_PAYOUT = list(_T.get("payout") or [40, 20, 10])
+TUG_REST = int(_T.get("restPay", 5))
+TUG_WIN = int(_T.get("winPay", 40))
+TUG_LOSE = int(_T.get("losePay", 5))
+TUG_SPOTS = list(_T.get("spots") or [])
+TUG_SPOT_BY = {s["id"]: s for s in TUG_SPOTS if isinstance(s, dict) and "id" in s}
+
+
+def new_tug() -> dict[str, Any]:
+    return {
+        "status": "open", "players": {}, "order": [], "team": {}, "pulls": {},
+        "score": {"L": 0, "R": 0}, "startedAt": None, "endedAt": None,
+        "payouts": None, "paid": {}, "rank": [], "winner": None,
+    }
+
+
+def _tug_fail(code: str, msg: str, rnd: dict[str, Any] | None = None) -> dict[str, Any]:
+    out: dict[str, Any] = {"ok": False, "code": code, "msg": msg}
+    if rnd is not None:
+        out["round"] = rnd
+    return out
+
+
+def _tug_side(i: int) -> str:
+    return "L" if i % 2 == 0 else "R"
+
+
+def _tug_go_live(rnd: dict[str, Any], now: int) -> None:
+    rnd["status"] = "live"
+    rnd["startedAt"] = now
+    for i, uid in enumerate(rnd["order"]):
+        rnd.setdefault("team", {})[uid] = _tug_side(i)
+        rnd.setdefault("pulls", {})[uid] = int(rnd.get("pulls", {}).get(uid) or 0)
+
+
+def settle_tug(rnd: dict[str, Any], now: int) -> None:
+    left = int((rnd.get("score") or {}).get("L") or 0)
+    right = int((rnd.get("score") or {}).get("R") or 0)
+    winner = "L" if left > right else "R" if right > left else None
+    team = rnd.get("team") or {}
+    pulls = rnd.get("pulls") or {}
+    ranking = sorted(
+        rnd["order"],
+        key=lambda u: (
+            0 if winner and team.get(u) == winner else 1 if winner else 0,
+            -(int(pulls.get(u) or 0)),
+            rnd["order"].index(u),
+        ),
+    )
+    payouts: dict[str, int] = {}
+    if not winner:
+        payouts = {uid: (TUG_PAYOUT[i] if i < len(TUG_PAYOUT) else TUG_REST) for i, uid in enumerate(ranking)}
+    else:
+        for i, uid in enumerate(ranking):
+            payouts[uid] = (TUG_PAYOUT[i] if i < len(TUG_PAYOUT) else TUG_WIN) if team.get(uid) == winner else TUG_LOSE
+    rnd["status"] = "over"
+    rnd["endedAt"] = now
+    rnd["payouts"] = payouts
+    rnd["rank"] = ranking
+    rnd["winner"] = winner
+
+
+def maybe_expire_tug(rnd: dict[str, Any] | None, now: int) -> dict[str, Any] | None:
+    if not rnd:
+        return rnd
+    if rnd.get("status") == "countdown":
+        live_at = (rnd.get("startedAt") or 0) + TUG_COUNTDOWN_MS
+        if now < live_at:
+            return rnd
+        _tug_go_live(rnd, live_at)
+    if rnd.get("status") != "live":
+        return rnd
+    if now - (rnd.get("startedAt") or 0) >= TUG_ROUND_MS:
+        settle_tug(rnd, now)
+    return rnd
+
+
+def tug_public(rnd: dict[str, Any] | None, now: int = 0) -> dict[str, Any]:
+    rnd = maybe_expire_tug(rnd, now) or new_tug()
+    players = [{"id": uid, "name": rnd["players"][uid]["name"], "team": (rnd.get("team") or {}).get(uid), "pulls": int((rnd.get("pulls") or {}).get(uid) or 0)} for uid in rnd["order"]]
+    return {
+        "status": rnd["status"], "players": players, "score": dict(rnd.get("score") or {"L": 0, "R": 0}),
+        "winner": rnd.get("winner"), "startedAt": rnd.get("startedAt"), "endedAt": rnd.get("endedAt"),
+        "payouts": dict(rnd["payouts"]) if rnd.get("payouts") else None,
+        "rank": list(rnd.get("rank") or []), "min": TUG_MIN, "max": TUG_MAX,
+        "countdownMs": TUG_COUNTDOWN_MS, "roundMs": TUG_ROUND_MS,
+        "spots": [dict(s) for s in TUG_SPOTS],
+    }
+
+
+def tug_view(rnd: dict[str, Any] | None, uid: str, now: int = 0) -> dict[str, Any]:
+    v = tug_public(rnd, now)
+    v["you"] = uid
+    v["payout"] = (rnd.get("payouts") or {}).get(uid, 0) if rnd else 0
+    v["yourTeam"] = (rnd.get("team") or {}).get(uid) if rnd else None
+    return v
+
+
+def tug_join(rnd: dict[str, Any] | None, uid: str, name: str, now: int) -> dict[str, Any]:
+    if not isinstance(uid, str) or not uid:
+        return _tug_fail("bad_message", "無效的玩家")
+    cur = new_tug() if (rnd is None or rnd.get("status") == "over") else rnd
+    if uid in cur["players"]:
+        return {**_tug_fail("already_in", "你已經在隊伍裡"), "round": cur}
+    if cur["status"] == "live":
+        return {**_tug_fail("tug_live", "拔河已經開始了"), "round": cur}
+    if len(cur["order"]) >= TUG_MAX:
+        return {**_tug_fail("tug_full", "人滿了"), "round": cur}
+    cur["players"][uid] = {"name": str(name or "訪客")[:16]}
+    cur["order"].append(uid)
+    if len(cur["order"]) >= TUG_MAX:
+        _tug_go_live(cur, now)
+    elif len(cur["order"]) >= TUG_MIN and cur["status"] == "open":
+        cur["status"] = "countdown"
+        cur["startedAt"] = now
+    return {"ok": True, "round": cur}
+
+
+def _tug_near(s: dict[str, Any], x: Any, y: Any) -> dict[str, Any] | None:
+    if isinstance(x, bool) or isinstance(y, bool) or not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
+        return _tug_fail("bad_message", "位置不對")
+    if math.hypot(float(x) - s["x"], float(y) - s["y"]) > TUG_REACH:
+        return _tug_fail("too_far", "再走近乾草樁一點")
+    return None
+
+
+def tug_pull(rnd: dict[str, Any] | None, uid: str, side: Any, x: Any, y: Any, now: int) -> dict[str, Any]:
+    if not rnd:
+        return _tug_fail("tug_none", "現在沒有拔河")
+    maybe_expire_tug(rnd, now)
+    if rnd["status"] == "over":
+        return {**_tug_fail("tug_over", "這一輪已經結束"), "round": rnd}
+    if rnd["status"] != "live":
+        return {**_tug_fail("not_live", "還沒開始，先去東邊草地報名"), "round": rnd}
+    if uid not in rnd["players"]:
+        return {**_tug_fail("not_in_tug", "你不在這一輪"), "round": rnd}
+    s = TUG_SPOT_BY.get(side) if isinstance(side, str) else None
+    if not s:
+        return {**_tug_fail("bad_message", "沒有這一岸"), "round": rnd}
+    team = (rnd.get("team") or {}).get(uid)
+    if team and team != s["id"]:
+        return {**_tug_fail("wrong_side", "你是另一岸的人"), "round": rnd}
+    bad = _tug_near(s, x, y)
+    if bad:
+        bad["round"] = rnd
+        return bad
+    rnd.setdefault("pulls", {})[uid] = int(rnd.get("pulls", {}).get(uid) or 0) + 1
+    rnd.setdefault("score", {"L": 0, "R": 0})[s["id"]] = int(rnd.get("score", {}).get(s["id"]) or 0) + 1
+    return {"ok": True, "round": rnd, "pulled": s["id"]}
+
+
+def tug_leave(rnd: dict[str, Any] | None, uid: str, now: int) -> dict[str, Any]:
+    if not rnd:
+        return _tug_fail("tug_none", "現在沒有拔河")
+    maybe_expire_tug(rnd, now)
+    if rnd["status"] == "over":
+        return {**_tug_fail("tug_over", "這一輪已經結束"), "round": rnd}
+    if uid not in rnd["players"]:
+        return {**_tug_fail("not_in_tug", "你不在這一輪"), "round": rnd}
+    if rnd["status"] == "live":
+        return {**_tug_fail("tug_live", "開始後就不能退出"), "round": rnd}
+    del rnd["players"][uid]
+    rnd["order"] = [i for i in rnd["order"] if i != uid]
+    if rnd["status"] == "countdown" and len(rnd["order"]) < TUG_MIN:
+        rnd["status"] = "open"
+        rnd["startedAt"] = None
+    return {"ok": True, "round": rnd}
+
+
+def apply_tug_gold(rec: dict[str, Any], uid: str, rnd: dict[str, Any] | None) -> int:
+    if not rnd or rnd.get("status") != "over" or not rnd.get("payouts"):
+        return 0
+    paid = rnd.setdefault("paid", {})
+    if paid.get(uid):
+        return 0
+    n = int(rnd["payouts"].get(uid, 0) or 0)
+    rec["gold"] = int(rec.get("gold") or 0) + n
+    paid[uid] = n
+    return n
+
+
+# ---------- 廣場搬寶（與前端 src/game/haul.js 相同） ----------
+_U = RULES.get("haul") or {}
+HAUL_MIN = int(_U.get("min", 3))
+HAUL_MAX = int(_U.get("max", 8))
+HAUL_REACH = int(_U.get("reach", 20))
+HAUL_COUNTDOWN_MS = int(_U.get("countdownMs", 9000))
+HAUL_ROUND_MS = int(_U.get("roundMs", 45000))
+HAUL_PAYOUT = list(_U.get("payout") or [40, 20, 10])
+HAUL_REST = int(_U.get("restPay", 5))
+_UJ = _U.get("join") or {}
+HAUL_JOIN = {"x": int(_UJ.get("x", 104)), "y": int(_UJ.get("y", 168)), "k": _UJ.get("k") or "barrel"}
+_UD = _U.get("drop") or {}
+HAUL_DROP = {"x": int(_UD.get("x", 368)), "y": int(_UD.get("y", 72)), "k": _UD.get("k") or "cauldron"}
+
+
+def new_haul() -> dict[str, Any]:
+    return {
+        "status": "open", "players": {}, "order": [], "holder": None, "scores": {},
+        "startedAt": None, "endedAt": None, "payouts": None, "paid": {}, "rank": [],
+    }
+
+
+def _haul_fail(code: str, msg: str, rnd: dict[str, Any] | None = None) -> dict[str, Any]:
+    out: dict[str, Any] = {"ok": False, "code": code, "msg": msg}
+    if rnd is not None:
+        out["round"] = rnd
+    return out
+
+
+def _haul_go_live(rnd: dict[str, Any], now: int) -> None:
+    rnd["status"] = "live"
+    rnd["startedAt"] = now
+    rnd["holder"] = None
+    scores = rnd.setdefault("scores", {})
+    for uid in rnd["order"]:
+        scores[uid] = int(scores.get(uid) or 0)
+
+
+def settle_haul(rnd: dict[str, Any], now: int) -> None:
+    scores = rnd.get("scores") or {}
+    ranking = sorted(
+        rnd["order"],
+        key=lambda u: (-int(scores.get(u) or 0), rnd["order"].index(u)),
+    )
+    payouts = {uid: (HAUL_PAYOUT[i] if i < len(HAUL_PAYOUT) else HAUL_REST) for i, uid in enumerate(ranking)}
+    rnd["status"] = "over"
+    rnd["endedAt"] = now
+    rnd["payouts"] = payouts
+    rnd["rank"] = ranking
+
+
+def maybe_expire_haul(rnd: dict[str, Any] | None, now: int) -> dict[str, Any] | None:
+    if not rnd:
+        return rnd
+    if rnd.get("status") == "countdown":
+        live_at = (rnd.get("startedAt") or 0) + HAUL_COUNTDOWN_MS
+        if now < live_at:
+            return rnd
+        _haul_go_live(rnd, live_at)
+    if rnd.get("status") != "live":
+        return rnd
+    if now - (rnd.get("startedAt") or 0) >= HAUL_ROUND_MS:
+        settle_haul(rnd, now)
+    return rnd
+
+
+def haul_public(rnd: dict[str, Any] | None, now: int = 0) -> dict[str, Any]:
+    rnd = maybe_expire_haul(rnd, now) or new_haul()
+    players = [{"id": uid, "name": rnd["players"][uid]["name"], "holder": rnd.get("holder") == uid, "score": int((rnd.get("scores") or {}).get(uid) or 0)} for uid in rnd["order"]]
+    return {
+        "status": rnd["status"], "players": players, "holder": rnd.get("holder"),
+        "scores": dict(rnd.get("scores") or {}),
+        "startedAt": rnd.get("startedAt"), "endedAt": rnd.get("endedAt"),
+        "payouts": dict(rnd["payouts"]) if rnd.get("payouts") else None,
+        "rank": list(rnd.get("rank") or []), "min": HAUL_MIN, "max": HAUL_MAX,
+        "countdownMs": HAUL_COUNTDOWN_MS, "roundMs": HAUL_ROUND_MS,
+        "join": dict(HAUL_JOIN), "drop": dict(HAUL_DROP),
+    }
+
+
+def haul_view(rnd: dict[str, Any] | None, uid: str, now: int = 0) -> dict[str, Any]:
+    v = haul_public(rnd, now)
+    v["you"] = uid
+    v["payout"] = (rnd.get("payouts") or {}).get(uid, 0) if rnd else 0
+    return v
+
+
+def haul_join(rnd: dict[str, Any] | None, uid: str, name: str, now: int) -> dict[str, Any]:
+    if not isinstance(uid, str) or not uid:
+        return _haul_fail("bad_message", "無效的玩家")
+    cur = new_haul() if (rnd is None or rnd.get("status") == "over") else rnd
+    if uid in cur["players"]:
+        return {**_haul_fail("already_in", "你已經在隊伍裡"), "round": cur}
+    if cur["status"] == "live":
+        return {**_haul_fail("haul_live", "搬寶已經開始了"), "round": cur}
+    if len(cur["order"]) >= HAUL_MAX:
+        return {**_haul_fail("haul_full", "人滿了"), "round": cur}
+    cur["players"][uid] = {"name": str(name or "訪客")[:16]}
+    cur["order"].append(uid)
+    cur.setdefault("scores", {})[uid] = 0
+    if len(cur["order"]) >= HAUL_MAX:
+        _haul_go_live(cur, now)
+    elif len(cur["order"]) >= HAUL_MIN and cur["status"] == "open":
+        cur["status"] = "countdown"
+        cur["startedAt"] = now
+    return {"ok": True, "round": cur}
+
+
+def _haul_near(spot: dict[str, Any], x: Any, y: Any, msg: str) -> dict[str, Any] | None:
+    if isinstance(x, bool) or isinstance(y, bool) or not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
+        return _haul_fail("bad_message", "位置不對")
+    if math.hypot(float(x) - spot["x"], float(y) - spot["y"]) > HAUL_REACH:
+        return _haul_fail("too_far", msg)
+    return None
+
+
+def haul_take(rnd: dict[str, Any] | None, uid: str, x: Any, y: Any, now: int) -> dict[str, Any]:
+    if not rnd:
+        return _haul_fail("haul_none", "現在沒有搬寶")
+    maybe_expire_haul(rnd, now)
+    if rnd["status"] == "over":
+        return {**_haul_fail("haul_over", "這一輪已經結束"), "round": rnd}
+    if rnd["status"] != "live":
+        return {**_haul_fail("not_live", "還沒開始，先去西邊木桶報名"), "round": rnd}
+    if uid not in rnd["players"]:
+        return {**_haul_fail("not_in_haul", "你不在這一輪"), "round": rnd}
+    if rnd.get("holder") == uid:
+        return {**_haul_fail("already_holding", "寶物已經在你手上"), "round": rnd}
+    bad = _haul_near(HAUL_JOIN, x, y, "再走近木桶一點")
+    if bad:
+        bad["round"] = rnd
+        return bad
+    rnd["holder"] = uid
+    return {"ok": True, "round": rnd, "holder": uid}
+
+
+def haul_drop(rnd: dict[str, Any] | None, uid: str, x: Any, y: Any, now: int) -> dict[str, Any]:
+    if not rnd:
+        return _haul_fail("haul_none", "現在沒有搬寶")
+    maybe_expire_haul(rnd, now)
+    if rnd["status"] == "over":
+        return {**_haul_fail("haul_over", "這一輪已經結束"), "round": rnd}
+    if rnd["status"] != "live":
+        return {**_haul_fail("not_live", "還沒開始，先去西邊木桶報名"), "round": rnd}
+    if uid not in rnd["players"]:
+        return {**_haul_fail("not_in_haul", "你不在這一輪"), "round": rnd}
+    if rnd.get("holder") != uid:
+        return {**_haul_fail("empty_hands", "你手上沒有寶物"), "round": rnd}
+    bad = _haul_near(HAUL_DROP, x, y, "再走近大鍋一點")
+    if bad:
+        bad["round"] = rnd
+        return bad
+    rnd.setdefault("scores", {})[uid] = int(rnd.get("scores", {}).get(uid) or 0) + 1
+    rnd["holder"] = None
+    return {"ok": True, "round": rnd, "score": rnd["scores"][uid]}
+
+
+def haul_leave(rnd: dict[str, Any] | None, uid: str, now: int) -> dict[str, Any]:
+    if not rnd:
+        return _haul_fail("haul_none", "現在沒有搬寶")
+    maybe_expire_haul(rnd, now)
+    if rnd["status"] == "over":
+        return {**_haul_fail("haul_over", "這一輪已經結束"), "round": rnd}
+    if uid not in rnd["players"]:
+        return {**_haul_fail("not_in_haul", "你不在這一輪"), "round": rnd}
+    if rnd["status"] == "live":
+        return {**_haul_fail("haul_live", "開始後就不能退出"), "round": rnd}
+    del rnd["players"][uid]
+    (rnd.get("scores") or {}).pop(uid, None)
+    rnd["order"] = [i for i in rnd["order"] if i != uid]
+    if rnd["status"] == "countdown" and len(rnd["order"]) < HAUL_MIN:
+        rnd["status"] = "open"
+        rnd["startedAt"] = None
+    return {"ok": True, "round": rnd}
+
+
+def apply_haul_gold(rec: dict[str, Any], uid: str, rnd: dict[str, Any] | None) -> int:
+    if not rnd or rnd.get("status") != "over" or not rnd.get("payouts"):
+        return 0
+    paid = rnd.setdefault("paid", {})
+    if paid.get(uid):
+        return 0
+    n = int(rnd["payouts"].get(uid, 0) or 0)
+    rec["gold"] = int(rec.get("gold") or 0) + n
+    paid[uid] = n
+    return n
+
+
+# ---------- 廣場紅綠燈（與前端 src/game/light.js 相同） ----------
+_LGT = RULES.get("light") or {}
+LIGHT_MIN = int(_LGT.get("min", 3))
+LIGHT_MAX = int(_LGT.get("max", 8))
+LIGHT_REACH = int(_LGT.get("reach", 20))
+LIGHT_COUNTDOWN_MS = int(_LGT.get("countdownMs", 9000))
+LIGHT_ROUND_MS = int(_LGT.get("roundMs", 45000))
+LIGHT_GREEN_MS = int(_LGT.get("greenMs", 2500))
+LIGHT_RED_MS = int(_LGT.get("redMs", 1800))
+LIGHT_PAYOUT = list(_LGT.get("payout") or [40, 20, 10])
+LIGHT_REST = int(_LGT.get("restPay", 5))
+LIGHT_SPOTS = list(_LGT.get("spots") or [])
+LIGHT_SPOT_BY = {s["id"]: s for s in LIGHT_SPOTS if isinstance(s, dict) and "id" in s}
+_LJ = _LGT.get("join") or {}
+LIGHT_JOIN = {"x": int(_LJ.get("x", 64)), "y": int(_LJ.get("y", 40)), "k": _LJ.get("k") or "railing"}
+
+
+def new_light() -> dict[str, Any]:
+    return {
+        "status": "open", "players": {}, "order": [], "out": {}, "done": {}, "finishAt": {},
+        "startedAt": None, "endedAt": None, "payouts": None, "paid": {}, "rank": [],
+    }
+
+
+def _light_fail(code: str, msg: str, rnd: dict[str, Any] | None = None) -> dict[str, Any]:
+    out: dict[str, Any] = {"ok": False, "code": code, "msg": msg}
+    if rnd is not None:
+        out["round"] = rnd
+    return out
+
+
+def _light_go_live(rnd: dict[str, Any], now: int) -> None:
+    rnd["status"] = "live"
+    rnd["startedAt"] = now
+
+
+def light_of(rnd: dict[str, Any] | None, now: int) -> str:
+    if not rnd or rnd.get("status") != "live":
+        return "green"
+    t = max(0, now - (rnd.get("startedAt") or 0))
+    cycle = LIGHT_GREEN_MS + LIGHT_RED_MS
+    return "green" if (t % cycle) < LIGHT_GREEN_MS else "red"
+
+
+def _light_remaining(rnd: dict[str, Any]) -> list[str]:
+    out, done = rnd.get("out") or {}, rnd.get("done") or {}
+    return [uid for uid in rnd["order"] if not out.get(uid) and not done.get(uid)]
+
+
+def settle_light(rnd: dict[str, Any], now: int) -> None:
+    out, done, finish = rnd.get("out") or {}, rnd.get("done") or {}, rnd.get("finishAt") or {}
+
+    def key(uid: str):
+        bucket = 0 if done.get(uid) else 2 if out.get(uid) else 1
+        fin = int(finish.get(uid) or 0) if done.get(uid) else 0
+        score = -int(rnd["players"][uid].get("score") or 0)
+        return (bucket, fin if done.get(uid) else 0, score, rnd["order"].index(uid))
+
+    ranking = sorted(rnd["order"], key=key)
+    payouts = {uid: (LIGHT_PAYOUT[i] if i < len(LIGHT_PAYOUT) else LIGHT_REST) for i, uid in enumerate(ranking)}
+    rnd["status"] = "over"
+    rnd["endedAt"] = now
+    rnd["payouts"] = payouts
+    rnd["rank"] = ranking
+
+
+def maybe_expire_light(rnd: dict[str, Any] | None, now: int) -> dict[str, Any] | None:
+    if not rnd:
+        return rnd
+    if rnd.get("status") == "countdown":
+        live_at = (rnd.get("startedAt") or 0) + LIGHT_COUNTDOWN_MS
+        if now < live_at:
+            return rnd
+        _light_go_live(rnd, live_at)
+    if rnd.get("status") != "live":
+        return rnd
+    if now - (rnd.get("startedAt") or 0) >= LIGHT_ROUND_MS or not _light_remaining(rnd):
+        settle_light(rnd, now)
+    return rnd
+
+
+def light_public(rnd: dict[str, Any] | None, now: int = 0) -> dict[str, Any]:
+    rnd = maybe_expire_light(rnd, now) or new_light()
+    players = [{
+        "id": uid, "name": rnd["players"][uid]["name"],
+        "score": int(rnd["players"][uid].get("score") or 0),
+        "out": bool((rnd.get("out") or {}).get(uid)),
+        "done": bool((rnd.get("done") or {}).get(uid)),
+    } for uid in rnd["order"]]
+    return {
+        "status": rnd["status"], "players": players, "spots": [dict(s) for s in LIGHT_SPOTS],
+        "light": light_of(rnd, now), "startedAt": rnd.get("startedAt"), "endedAt": rnd.get("endedAt"),
+        "payouts": dict(rnd["payouts"]) if rnd.get("payouts") else None,
+        "rank": list(rnd.get("rank") or []), "min": LIGHT_MIN, "max": LIGHT_MAX,
+        "countdownMs": LIGHT_COUNTDOWN_MS, "roundMs": LIGHT_ROUND_MS,
+        "greenMs": LIGHT_GREEN_MS, "redMs": LIGHT_RED_MS,
+    }
+
+
+def light_view(rnd: dict[str, Any] | None, uid: str, now: int = 0) -> dict[str, Any]:
+    v = light_public(rnd, now)
+    v["you"] = uid
+    v["payout"] = (rnd.get("payouts") or {}).get(uid, 0) if rnd else 0
+    me = next((p for p in v["players"] if p["id"] == uid), None)
+    v["yourScore"] = me["score"] if me else 0
+    v["yourOut"] = bool(me and me["out"])
+    v["yourDone"] = bool(me and me["done"])
+    return v
+
+
+def light_join(rnd: dict[str, Any] | None, uid: str, name: str, now: int) -> dict[str, Any]:
+    if not isinstance(uid, str) or not uid:
+        return _light_fail("bad_message", "無效的玩家")
+    cur = new_light() if (rnd is None or rnd.get("status") == "over") else rnd
+    if uid in cur["players"]:
+        return {**_light_fail("already_in", "你已經在隊伍裡"), "round": cur}
+    if cur["status"] == "live":
+        return {**_light_fail("light_live", "紅綠燈已經開始了"), "round": cur}
+    if len(cur["order"]) >= LIGHT_MAX:
+        return {**_light_fail("light_full", "人滿了"), "round": cur}
+    cur["players"][uid] = {"name": str(name or "訪客")[:16], "score": 0}
+    cur["order"].append(uid)
+    if len(cur["order"]) >= LIGHT_MAX:
+        _light_go_live(cur, now)
+    elif len(cur["order"]) >= LIGHT_MIN and cur["status"] == "open":
+        cur["status"] = "countdown"
+        cur["startedAt"] = now
+    return {"ok": True, "round": cur}
+
+
+def light_dash(rnd: dict[str, Any] | None, uid: str, spot: Any, x: Any, y: Any, now: int) -> dict[str, Any]:
+    if not rnd:
+        return _light_fail("light_none", "現在沒有紅綠燈")
+    maybe_expire_light(rnd, now)
+    if rnd["status"] == "over":
+        return {**_light_fail("light_over", "這一輪已經結束"), "round": rnd}
+    if rnd["status"] != "live":
+        return {**_light_fail("not_live", "還沒開始，先去北邊欄杆報名"), "round": rnd}
+    if uid not in rnd["players"]:
+        return {**_light_fail("not_in_light", "你不在這一輪"), "round": rnd}
+    if (rnd.get("out") or {}).get(uid):
+        return {**_light_fail("already_out", "紅燈時動了，這輪出局"), "round": rnd}
+    if (rnd.get("done") or {}).get(uid):
+        return {**_light_fail("already_done", "你已經到終點了"), "round": rnd}
+    s = LIGHT_SPOT_BY.get(spot) if isinstance(spot, str) else None
+    if not s:
+        return {**_light_fail("bad_message", "沒有這個樁"), "round": rnd}
+    score = int(rnd["players"][uid].get("score") or 0)
+    need = LIGHT_SPOTS[score] if 0 <= score < len(LIGHT_SPOTS) else None
+    if not need or need.get("id") != s["id"]:
+        return {**_light_fail("wrong_spot", "要依序踩下一樁"), "round": rnd}
+    if isinstance(x, bool) or isinstance(y, bool) or not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
+        return {**_light_fail("bad_message", "位置不對"), "round": rnd}
+    if math.hypot(float(x) - s["x"], float(y) - s["y"]) > LIGHT_REACH:
+        return {**_light_fail("too_far", "再走近一點"), "round": rnd}
+    if light_of(rnd, now) == "red":
+        rnd.setdefault("out", {})[uid] = True
+        if not _light_remaining(rnd):
+            settle_light(rnd, now)
+        return {"ok": True, "round": rnd, "out": True, "light": "red"}
+    rnd["players"][uid]["score"] = score + 1
+    if rnd["players"][uid]["score"] >= len(LIGHT_SPOTS):
+        rnd.setdefault("done", {})[uid] = True
+        rnd.setdefault("finishAt", {})[uid] = now
+    if not _light_remaining(rnd):
+        settle_light(rnd, now)
+    return {"ok": True, "round": rnd, "stepped": s["id"], "done": bool((rnd.get("done") or {}).get(uid))}
+
+
+def light_leave(rnd: dict[str, Any] | None, uid: str, now: int) -> dict[str, Any]:
+    if not rnd:
+        return _light_fail("light_none", "現在沒有紅綠燈")
+    maybe_expire_light(rnd, now)
+    if rnd["status"] == "over":
+        return {**_light_fail("light_over", "這一輪已經結束"), "round": rnd}
+    if uid not in rnd["players"]:
+        return {**_light_fail("not_in_light", "你不在這一輪"), "round": rnd}
+    if rnd["status"] == "live":
+        return {**_light_fail("light_live", "開始後就不能退出"), "round": rnd}
+    del rnd["players"][uid]
+    rnd["order"] = [i for i in rnd["order"] if i != uid]
+    if rnd["status"] == "countdown" and len(rnd["order"]) < LIGHT_MIN:
+        rnd["status"] = "open"
+        rnd["startedAt"] = None
+    return {"ok": True, "round": rnd}
+
+
+def apply_light_gold(rec: dict[str, Any], uid: str, rnd: dict[str, Any] | None) -> int:
+    if not rnd or rnd.get("status") != "over" or not rnd.get("payouts"):
+        return 0
+    paid = rnd.setdefault("paid", {})
+    if paid.get(uid):
+        return 0
+    n = int(rnd["payouts"].get(uid, 0) or 0)
+    rec["gold"] = int(rec.get("gold") or 0) + n
+    paid[uid] = n
+    return n
+
+
+# ---------- 廣場占席（與前端 src/game/hill.js 相同） ----------
+_HL = RULES.get("hill") or {}
+HILL_MIN = int(_HL.get("min", 3))
+HILL_MAX = int(_HL.get("max", 8))
+HILL_REACH = int(_HL.get("reach", 20))
+HILL_COUNTDOWN_MS = int(_HL.get("countdownMs", 9000))
+HILL_ROUND_MS = int(_HL.get("roundMs", 45000))
+HILL_PAYOUT = list(_HL.get("payout") or [40, 20, 10])
+HILL_REST = int(_HL.get("restPay", 5))
+_HJ = _HL.get("join") or {}
+HILL_JOIN = {"x": int(_HJ.get("x", 424)), "y": int(_HJ.get("y", 56)), "k": _HJ.get("k") or "strawMat"}
+
+
+def new_hill() -> dict[str, Any]:
+    return {
+        "status": "open", "players": {}, "order": [], "holder": None, "heldAt": None, "scores": {},
+        "startedAt": None, "endedAt": None, "payouts": None, "paid": {}, "rank": [],
+    }
+
+
+def _hill_fail(code: str, msg: str, rnd: dict[str, Any] | None = None) -> dict[str, Any]:
+    out: dict[str, Any] = {"ok": False, "code": code, "msg": msg}
+    if rnd is not None:
+        out["round"] = rnd
+    return out
+
+
+def _hill_credit(rnd: dict[str, Any], now: int) -> None:
+    holder = rnd.get("holder")
+    held_at = rnd.get("heldAt")
+    if not holder or held_at is None:
+        return
+    dt = max(0, now - int(held_at))
+    scores = rnd.setdefault("scores", {})
+    scores[holder] = int(scores.get(holder) or 0) + dt
+    rnd["heldAt"] = now
+
+
+def _hill_go_live(rnd: dict[str, Any], now: int) -> None:
+    rnd["status"] = "live"
+    rnd["startedAt"] = now
+    rnd["holder"] = None
+    rnd["heldAt"] = None
+    for uid in rnd["order"]:
+        rnd.setdefault("scores", {})[uid] = int(rnd.get("scores", {}).get(uid) or 0)
+
+
+def settle_hill(rnd: dict[str, Any], now: int) -> None:
+    _hill_credit(rnd, now)
+    scores = rnd.get("scores") or {}
+    ranking = sorted(rnd["order"], key=lambda u: (-int(scores.get(u) or 0), rnd["order"].index(u)))
+    payouts = {uid: (HILL_PAYOUT[i] if i < len(HILL_PAYOUT) else HILL_REST) for i, uid in enumerate(ranking)}
+    rnd["status"] = "over"
+    rnd["endedAt"] = now
+    rnd["payouts"] = payouts
+    rnd["rank"] = ranking
+
+
+def maybe_expire_hill(rnd: dict[str, Any] | None, now: int) -> dict[str, Any] | None:
+    if not rnd:
+        return rnd
+    if rnd.get("status") == "countdown":
+        live_at = (rnd.get("startedAt") or 0) + HILL_COUNTDOWN_MS
+        if now < live_at:
+            return rnd
+        _hill_go_live(rnd, live_at)
+    if rnd.get("status") != "live":
+        return rnd
+    if now - (rnd.get("startedAt") or 0) >= HILL_ROUND_MS:
+        settle_hill(rnd, now)
+    return rnd
+
+
+def hill_public(rnd: dict[str, Any] | None, now: int = 0) -> dict[str, Any]:
+    rnd = maybe_expire_hill(rnd, now) or new_hill()
+    players = [{
+        "id": uid, "name": rnd["players"][uid]["name"],
+        "holder": rnd.get("holder") == uid,
+        "score": int((rnd.get("scores") or {}).get(uid) or 0),
+    } for uid in rnd["order"]]
+    return {
+        "status": rnd["status"], "players": players, "holder": rnd.get("holder"),
+        "heldAt": rnd.get("heldAt"),
+        "scores": dict(rnd.get("scores") or {}),
+        "startedAt": rnd.get("startedAt"), "endedAt": rnd.get("endedAt"),
+        "payouts": dict(rnd["payouts"]) if rnd.get("payouts") else None,
+        "rank": list(rnd.get("rank") or []), "min": HILL_MIN, "max": HILL_MAX,
+        "countdownMs": HILL_COUNTDOWN_MS, "roundMs": HILL_ROUND_MS,
+        "join": dict(HILL_JOIN),
+    }
+
+
+def hill_view(rnd: dict[str, Any] | None, uid: str, now: int = 0) -> dict[str, Any]:
+    v = hill_public(rnd, now)
+    v["you"] = uid
+    v["payout"] = (rnd.get("payouts") or {}).get(uid, 0) if rnd else 0
+    return v
+
+
+def hill_join(rnd: dict[str, Any] | None, uid: str, name: str, now: int) -> dict[str, Any]:
+    if not isinstance(uid, str) or not uid:
+        return _hill_fail("bad_message", "無效的玩家")
+    cur = new_hill() if (rnd is None or rnd.get("status") == "over") else rnd
+    if uid in cur["players"]:
+        return {**_hill_fail("already_in", "你已經在隊伍裡"), "round": cur}
+    if cur["status"] == "live":
+        return {**_hill_fail("hill_live", "占席已經開始了"), "round": cur}
+    if len(cur["order"]) >= HILL_MAX:
+        return {**_hill_fail("hill_full", "人滿了"), "round": cur}
+    cur["players"][uid] = {"name": str(name or "訪客")[:16]}
+    cur["order"].append(uid)
+    if len(cur["order"]) >= HILL_MAX:
+        _hill_go_live(cur, now)
+    elif len(cur["order"]) >= HILL_MIN and cur["status"] == "open":
+        cur["status"] = "countdown"
+        cur["startedAt"] = now
+    return {"ok": True, "round": cur}
+
+
+def _hill_near(x: Any, y: Any) -> dict[str, Any] | None:
+    if isinstance(x, bool) or isinstance(y, bool) or not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
+        return _hill_fail("bad_message", "位置不對")
+    if math.hypot(float(x) - HILL_JOIN["x"], float(y) - HILL_JOIN["y"]) > HILL_REACH:
+        return _hill_fail("too_far", "再走近草席一點")
+    return None
+
+
+def hill_take(rnd: dict[str, Any] | None, uid: str, x: Any, y: Any, now: int) -> dict[str, Any]:
+    if not rnd:
+        return _hill_fail("hill_none", "現在沒有占席")
+    maybe_expire_hill(rnd, now)
+    if rnd["status"] == "over":
+        return {**_hill_fail("hill_over", "這一輪已經結束"), "round": rnd}
+    if rnd["status"] != "live":
+        return {**_hill_fail("not_live", "還沒開始，先去東北草席報名"), "round": rnd}
+    if uid not in rnd["players"]:
+        return {**_hill_fail("not_in_hill", "你不在這一輪"), "round": rnd}
+    if rnd.get("holder") == uid:
+        return {**_hill_fail("already_holding", "草席已經是你的"), "round": rnd}
+    bad = _hill_near(x, y)
+    if bad:
+        bad["round"] = rnd
+        return bad
+    _hill_credit(rnd, now)
+    rnd["holder"] = uid
+    rnd["heldAt"] = now
+    return {"ok": True, "round": rnd, "holder": uid}
+
+
+def hill_leave(rnd: dict[str, Any] | None, uid: str, now: int) -> dict[str, Any]:
+    if not rnd:
+        return _hill_fail("hill_none", "現在沒有占席")
+    maybe_expire_hill(rnd, now)
+    if rnd["status"] == "over":
+        return {**_hill_fail("hill_over", "這一輪已經結束"), "round": rnd}
+    if uid not in rnd["players"]:
+        return {**_hill_fail("not_in_hill", "你不在這一輪"), "round": rnd}
+    if rnd["status"] == "live":
+        return {**_hill_fail("hill_live", "開始後就不能退出"), "round": rnd}
+    del rnd["players"][uid]
+    rnd["order"] = [i for i in rnd["order"] if i != uid]
+    if rnd["status"] == "countdown" and len(rnd["order"]) < HILL_MIN:
+        rnd["status"] = "open"
+        rnd["startedAt"] = None
+    return {"ok": True, "round": rnd}
+
+
+def apply_hill_gold(rec: dict[str, Any], uid: str, rnd: dict[str, Any] | None) -> int:
+    if not rnd or rnd.get("status") != "over" or not rnd.get("payouts"):
+        return 0
+    paid = rnd.setdefault("paid", {})
+    if paid.get(uid):
+        return 0
+    n = int(rnd["payouts"].get(uid, 0) or 0)
+    rec["gold"] = int(rec.get("gold") or 0) + n
+    paid[uid] = n
+    return n
+
+
+# ---------- 廣場砸罐（與前端 src/game/smash.js 相同） ----------
+_SM = RULES.get("smash") or {}
+SMASH_MIN = int(_SM.get("min", 3))
+SMASH_MAX = int(_SM.get("max", 8))
+SMASH_REACH = int(_SM.get("reach", 20))
+SMASH_COUNTDOWN_MS = int(_SM.get("countdownMs", 9000))
+SMASH_ROUND_MS = int(_SM.get("roundMs", 45000))
+SMASH_UP_MS = int(_SM.get("upMs", 1800))
+SMASH_DOWN_MS = int(_SM.get("downMs", 1200))
+SMASH_PAYOUT = list(_SM.get("payout") or [40, 20, 10])
+SMASH_REST = int(_SM.get("restPay", 5))
+_SJ = _SM.get("join") or {}
+SMASH_JOIN = {"x": int(_SJ.get("x", 312)), "y": int(_SJ.get("y", 256)), "k": _SJ.get("k") or "jarRed"}
+
+
+def new_smash() -> dict[str, Any]:
+    return {
+        "status": "open", "players": {}, "order": [], "scores": {}, "lastHit": {},
+        "startedAt": None, "endedAt": None, "payouts": None, "paid": {}, "rank": [],
+    }
+
+
+def _smash_fail(code: str, msg: str, rnd: dict[str, Any] | None = None) -> dict[str, Any]:
+    out: dict[str, Any] = {"ok": False, "code": code, "msg": msg}
+    if rnd is not None:
+        out["round"] = rnd
+    return out
+
+
+def smash_pop(rnd: dict[str, Any] | None, now: int) -> int:
+    if not rnd or rnd.get("status") != "live":
+        return -1
+    t = max(0, now - int(rnd.get("startedAt") or 0))
+    cycle = SMASH_UP_MS + SMASH_DOWN_MS
+    return t // cycle
+
+
+def smash_up(rnd: dict[str, Any] | None, now: int) -> bool:
+    if not rnd or rnd.get("status") != "live":
+        return False
+    t = max(0, now - int(rnd.get("startedAt") or 0))
+    cycle = SMASH_UP_MS + SMASH_DOWN_MS
+    return (t % cycle) < SMASH_UP_MS
+
+
+def _smash_go_live(rnd: dict[str, Any], now: int) -> None:
+    rnd["status"] = "live"
+    rnd["startedAt"] = now
+    rnd["lastHit"] = {}
+    for uid in rnd["order"]:
+        rnd.setdefault("scores", {})[uid] = int(rnd.get("scores", {}).get(uid) or 0)
+
+
+def settle_smash(rnd: dict[str, Any], now: int) -> None:
+    scores = rnd.get("scores") or {}
+    ranking = sorted(rnd["order"], key=lambda u: (-int(scores.get(u) or 0), rnd["order"].index(u)))
+    payouts = {uid: (SMASH_PAYOUT[i] if i < len(SMASH_PAYOUT) else SMASH_REST) for i, uid in enumerate(ranking)}
+    rnd["status"] = "over"
+    rnd["endedAt"] = now
+    rnd["payouts"] = payouts
+    rnd["rank"] = ranking
+
+
+def maybe_expire_smash(rnd: dict[str, Any] | None, now: int) -> dict[str, Any] | None:
+    if not rnd:
+        return rnd
+    if rnd.get("status") == "countdown":
+        live_at = (rnd.get("startedAt") or 0) + SMASH_COUNTDOWN_MS
+        if now < live_at:
+            return rnd
+        _smash_go_live(rnd, live_at)
+    if rnd.get("status") != "live":
+        return rnd
+    if now - (rnd.get("startedAt") or 0) >= SMASH_ROUND_MS:
+        settle_smash(rnd, now)
+    return rnd
+
+
+def smash_public(rnd: dict[str, Any] | None, now: int = 0) -> dict[str, Any]:
+    rnd = maybe_expire_smash(rnd, now) or new_smash()
+    players = [{
+        "id": uid, "name": rnd["players"][uid]["name"],
+        "score": int((rnd.get("scores") or {}).get(uid) or 0),
+    } for uid in rnd["order"]]
+    return {
+        "status": rnd["status"], "players": players,
+        "scores": dict(rnd.get("scores") or {}),
+        "up": smash_up(rnd, now), "pop": smash_pop(rnd, now),
+        "startedAt": rnd.get("startedAt"), "endedAt": rnd.get("endedAt"),
+        "payouts": dict(rnd["payouts"]) if rnd.get("payouts") else None,
+        "rank": list(rnd.get("rank") or []), "min": SMASH_MIN, "max": SMASH_MAX,
+        "countdownMs": SMASH_COUNTDOWN_MS, "roundMs": SMASH_ROUND_MS,
+        "upMs": SMASH_UP_MS, "downMs": SMASH_DOWN_MS,
+        "join": dict(SMASH_JOIN),
+    }
+
+
+def smash_view(rnd: dict[str, Any] | None, uid: str, now: int = 0) -> dict[str, Any]:
+    v = smash_public(rnd, now)
+    v["you"] = uid
+    v["payout"] = (rnd.get("payouts") or {}).get(uid, 0) if rnd else 0
+    return v
+
+
+def smash_join(rnd: dict[str, Any] | None, uid: str, name: str, now: int) -> dict[str, Any]:
+    if not isinstance(uid, str) or not uid:
+        return _smash_fail("bad_message", "無效的玩家")
+    cur = new_smash() if (rnd is None or rnd.get("status") == "over") else rnd
+    if uid in cur["players"]:
+        return {**_smash_fail("already_in", "你已經在隊伍裡"), "round": cur}
+    if cur["status"] == "live":
+        return {**_smash_fail("smash_live", "砸罐已經開始了"), "round": cur}
+    if len(cur["order"]) >= SMASH_MAX:
+        return {**_smash_fail("smash_full", "人滿了"), "round": cur}
+    cur["players"][uid] = {"name": str(name or "訪客")[:16]}
+    cur["order"].append(uid)
+    if len(cur["order"]) >= SMASH_MAX:
+        _smash_go_live(cur, now)
+    elif len(cur["order"]) >= SMASH_MIN and cur["status"] == "open":
+        cur["status"] = "countdown"
+        cur["startedAt"] = now
+    return {"ok": True, "round": cur}
+
+
+def _smash_near(x: Any, y: Any) -> dict[str, Any] | None:
+    if isinstance(x, bool) or isinstance(y, bool) or not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
+        return _smash_fail("bad_message", "位置不對")
+    if math.hypot(float(x) - SMASH_JOIN["x"], float(y) - SMASH_JOIN["y"]) > SMASH_REACH:
+        return _smash_fail("too_far", "再走近紅罐一點")
+    return None
+
+
+def smash_hit(rnd: dict[str, Any] | None, uid: str, x: Any, y: Any, now: int) -> dict[str, Any]:
+    if not rnd:
+        return _smash_fail("smash_none", "現在沒有砸罐")
+    maybe_expire_smash(rnd, now)
+    if rnd["status"] == "over":
+        return {**_smash_fail("smash_over", "這一輪已經結束"), "round": rnd}
+    if rnd["status"] != "live":
+        return {**_smash_fail("not_live", "還沒開始，先去南岸紅罐報名"), "round": rnd}
+    if uid not in rnd["players"]:
+        return {**_smash_fail("not_in_smash", "你不在這一輪"), "round": rnd}
+    bad = _smash_near(x, y)
+    if bad:
+        bad["round"] = rnd
+        return bad
+    if not smash_up(rnd, now):
+        return {**_smash_fail("not_up", "罐子還沒冒出來"), "round": rnd}
+    pop = smash_pop(rnd, now)
+    last = rnd.setdefault("lastHit", {})
+    if uid in last and last[uid] == pop:
+        return {**_smash_fail("already_hit", "這一波你已經砸過了"), "round": rnd}
+    last[uid] = pop
+    scores = rnd.setdefault("scores", {})
+    scores[uid] = int(scores.get(uid) or 0) + 1
+    return {"ok": True, "round": rnd, "pop": pop, "score": scores[uid]}
+
+
+def smash_leave(rnd: dict[str, Any] | None, uid: str, now: int) -> dict[str, Any]:
+    if not rnd:
+        return _smash_fail("smash_none", "現在沒有砸罐")
+    maybe_expire_smash(rnd, now)
+    if rnd["status"] == "over":
+        return {**_smash_fail("smash_over", "這一輪已經結束"), "round": rnd}
+    if uid not in rnd["players"]:
+        return {**_smash_fail("not_in_smash", "你不在這一輪"), "round": rnd}
+    if rnd["status"] == "live":
+        return {**_smash_fail("smash_live", "開始後就不能退出"), "round": rnd}
+    del rnd["players"][uid]
+    rnd["order"] = [i for i in rnd["order"] if i != uid]
+    if rnd["status"] == "countdown" and len(rnd["order"]) < SMASH_MIN:
+        rnd["status"] = "open"
+        rnd["startedAt"] = None
+    return {"ok": True, "round": rnd}
+
+
+def apply_smash_gold(rec: dict[str, Any], uid: str, rnd: dict[str, Any] | None) -> int:
+    if not rnd or rnd.get("status") != "over" or not rnd.get("payouts"):
+        return 0
+    paid = rnd.setdefault("paid", {})
+    if paid.get(uid):
+        return 0
+    n = int(rnd["payouts"].get(uid, 0) or 0)
+    rec["gold"] = int(rec.get("gold") or 0) + n
+    paid[uid] = n
+    return n
+
+
+# ---------- 廣場搶瓶（與前端 src/game/vase.js 相同） ----------
+_VA = RULES.get("vase") or {}
+VASE_MIN = int(_VA.get("min", 3))
+VASE_MAX = int(_VA.get("max", 8))
+VASE_REACH = int(_VA.get("reach", 20))
+VASE_COUNTDOWN_MS = int(_VA.get("countdownMs", 9000))
+VASE_ROUND_MS = int(_VA.get("roundMs", 45000))
+VASE_PAYOUT = list(_VA.get("payout") or [40, 20, 10])
+VASE_REST = int(_VA.get("restPay", 5))
+VASE_WIN = int(_VA.get("winPay", 40))
+VASE_LOSE = int(_VA.get("losePay", 5))
+_VJ = _VA.get("join") or {}
+VASE_JOIN = {"x": int(_VJ.get("x", 440)), "y": int(_VJ.get("y", 200)), "k": _VJ.get("k") or "vase"}
+
+
+def new_vase() -> dict[str, Any]:
+    return {
+        "status": "open", "players": {}, "order": [], "team": {}, "holder": None, "heldAt": None,
+        "scores": {}, "teamScore": {"red": 0, "blue": 0}, "startedAt": None, "endedAt": None,
+        "payouts": None, "paid": {}, "rank": [], "winner": None,
+    }
+
+
+def _vase_fail(code: str, msg: str, rnd: dict[str, Any] | None = None) -> dict[str, Any]:
+    out: dict[str, Any] = {"ok": False, "code": code, "msg": msg}
+    if rnd is not None:
+        out["round"] = rnd
+    return out
+
+
+def _vase_side(i: int) -> str:
+    return "red" if i % 2 == 0 else "blue"
+
+
+def _vase_credit(rnd: dict[str, Any], now: int) -> None:
+    holder = rnd.get("holder")
+    held_at = rnd.get("heldAt")
+    if not holder or held_at is None:
+        return
+    dt = max(0, now - int(held_at))
+    scores = rnd.setdefault("scores", {})
+    scores[holder] = int(scores.get(holder) or 0) + dt
+    side = (rnd.get("team") or {}).get(holder)
+    if side:
+        ts = rnd.setdefault("teamScore", {"red": 0, "blue": 0})
+        ts[side] = int(ts.get(side) or 0) + dt
+    rnd["heldAt"] = now
+
+
+def _vase_go_live(rnd: dict[str, Any], now: int) -> None:
+    rnd["status"] = "live"
+    rnd["startedAt"] = now
+    rnd["holder"] = None
+    rnd["heldAt"] = None
+    rnd["teamScore"] = {"red": 0, "blue": 0}
+    for i, uid in enumerate(rnd["order"]):
+        rnd.setdefault("team", {})[uid] = _vase_side(i)
+        rnd.setdefault("scores", {})[uid] = int(rnd.get("scores", {}).get(uid) or 0)
+
+
+def settle_vase(rnd: dict[str, Any], now: int) -> None:
+    _vase_credit(rnd, now)
+    ts = rnd.get("teamScore") or {}
+    red, blue = int(ts.get("red") or 0), int(ts.get("blue") or 0)
+    winner = "red" if red > blue else "blue" if blue > red else None
+    team = rnd.get("team") or {}
+    scores = rnd.get("scores") or {}
+
+    def key(u: str) -> tuple:
+        if winner:
+            return (0 if team.get(u) == winner else 1, -int(scores.get(u) or 0), rnd["order"].index(u))
+        return (-int(scores.get(u) or 0), rnd["order"].index(u))
+
+    ranking = sorted(rnd["order"], key=key)
+    payouts: dict[str, int] = {}
+    if not winner:
+        payouts = {uid: (VASE_PAYOUT[i] if i < len(VASE_PAYOUT) else VASE_REST) for i, uid in enumerate(ranking)}
+    else:
+        for i, uid in enumerate(ranking):
+            payouts[uid] = (VASE_PAYOUT[i] if i < len(VASE_PAYOUT) else VASE_WIN) if team.get(uid) == winner else VASE_LOSE
+    rnd["status"] = "over"
+    rnd["endedAt"] = now
+    rnd["payouts"] = payouts
+    rnd["rank"] = ranking
+    rnd["winner"] = winner
+
+
+def maybe_expire_vase(rnd: dict[str, Any] | None, now: int) -> dict[str, Any] | None:
+    if not rnd:
+        return rnd
+    if rnd.get("status") == "countdown":
+        live_at = (rnd.get("startedAt") or 0) + VASE_COUNTDOWN_MS
+        if now < live_at:
+            return rnd
+        _vase_go_live(rnd, live_at)
+    if rnd.get("status") != "live":
+        return rnd
+    if now - (rnd.get("startedAt") or 0) >= VASE_ROUND_MS:
+        settle_vase(rnd, now)
+    return rnd
+
+
+def vase_public(rnd: dict[str, Any] | None, now: int = 0) -> dict[str, Any]:
+    rnd = maybe_expire_vase(rnd, now) or new_vase()
+    players = [{
+        "id": uid, "name": rnd["players"][uid]["name"],
+        "team": (rnd.get("team") or {}).get(uid),
+        "holder": rnd.get("holder") == uid,
+        "score": int((rnd.get("scores") or {}).get(uid) or 0),
+    } for uid in rnd["order"]]
+    return {
+        "status": rnd["status"], "players": players, "holder": rnd.get("holder"),
+        "heldAt": rnd.get("heldAt"),
+        "scores": dict(rnd.get("scores") or {}),
+        "teamScore": dict(rnd.get("teamScore") or {"red": 0, "blue": 0}),
+        "winner": rnd.get("winner"),
+        "startedAt": rnd.get("startedAt"), "endedAt": rnd.get("endedAt"),
+        "payouts": dict(rnd["payouts"]) if rnd.get("payouts") else None,
+        "rank": list(rnd.get("rank") or []), "min": VASE_MIN, "max": VASE_MAX,
+        "countdownMs": VASE_COUNTDOWN_MS, "roundMs": VASE_ROUND_MS,
+        "join": dict(VASE_JOIN),
+    }
+
+
+def vase_view(rnd: dict[str, Any] | None, uid: str, now: int = 0) -> dict[str, Any]:
+    v = vase_public(rnd, now)
+    v["you"] = uid
+    v["payout"] = (rnd.get("payouts") or {}).get(uid, 0) if rnd else 0
+    return v
+
+
+def vase_join(rnd: dict[str, Any] | None, uid: str, name: str, now: int) -> dict[str, Any]:
+    if not isinstance(uid, str) or not uid:
+        return _vase_fail("bad_message", "無效的玩家")
+    cur = new_vase() if (rnd is None or rnd.get("status") == "over") else rnd
+    if uid in cur["players"]:
+        return {**_vase_fail("already_in", "你已經在隊伍裡"), "round": cur}
+    if cur["status"] == "live":
+        return {**_vase_fail("vase_live", "搶瓶已經開始了"), "round": cur}
+    if len(cur["order"]) >= VASE_MAX:
+        return {**_vase_fail("vase_full", "人滿了"), "round": cur}
+    cur["players"][uid] = {"name": str(name or "訪客")[:16]}
+    cur["order"].append(uid)
+    if len(cur["order"]) >= VASE_MAX:
+        _vase_go_live(cur, now)
+    elif len(cur["order"]) >= VASE_MIN and cur["status"] == "open":
+        cur["status"] = "countdown"
+        cur["startedAt"] = now
+    return {"ok": True, "round": cur}
+
+
+def _vase_near(x: Any, y: Any) -> dict[str, Any] | None:
+    if isinstance(x, bool) or isinstance(y, bool) or not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
+        return _vase_fail("bad_message", "位置不對")
+    if math.hypot(float(x) - VASE_JOIN["x"], float(y) - VASE_JOIN["y"]) > VASE_REACH:
+        return _vase_fail("too_far", "再走近花瓶一點")
+    return None
+
+
+def vase_take(rnd: dict[str, Any] | None, uid: str, x: Any, y: Any, now: int) -> dict[str, Any]:
+    if not rnd:
+        return _vase_fail("vase_none", "現在沒有搶瓶")
+    maybe_expire_vase(rnd, now)
+    if rnd["status"] == "over":
+        return {**_vase_fail("vase_over", "這一輪已經結束"), "round": rnd}
+    if rnd["status"] != "live":
+        return {**_vase_fail("not_live", "還沒開始，先去東岸花瓶報名"), "round": rnd}
+    if uid not in rnd["players"]:
+        return {**_vase_fail("not_in_vase", "你不在這一輪"), "round": rnd}
+    if rnd.get("holder") == uid:
+        return {**_vase_fail("already_holding", "花瓶已經是你的"), "round": rnd}
+    holder = rnd.get("holder")
+    team = rnd.get("team") or {}
+    if holder and team.get(holder) == team.get(uid):
+        return {**_vase_fail("already_ours", "花瓶是隊友的，守住就好"), "round": rnd}
+    bad = _vase_near(x, y)
+    if bad:
+        bad["round"] = rnd
+        return bad
+    _vase_credit(rnd, now)
+    rnd["holder"] = uid
+    rnd["heldAt"] = now
+    return {"ok": True, "round": rnd, "holder": uid}
+
+
+def vase_leave(rnd: dict[str, Any] | None, uid: str, now: int) -> dict[str, Any]:
+    if not rnd:
+        return _vase_fail("vase_none", "現在沒有搶瓶")
+    maybe_expire_vase(rnd, now)
+    if rnd["status"] == "over":
+        return {**_vase_fail("vase_over", "這一輪已經結束"), "round": rnd}
+    if uid not in rnd["players"]:
+        return {**_vase_fail("not_in_vase", "你不在這一輪"), "round": rnd}
+    if rnd["status"] == "live":
+        return {**_vase_fail("vase_live", "開始後就不能退出"), "round": rnd}
+    del rnd["players"][uid]
+    rnd["order"] = [i for i in rnd["order"] if i != uid]
+    if rnd["status"] == "countdown" and len(rnd["order"]) < VASE_MIN:
+        rnd["status"] = "open"
+        rnd["startedAt"] = None
+    return {"ok": True, "round": rnd}
+
+
+def apply_vase_gold(rec: dict[str, Any], uid: str, rnd: dict[str, Any] | None) -> int:
+    if not rnd or rnd.get("status") != "over" or not rnd.get("payouts"):
+        return 0
+    paid = rnd.setdefault("paid", {})
+    if paid.get(uid):
+        return 0
+    n = int(rnd["payouts"].get(uid, 0) or 0)
+    rec["gold"] = int(rec.get("gold") or 0) + n
+    paid[uid] = n
+    return n
+
+
 def pack_farm(farm: dict[str, Any]) -> dict[str, Any]:
     """給前端的精簡格式（和前端 packFarm 相同，時間是秒）。"""
     xy = lambda k: [int(v) for v in k.split(",")]  # noqa: E731

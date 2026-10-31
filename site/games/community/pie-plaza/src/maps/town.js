@@ -50,7 +50,7 @@ export function buildTown() {
   signs.push({ x: fx, y: fy, title: '跳蚤市場', lines: ['派派鎮跳蚤市場：把用不到的作物、魚、木材拿來賣，也能買別人上架的東西。'], action: 'flea', reach: 26, hint: 'E 逛市場' });
   objects.push(obj('signPost', 40, roadY * 16 - 4));
   objects.push(obj('bulletinBoard', 324, roadY * 16 - 4, { foot: [28, 6] }));
-  signs.push({ x: 324, y: roadY * 16 - 4, title: '公告欄', lines: ['派派鎮公告欄：今天的活動都貼在這裡。'], action: 'events', reach: 20 });
+  signs.push({ x: 324, y: roadY * 16 - 4, title: '公告欄', lines: ['派派鎮公告欄：今天的活動都貼在這裡。', '廣場上隨時可以湊人玩搶寶、捉迷藏、傳南瓜、拔河、搬寶、紅綠燈、占席、砸罐和搶瓶。'], action: 'events', reach: 20 });
   for (const lx of [60, 180, 330, 570, 730, 860]) objects.push(obj('lampPost', lx, (roadY + 2) * 16 + 14, { foot: [6, 4] }));
   signs.push({ x: 40, y: roadY * 16 - 4, title: '路牌', lines: ['派派鎮 商店街', '← 西邊回到廣場'] });
   const rnd = mulberry(5566);

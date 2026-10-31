@@ -141,6 +141,7 @@ export function drawWorld(ctx, scene, map, people, cam, now, bubbleMs, opts = {}
   if (map.eventObjects && map.eventObjects.length) all = all.concat(map.eventObjects);
   const over = [];
   for (const o of all) {
+    if (o.hide) continue;
     if (!inView(o.x, o.y, o.w, o.h)) continue;
     if (o.overhead) over.push(o); else if (o.wall || /^(rug|strawMat)/.test(o.k)) flat.push(o); else items.push({ y: o.y + (o.z || 0), o });
   }
@@ -159,6 +160,13 @@ export function drawWorld(ctx, scene, map, people, cam, now, bubbleMs, opts = {}
   if (opts.fishing) drawLine(ctx, opts.fishing, now);
   if (map.base !== 'void') drawNight(ctx, cam, opts.light, lightsOf(all), now, S);
   ctx.setTransform(S, 0, 0, S, -cam.x * S, -cam.y * S);
+  if (opts.marks) {
+    for (const m of opts.marks) {
+      if (!inView(m.x, m.y, 8, 8)) continue;
+      ctx.fillStyle = m.color;
+      ctx.fillRect(Math.round(m.x) - 4, Math.round(m.y) - 14, 8, 4);
+    }
+  }
   if (opts.ghost) {
     ctx.globalAlpha = 0.6; sprite(ctx, scene, opts.ghost.k, opts.ghost.x, opts.ghost.y); ctx.globalAlpha = 1;
     if (!opts.ghost.ok) { ctx.fillStyle = 'rgba(255,60,40,.35)'; const a = ATLAS[opts.ghost.k]; ctx.fillRect(opts.ghost.x - a[3] / 2, opts.ghost.y - a[4], a[3], a[4]); }

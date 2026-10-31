@@ -515,5 +515,343 @@
     6
    ]
   }
- ]
+ ],
+ "party": {
+  "min": 3,
+  "max": 8,
+  "reach": 20,
+  "countdownMs": 9000,
+  "roundMs": 45000,
+  "payout": [
+   40,
+   20,
+   10
+  ],
+  "restPay": 5,
+  "spots": [
+   {
+    "id": "crateA",
+    "k": "crate",
+    "x": 180,
+    "y": 106,
+    "name": "木箱"
+   },
+   {
+    "id": "sackA",
+    "k": "sack",
+    "x": 228,
+    "y": 106,
+    "name": "麻袋"
+   },
+   {
+    "id": "sack2",
+    "k": "sack2",
+    "x": 180,
+    "y": 150,
+    "name": "小麻袋"
+   },
+   {
+    "id": "chestN",
+    "k": "chestN",
+    "x": 228,
+    "y": 150,
+    "name": "小寶箱"
+   },
+   {
+    "id": "basket",
+    "k": "basket",
+    "x": 256,
+    "y": 128,
+    "name": "竹籃"
+   },
+   {
+    "id": "crateB",
+    "k": "crate",
+    "x": 176,
+    "y": 128,
+    "name": "木箱"
+   }
+  ],
+  "join": {
+   "x": 200,
+   "y": 126,
+   "k": "chest"
+  }
+ },
+ "contest": {
+  "payout": [
+   40,
+   20,
+   10
+  ],
+  "restPay": 5,
+  "goldenMult": 2,
+  "board": {
+   "x": 240,
+   "y": 268,
+   "k": "signSmall"
+  }
+ },
+ "seek": {
+  "min": 3,
+  "max": 8,
+  "reach": 20,
+  "countdownMs": 9000,
+  "roundMs": 45000,
+  "payout": [
+   40,
+   20,
+   10
+  ],
+  "restPay": 5,
+  "spots": [
+   {
+    "id": "logW",
+    "k": "log",
+    "x": 196,
+    "y": 184,
+    "name": "西邊圓木"
+   },
+   {
+    "id": "logE",
+    "k": "log",
+    "x": 284,
+    "y": 184,
+    "name": "東邊圓木"
+   },
+   {
+    "id": "stump",
+    "k": "stump",
+    "x": 292,
+    "y": 112,
+    "name": "樹樁"
+   },
+   {
+    "id": "treeSW",
+    "k": "treeRound",
+    "x": 50,
+    "y": 210,
+    "name": "西南大樹"
+   },
+   {
+    "id": "treeS",
+    "k": "treeApple",
+    "x": 62,
+    "y": 254,
+    "name": "南邊蘋果樹"
+   },
+   {
+    "id": "treeSE",
+    "k": "treeRound",
+    "x": 120,
+    "y": 258,
+    "name": "南邊大樹"
+   },
+   {
+    "id": "rock",
+    "k": "rockBig",
+    "x": 96,
+    "y": 250,
+    "name": "大石頭"
+   },
+   {
+    "id": "bushS",
+    "k": "treeSmall",
+    "x": 190,
+    "y": 246,
+    "name": "南邊小樹"
+   }
+  ],
+  "join": {
+   "x": 140,
+   "y": 214,
+   "k": "log"
+  }
+ },
+ "hot": {
+  "min": 3,
+  "max": 8,
+  "reach": 20,
+  "countdownMs": 9000,
+  "roundMs": 45000,
+  "payout": [
+   40,
+   20,
+   10
+  ],
+  "restPay": 5,
+  "join": {
+   "x": 128,
+   "y": 100,
+   "k": "pumpkinItem"
+  }
+ },
+ "tug": {
+  "min": 3,
+  "max": 8,
+  "reach": 20,
+  "countdownMs": 9000,
+  "roundMs": 45000,
+  "payout": [
+   40,
+   20,
+   10
+  ],
+  "restPay": 5,
+  "winPay": 40,
+  "losePay": 5,
+  "tiePay": 10,
+  "spots": [
+   {
+    "id": "L",
+    "k": "hay",
+    "x": 328,
+    "y": 180,
+    "name": "左岸"
+   },
+   {
+    "id": "R",
+    "k": "hay",
+    "x": 392,
+    "y": 180,
+    "name": "右岸"
+   }
+  ],
+  "join": {
+   "x": 360,
+   "y": 180,
+   "k": "hay"
+  }
+ },
+ "haul": {
+  "min": 3,
+  "max": 8,
+  "reach": 20,
+  "countdownMs": 9000,
+  "roundMs": 45000,
+  "payout": [
+   40,
+   20,
+   10
+  ],
+  "restPay": 5,
+  "join": {
+   "x": 104,
+   "y": 168,
+   "k": "barrel"
+  },
+  "drop": {
+   "x": 368,
+   "y": 72,
+   "k": "cauldron"
+  }
+ },
+ "light": {
+  "min": 3,
+  "max": 8,
+  "reach": 20,
+  "countdownMs": 9000,
+  "roundMs": 45000,
+  "greenMs": 2500,
+  "redMs": 1800,
+  "payout": [
+   40,
+   20,
+   10
+  ],
+  "restPay": 5,
+  "spots": [
+   {
+    "id": "a",
+    "k": "stumpSmall",
+    "x": 128,
+    "y": 40,
+    "name": "第一樁"
+   },
+   {
+    "id": "b",
+    "k": "stumpSmall",
+    "x": 192,
+    "y": 40,
+    "name": "第二樁"
+   },
+   {
+    "id": "c",
+    "k": "stumpSmall",
+    "x": 256,
+    "y": 40,
+    "name": "第三樁"
+   },
+   {
+    "id": "fin",
+    "k": "railing",
+    "x": 320,
+    "y": 40,
+    "name": "終點"
+   }
+  ],
+  "join": {
+   "x": 64,
+   "y": 40,
+   "k": "railing"
+  }
+ },
+ "hill": {
+  "min": 3,
+  "max": 8,
+  "reach": 20,
+  "countdownMs": 9000,
+  "roundMs": 45000,
+  "payout": [
+   40,
+   20,
+   10
+  ],
+  "restPay": 5,
+  "join": {
+   "x": 424,
+   "y": 56,
+   "k": "strawMat"
+  }
+ },
+ "smash": {
+  "min": 3,
+  "max": 8,
+  "reach": 20,
+  "countdownMs": 9000,
+  "roundMs": 45000,
+  "upMs": 1800,
+  "downMs": 1200,
+  "payout": [
+   40,
+   20,
+   10
+  ],
+  "restPay": 5,
+  "join": {
+   "x": 312,
+   "y": 256,
+   "k": "jarRed"
+  }
+ },
+ "vase": {
+  "min": 3,
+  "max": 8,
+  "reach": 20,
+  "countdownMs": 9000,
+  "roundMs": 45000,
+  "payout": [
+   40,
+   20,
+   10
+  ],
+  "restPay": 5,
+  "winPay": 40,
+  "losePay": 5,
+  "join": {
+   "x": 440,
+   "y": 200,
+   "k": "vase"
+  }
+ }
 }

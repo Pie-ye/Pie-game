@@ -8,6 +8,16 @@ const X = await import(new URL('house/exterior.js', SRC));
 const L = await import(new URL('avatar/look.js', SRC));
 const FI = await import(new URL('fish/fishing.js', SRC));
 const EV = await import(new URL('events/schedule.js', SRC));
+const { PARTY, JOIN } = await import(new URL('game/party.js', SRC));
+const { CONTEST, BOARD } = await import(new URL('game/contest.js', SRC));
+const { SEEK, SEEK_JOIN } = await import(new URL('game/seek.js', SRC));
+const { HOT, HOT_JOIN } = await import(new URL('game/hot.js', SRC));
+const { TUG, TUG_JOIN } = await import(new URL('game/tug.js', SRC));
+const { HAUL, HAUL_JOIN, HAUL_DROP } = await import(new URL('game/haul.js', SRC));
+const { LIGHT, LIGHT_JOIN } = await import(new URL('game/light.js', SRC));
+const { HILL, HILL_JOIN } = await import(new URL('game/hill.js', SRC));
+const { SMASH, SMASH_JOIN } = await import(new URL('game/smash.js', SRC));
+const { VASE, VASE_JOIN } = await import(new URL('game/vase.js', SRC));
 const { ROOM } = await import(new URL('maps/interior.js', SRC));
 const rules = {
   farm: { ...F.FARM, pathX: F.PATH_X, pathY: F.PATH_Y, pond: F.POND, growMs: F.GROW_MS, starterSeeds: F.STARTER_SEEDS, starterGold: F.newFarm('x').gold },
@@ -20,6 +30,16 @@ const rules = {
   exterior: { roof: X.ROOF.length, wall: X.WALL.length, yard: X.YARD.length },
   look: L.FIELDS.map((f) => f.size()),
   events: EV.EVENTS.map((e) => ({ id: e.id, slots: e.slots, days: e.days || null })),
+  party: { ...PARTY, join: JOIN },
+  contest: { ...CONTEST, board: BOARD },
+  seek: { ...SEEK, join: SEEK_JOIN },
+  hot: { ...HOT, join: HOT_JOIN },
+  tug: { ...TUG, join: TUG_JOIN },
+  haul: { ...HAUL, join: HAUL_JOIN, drop: HAUL_DROP },
+  light: { ...LIGHT, join: LIGHT_JOIN },
+  hill: { ...HILL, join: HILL_JOIN },
+  smash: { ...SMASH, join: SMASH_JOIN },
+  vase: { ...VASE, join: VASE_JOIN },
 };
 writeFileSync(new URL('../../server/games/plaza_rules.json', import.meta.url), JSON.stringify(rules, null, 1) + '\n');
 console.log('匯出', Object.keys(rules).join(', '));

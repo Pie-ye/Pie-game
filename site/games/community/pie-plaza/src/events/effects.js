@@ -21,7 +21,6 @@ export function eventObjects(area, active) {
     }
     if (on('fishing')) {
       for (const [x, y, k] of [[60, 102, 'banner2'], [420, 102, 'banner3'], [60, 236, 'banner5'], [420, 236, 'banner4']]) out.push(obj(k, x, y, { foot: [8, 4] }));
-      out.push(obj('signSmall', 240, 268, { foot: [10, 5] }));
     }
   }
   if (area === 'town') {

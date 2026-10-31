@@ -18,17 +18,36 @@ import { openCreator, creatorOpen } from './ui/creator.js';
 import { showFishing, hideFishing, drawFishing } from './ui/fishingUI.js';
 import { openMarket } from './ui/market.js';
 import { openExchange } from './ui/exchange.js';
+import { openParty } from './ui/party.js';
+import { openContest } from './ui/contest.js';
+import { openSeek } from './ui/seek.js';
+import { openHot } from './ui/hot.js';
+import { openTug } from './ui/tug.js';
+import { openHaul } from './ui/haul.js';
+import { openLight } from './ui/light.js';
+import { openHill } from './ui/hill.js';
+import { openSmash } from './ui/smash.js';
+import { openVase } from './ui/vase.js';
 import { openVisitPanel, openVisitorMenu, openMailbox, openPlayerCard, openEmotes } from './ui/social.js';
 import { TOOLS, CROPS, useTool, debrisLeft, CROP_KEYS } from './farm/state.js';
 import { furniture, canPlace, placeAt, itemAt, sanitizeDecor } from './house/catalog.js';
 import { defaultLook, sanitizeLook } from './avatar/look.js';
 import { FISH, newMinigame, stepMinigame, fishName } from './fish/fishing.js';
-import { activeEvents, eventById, daylight } from './events/schedule.js';
+import { activeEvents, eventById, daylight, joinHint, countdownMark, seekLiveMark, seekSpotHint } from './events/schedule.js';
 import { eventObjects } from './events/effects.js';
 import { isFriend, readMail, readCard, today, EMOTES, NOTE_MAX, itemName } from './social/home.js';
 import { createServerApi, createLocalApi } from './game/api.js';
 import { playerFarm, fieldFromPacked, applyMine, applyTiles } from './game/mirror.js';
 import { decorData } from './store.js';
+import { SMASH_JOIN, smashUpFromPublic } from './game/smash.js';
+import { LIGHT_JOIN, LIGHT, lightFromPublic } from './game/light.js';
+import { HOT_JOIN } from './game/hot.js';
+import { HILL_JOIN } from './game/hill.js';
+import { VASE_JOIN } from './game/vase.js';
+import { HAUL_JOIN } from './game/haul.js';
+import { TUG, TUG_JOIN } from './game/tug.js';
+import { PARTY, JOIN as PARTY_JOIN } from './game/party.js';
+import { SEEK_JOIN } from './game/seek.js';
 
 const $ = (id) => document.getElementById(id);
 const infoEl = $('room-info'), titleEl = $('room-title'), logEl = $('log'), canvas = $('world'), ctx = canvas.getContext('2d');
@@ -45,7 +64,7 @@ const me = { id: 'guest', x: 240, y: 200, dir: 0, moving: false, bubble: '', bub
 let farm = null, decor = null, social = { open: true, friends: [], coop: [], likes: 0, liked: {} };
 let tool = 0, edit = null, hover = null, fishing = null, holding = false;
 let target = null, warpLock = 0, warping = false, lastChat = -1e9, lastSent = null, lastSentAt = 0, lastArea = null;
-let events = [], mails = [], ready = false;
+let events = [], mails = [], ready = false, lastParty = null, lastContest = null, lastSeek = null, lastHot = null, lastTug = null, lastHaul = null, lastLight = null, lastHill = null, lastSmash = null, lastVase = null;
 const visits = new Map();      // 拜訪中的家園：owner -> { farm, decor, look, name, likes, role }
 const people = new Map();      // 其他玩家：id -> { id, name, look, x, y, tx, ty, area, dir, moving, movedAt, bubble, bubbleAt, seen, lastStep }
 
@@ -254,6 +273,31 @@ function interact() {
   audio.tool('talk');
   const ev = t.eventAction && events.find((id) => t.eventAction[id]);
   const action = ev ? t.eventAction[ev] : t.action;
+  if (action === 'partyGrab') { grabSpot(t.spot); return true; }
+  if (action === 'seekSpot') { useSeekSpot(t.spot); return true; }
+  if (action === 'tugPull') { pullTug(t.side); return true; }
+  if (action === 'lightDash') { dashLight(t.spot); return true; }
+  if (action === 'haulDrop') { dropHaul(); return true; }
+  if (action === 'hot' && lastHot && lastHot.status === 'live' && (lastHot.players || []).some((p) => p.id === myId)) {
+    takeHot();
+    return true;
+  }
+  if (action === 'haul' && lastHaul && lastHaul.status === 'live' && (lastHaul.players || []).some((p) => p.id === myId)) {
+    takeHaul();
+    return true;
+  }
+  if (action === 'hill' && lastHill && lastHill.status === 'live' && (lastHill.players || []).some((p) => p.id === myId)) {
+    takeHill();
+    return true;
+  }
+  if (action === 'smash' && lastSmash && lastSmash.status === 'live' && (lastSmash.players || []).some((p) => p.id === myId)) {
+    hitSmash();
+    return true;
+  }
+  if (action === 'vase' && lastVase && lastVase.status === 'live' && (lastVase.players || []).some((p) => p.id === myId)) {
+    takeVase();
+    return true;
+  }
   if (t.npc) {
     t.dir = [1, 0, 3, 2][me.dir]; t.talking = true; t.moving = false; t.goal = null;
     dialog.show({ name: t.name, sprite: t.sprite }, linesFor(t), () => { t.talking = false; doAction(action); });
@@ -275,11 +319,21 @@ function doAction(action) {
   else if (action === 'flea') openFlea();
   else if (action === 'exchange') openXchg();
   else if (action === 'houseDesign') openDesign();
-  else if (action === 'events') openEventBoard(Date.now());
+  else if (action === 'events') openEventBoard(Date.now(), null, partySnaps());
   else if (action === 'visitor') openVisitor();
   else if (action === 'wish') wish();
   else if (action === 'show') showMenu();
   else if (action === 'ship') ship();
+  else if (action === 'party') openPartyPanel();
+  else if (action === 'contest') openContestPanel();
+  else if (action === 'seek') openSeekPanel();
+  else if (action === 'hot') openHotPanel();
+  else if (action === 'tug') openTugPanel();
+  else if (action === 'light') openLightPanel();
+  else if (action === 'haul' || action === 'haulDrop') openHaulPanel();
+  else if (action === 'hill') openHillPanel();
+  else if (action === 'smash') openSmashPanel();
+  else if (action === 'vase') openVasePanel();
 }
 async function ship() {
   try {
@@ -315,6 +369,260 @@ function openFlea() {
   }, { id: myId, farm });
 }
 
+function applyPartyReply(r) {
+  applyMine(farm, r); refreshHud();
+  if (r.party) lastParty = r.party;
+  return r;
+}
+function applyContestReply(r) {
+  applyMine(farm, r); refreshHud();
+  if (r.contest && r.contest.players) lastContest = r.contest;
+  else if (r.board) lastContest = r.board;
+  return r;
+}
+function openContestPanel() {
+  openContest({
+    view: async () => applyContestReply(await call('contest', {}, { quiet: true })),
+  });
+}
+function applySeekReply(r) {
+  applyMine(farm, r); refreshHud();
+  if (r.seek) lastSeek = r.seek;
+  return r;
+}
+function openSeekPanel() {
+  openSeek({
+    view: async () => applySeekReply(await call('seek', { act: 'view' }, { quiet: true })),
+    join: async () => applySeekReply(await call('seek', { act: 'join' })),
+    leave: async () => applySeekReply(await call('seek', { act: 'leave' })),
+    hide: async (spot) => applySeekReply(await call('seek', { act: 'hide', spot, x: Math.round(me.x), y: Math.round(me.y) })),
+    check: async (spot) => applySeekReply(await call('seek', { act: 'check', spot, x: Math.round(me.x), y: Math.round(me.y) })),
+  });
+}
+async function useSeekSpot(spot) {
+  const meSeeker = lastSeek && lastSeek.seeker === myId;
+  try {
+    const r = await call('seek', { act: meSeeker ? 'check' : 'hide', spot, x: Math.round(me.x), y: Math.round(me.y) });
+    applySeekReply(r);
+    audio.tool('harvest');
+    if (r.seek && r.seek.status === 'over') {
+      hud.toast(r.payout ? `捉迷藏結束，你拿到 ${r.payout} G` : '捉迷藏結束', 2500);
+    } else hud.toast(meSeeker ? '檢查了' : '藏好了');
+  } catch (e) {
+    if (e && (e.code === 'not_live' || e.code === 'seek_none' || e.code === 'not_in_seek' || e.code === 'not_hider' || e.code === 'not_seeker')) openSeekPanel();
+  }
+}
+function applyHotReply(r) {
+  applyMine(farm, r); refreshHud();
+  if (r.hot) lastHot = r.hot;
+  return r;
+}
+function openHotPanel() {
+  openHot({
+    view: async () => applyHotReply(await call('hot', { act: 'view' }, { quiet: true })),
+    join: async () => applyHotReply(await call('hot', { act: 'join' })),
+    leave: async () => applyHotReply(await call('hot', { act: 'leave' })),
+    take: async () => applyHotReply(await call('hot', { act: 'take', x: Math.round(me.x), y: Math.round(me.y) })),
+  });
+}
+async function takeHot() {
+  try {
+    const r = await call('hot', { act: 'take', x: Math.round(me.x), y: Math.round(me.y) });
+    applyHotReply(r);
+    audio.tool('harvest');
+    if (r.hot && r.hot.status === 'over') {
+      hud.toast(r.payout ? `傳南瓜結束，你拿到 ${r.payout} G` : '傳南瓜結束', 2500);
+    } else hud.toast('你搶到南瓜了');
+  } catch (e) {
+    if (e && (e.code === 'not_live' || e.code === 'hot_none' || e.code === 'not_in_hot' || e.code === 'already_holding')) openHotPanel();
+  }
+}
+function applyTugReply(r) {
+  applyMine(farm, r); refreshHud();
+  if (r.tug) lastTug = r.tug;
+  return r;
+}
+function openTugPanel() {
+  openTug({
+    view: async () => applyTugReply(await call('tug', { act: 'view' }, { quiet: true })),
+    join: async () => applyTugReply(await call('tug', { act: 'join' })),
+    leave: async () => applyTugReply(await call('tug', { act: 'leave' })),
+    pull: async (side) => applyTugReply(await call('tug', { act: 'pull', side, x: Math.round(me.x), y: Math.round(me.y) })),
+  });
+}
+async function pullTug(side) {
+  try {
+    const r = await call('tug', { act: 'pull', side, x: Math.round(me.x), y: Math.round(me.y) });
+    applyTugReply(r);
+    audio.tool('harvest');
+    if (r.tug && r.tug.status === 'over') {
+      hud.toast(r.payout ? `拔河結束，你拿到 ${r.payout} G` : '拔河結束', 2500);
+    } else hud.toast('拉了一下');
+  } catch (e) {
+    if (e && (e.code === 'not_live' || e.code === 'tug_none' || e.code === 'not_in_tug' || e.code === 'wrong_side')) openTugPanel();
+  }
+}
+function applyHaulReply(r) {
+  applyMine(farm, r); refreshHud();
+  if (r.haul) lastHaul = r.haul;
+  return r;
+}
+function openHaulPanel() {
+  openHaul({
+    view: async () => applyHaulReply(await call('haul', { act: 'view' }, { quiet: true })),
+    join: async () => applyHaulReply(await call('haul', { act: 'join' })),
+    leave: async () => applyHaulReply(await call('haul', { act: 'leave' })),
+    take: async () => applyHaulReply(await call('haul', { act: 'take', x: Math.round(me.x), y: Math.round(me.y) })),
+    drop: async () => applyHaulReply(await call('haul', { act: 'drop', x: Math.round(me.x), y: Math.round(me.y) })),
+  });
+}
+async function takeHaul() {
+  try {
+    const r = await call('haul', { act: 'take', x: Math.round(me.x), y: Math.round(me.y) });
+    applyHaulReply(r);
+    audio.tool('harvest');
+    if (r.haul && r.haul.status === 'over') {
+      hud.toast(r.payout ? `搬寶結束，你拿到 ${r.payout} G` : '搬寶結束', 2500);
+    } else hud.toast('你扛起寶物了');
+  } catch (e) {
+    if (e && (e.code === 'not_live' || e.code === 'haul_none' || e.code === 'not_in_haul' || e.code === 'already_holding')) openHaulPanel();
+  }
+}
+function applyLightReply(r) {
+  applyMine(farm, r); refreshHud();
+  if (r.light) lastLight = r.light;
+  return r;
+}
+function openLightPanel() {
+  openLight({
+    view: async () => applyLightReply(await call('light', { act: 'view' }, { quiet: true })),
+    join: async () => applyLightReply(await call('light', { act: 'join' })),
+    leave: async () => applyLightReply(await call('light', { act: 'leave' })),
+    dash: async (spot) => applyLightReply(await call('light', { act: 'dash', spot, x: Math.round(me.x), y: Math.round(me.y) })),
+  });
+}
+async function dashLight(spot) {
+  try {
+    const r = await call('light', { act: 'dash', spot, x: Math.round(me.x), y: Math.round(me.y) });
+    applyLightReply(r);
+    const you = (r.light && r.light.players || []).find((p) => p.id === myId);
+    if (you && you.out) { audio.tool('nope'); hud.toast('紅燈！你出局了'); return; }
+    audio.tool('harvest');
+    if (r.light && r.light.status === 'over') {
+      hud.toast(r.payout ? `紅綠燈結束，你拿到 ${r.payout} G` : '紅綠燈結束', 2500);
+    } else hud.toast(you && you.done ? '抵達終點！' : '踩到了');
+  } catch (e) {
+    if (e && (e.code === 'not_live' || e.code === 'light_none' || e.code === 'not_in_light' || e.code === 'wrong_spot')) openLightPanel();
+  }
+}
+function applyHillReply(r) {
+  applyMine(farm, r); refreshHud();
+  if (r.hill) lastHill = r.hill;
+  return r;
+}
+function openHillPanel() {
+  openHill({
+    view: async () => applyHillReply(await call('hill', { act: 'view' }, { quiet: true })),
+    join: async () => applyHillReply(await call('hill', { act: 'join' })),
+    leave: async () => applyHillReply(await call('hill', { act: 'leave' })),
+    take: async () => applyHillReply(await call('hill', { act: 'take', x: Math.round(me.x), y: Math.round(me.y) })),
+  });
+}
+async function takeHill() {
+  try {
+    const r = await call('hill', { act: 'take', x: Math.round(me.x), y: Math.round(me.y) });
+    applyHillReply(r);
+    audio.tool('harvest');
+    if (r.hill && r.hill.status === 'over') {
+      hud.toast(r.payout ? `占席結束，你拿到 ${r.payout} G` : '占席結束', 2500);
+    } else hud.toast('你占住草席了');
+  } catch (e) {
+    if (e && (e.code === 'not_live' || e.code === 'hill_none' || e.code === 'not_in_hill' || e.code === 'already_holding')) openHillPanel();
+  }
+}
+function applySmashReply(r) {
+  applyMine(farm, r); refreshHud();
+  if (r.smash) lastSmash = r.smash;
+  return r;
+}
+function openSmashPanel() {
+  openSmash({
+    view: async () => applySmashReply(await call('smash', { act: 'view' }, { quiet: true })),
+    join: async () => applySmashReply(await call('smash', { act: 'join' })),
+    leave: async () => applySmashReply(await call('smash', { act: 'leave' })),
+    hit: async () => applySmashReply(await call('smash', { act: 'hit', x: Math.round(me.x), y: Math.round(me.y) })),
+  });
+}
+async function hitSmash() {
+  try {
+    const r = await call('smash', { act: 'hit', x: Math.round(me.x), y: Math.round(me.y) });
+    applySmashReply(r);
+    audio.tool('harvest');
+    if (r.smash && r.smash.status === 'over') {
+      hud.toast(r.payout ? `砸罐結束，你拿到 ${r.payout} G` : '砸罐結束', 2500);
+    } else hud.toast('砸中了');
+  } catch (e) {
+    if (e && (e.code === 'not_live' || e.code === 'smash_none' || e.code === 'not_in_smash' || e.code === 'not_up' || e.code === 'already_hit')) openSmashPanel();
+  }
+}
+function applyVaseReply(r) {
+  applyMine(farm, r); refreshHud();
+  if (r.vase) lastVase = r.vase;
+  return r;
+}
+function openVasePanel() {
+  openVase({
+    view: async () => applyVaseReply(await call('vase', { act: 'view' }, { quiet: true })),
+    join: async () => applyVaseReply(await call('vase', { act: 'join' })),
+    leave: async () => applyVaseReply(await call('vase', { act: 'leave' })),
+    take: async () => applyVaseReply(await call('vase', { act: 'take', x: Math.round(me.x), y: Math.round(me.y) })),
+  });
+}
+async function takeVase() {
+  try {
+    const r = await call('vase', { act: 'take', x: Math.round(me.x), y: Math.round(me.y) });
+    applyVaseReply(r);
+    audio.tool('harvest');
+    if (r.vase && r.vase.status === 'over') {
+      hud.toast(r.payout ? `搶瓶結束，你拿到 ${r.payout} G` : '搶瓶結束', 2500);
+    } else hud.toast('你搶到花瓶了');
+  } catch (e) {
+    if (e && (e.code === 'not_live' || e.code === 'vase_none' || e.code === 'not_in_vase' || e.code === 'already_holding' || e.code === 'already_ours')) openVasePanel();
+  }
+}
+async function dropHaul() {
+  try {
+    const r = await call('haul', { act: 'drop', x: Math.round(me.x), y: Math.round(me.y) });
+    applyHaulReply(r);
+    audio.tool('harvest');
+    if (r.haul && r.haul.status === 'over') {
+      hud.toast(r.payout ? `搬寶結束，你拿到 ${r.payout} G` : '搬寶結束', 2500);
+    } else hud.toast('送到大鍋了');
+  } catch (e) {
+    if (e && (e.code === 'not_live' || e.code === 'haul_none' || e.code === 'not_in_haul' || e.code === 'empty_hands')) openHaulPanel();
+  }
+}
+function openPartyPanel() {
+  openParty({
+    view: async () => applyPartyReply(await call('party', { act: 'view' }, { quiet: true })),
+    join: async () => applyPartyReply(await call('party', { act: 'join' })),
+    leave: async () => applyPartyReply(await call('party', { act: 'leave' })),
+    grab: async (spot) => applyPartyReply(await call('party', { act: 'grab', spot, x: Math.round(me.x), y: Math.round(me.y) })),
+  });
+}
+async function grabSpot(spot) {
+  try {
+    const r = await call('party', { act: 'grab', spot, x: Math.round(me.x), y: Math.round(me.y) });
+    applyPartyReply(r);
+    audio.tool('harvest');
+    if (r.party && r.party.status === 'over') {
+      hud.toast(r.payout ? `搶寶結束，你拿到 ${r.payout} G` : '搶寶結束', 2500);
+      sys(`🎁 廣場搶寶結束${r.payout ? `，你拿到 ${r.payout} G` : ''}`);
+    } else hud.toast('搶到了！');
+  } catch (e) {
+    if (e && (e.code === 'not_live' || e.code === 'party_none' || e.code === 'not_in_party')) openPartyPanel();
+  }
+}
 function openXchg() {
   openExchange({
     quote: async () => {
@@ -362,6 +670,151 @@ async function feedReggie(item) {
 let reggieReact = 0;
 const isShowTime = () => isOn('reggie');
 /** 每格畫面更新瑞吉的動作（表演中輪播、有人餵魚時跳起來）。 */
+function inRound(last) {
+  return !!(last && (last.players || []).some((p) => p.id === myId));
+}
+function partySnaps() {
+  return { party: lastParty, seek: lastSeek, hot: lastHot, tug: lastTug, haul: lastHaul, light: lastLight, hill: lastHill, smash: lastSmash, vase: lastVase };
+}
+function joinSnap(action) {
+  if (action === 'party') return lastParty;
+  if (action === 'seek') return lastSeek;
+  if (action === 'hot') return lastHot;
+  if (action === 'tug') return lastTug;
+  if (action === 'haul') return lastHaul;
+  if (action === 'light') return lastLight;
+  if (action === 'hill') return lastHill;
+  if (action === 'smash') return lastSmash;
+  if (action === 'vase') return lastVase;
+  return null;
+}
+function pulseHold(k, x, y, held, wall) {
+  const o = map.objects.find((obj) => obj.k === k && obj.x === x && obj.y === y);
+  if (!o) return;
+  o.z = held ? -Math.round(Math.abs(Math.sin(wall / 120)) * 3) : 0;
+}
+function pulsePartyVisuals() {
+  if (!map || map.id !== 'plaza') return;
+  const wall = Date.now();
+  const jar = map.objects.find((o) => o.k === SMASH_JOIN.k && o.x === SMASH_JOIN.x && o.y === SMASH_JOIN.y);
+  if (jar) {
+    const live = lastSmash && lastSmash.status === 'live';
+    const up = smashUpFromPublic(lastSmash, wall);
+    jar.hide = !!(live && !up);
+    jar.z = live && up ? -Math.round(Math.abs(Math.sin(wall / 120)) * 3) : 0;
+  }
+  // strawMat 走地面層，z 不會跳；南瓜／花瓶／木桶會跳，旁邊的人看得見誰拿著。
+  pulseHold(HOT_JOIN.k, HOT_JOIN.x, HOT_JOIN.y, !!(lastHot && lastHot.status === 'live' && lastHot.holder), wall);
+  pulseHold(VASE_JOIN.k, VASE_JOIN.x, VASE_JOIN.y, !!(lastVase && lastVase.status === 'live' && lastVase.holder), wall);
+  pulseHold(HAUL_JOIN.k, HAUL_JOIN.x, HAUL_JOIN.y, !!(lastHaul && lastHaul.status === 'live' && lastHaul.holder), wall);
+  // 搶寶：開場後還沒被拿走的箱子會跳，拿走的藏起來，路人看得見場上還剩什麼。
+  const taken = (lastParty && lastParty.status === 'live' && lastParty.taken) || {};
+  const scramble = !!(lastParty && lastParty.status === 'live');
+  for (const s of PARTY.spots) {
+    const o = map.objects.find((obj) => obj.k === s.k && obj.x === s.x && obj.y === s.y);
+    if (!o) continue;
+    o.hide = !!(scramble && taken[s.id]);
+    o.z = scramble && !taken[s.id] ? -Math.round(Math.abs(Math.sin(wall / 120)) * 3) : 0;
+  }
+  // 倒數上車時 join 地標跳一下。只在 countdown 才寫 z，避免清掉持有／砸罐的跳動。
+  for (const [snap, join] of boardingJoins()) {
+    if (snap && snap.status === 'countdown') pulseHold(join.k, join.x, join.y, true, wall);
+  }
+  // 捉迷藏 live：join 圓木跳，藏點不跳，免得路人看出誰藏在哪。
+  if (lastSeek && lastSeek.status === 'live') pulseHold(SEEK_JOIN.k, SEEK_JOIN.x, SEEK_JOIN.y, true, wall);
+}
+function boardingJoins() {
+  return [
+    [lastParty, PARTY_JOIN],
+    [lastSeek, SEEK_JOIN],
+    [lastHot, HOT_JOIN],
+    [lastTug, TUG_JOIN],
+    [lastHaul, HAUL_JOIN],
+    [lastLight, LIGHT_JOIN],
+    [lastHill, HILL_JOIN],
+    [lastSmash, SMASH_JOIN],
+    [lastVase, VASE_JOIN],
+  ];
+}
+function partyMarks() {
+  const marks = [];
+  const lamp = lightFromPublic(lastLight, Date.now());
+  if (lamp) {
+    const color = lamp === 'red' ? 'rgba(220,40,40,.95)' : 'rgba(40,200,70,.95)';
+    for (const s of [{ x: LIGHT_JOIN.x, y: LIGHT_JOIN.y }, ...LIGHT.spots]) marks.push({ x: s.x, y: s.y, color });
+  }
+  if (lastHot && lastHot.status === 'live' && lastHot.holder) {
+    marks.push({ x: HOT_JOIN.x, y: HOT_JOIN.y, color: 'rgba(230,120,20,.95)' });
+  }
+  if (lastHill && lastHill.status === 'live' && lastHill.holder) {
+    marks.push({ x: HILL_JOIN.x, y: HILL_JOIN.y, color: 'rgba(240,200,40,.95)' });
+  }
+  if (lastVase && lastVase.status === 'live' && lastVase.holder) {
+    const who = (lastVase.players || []).find((p) => p.id === lastVase.holder);
+    marks.push({ x: VASE_JOIN.x, y: VASE_JOIN.y, color: who && who.team === 'blue' ? 'rgba(50,90,220,.95)' : 'rgba(220,50,50,.95)' });
+  }
+  if (lastHaul && lastHaul.status === 'live' && lastHaul.holder) {
+    marks.push({ x: HAUL_JOIN.x, y: HAUL_JOIN.y, color: 'rgba(160,100,40,.95)' });
+  }
+  if (lastTug && lastTug.status === 'live') {
+    const sc = lastTug.score || { L: 0, R: 0 };
+    const lLead = (sc.L | 0) >= (sc.R | 0);
+    const rLead = (sc.R | 0) >= (sc.L | 0);
+    for (const s of TUG.spots) {
+      const lead = s.id === 'L' ? lLead : rLead;
+      const color = s.id === 'L'
+        ? (lead ? 'rgba(40,180,220,.95)' : 'rgba(40,180,220,.4)')
+        : (lead ? 'rgba(220,80,40,.95)' : 'rgba(220,80,40,.4)');
+      marks.push({ x: s.x, y: s.y, color });
+    }
+  }
+  if (lastParty && lastParty.status === 'live') {
+    const taken = lastParty.taken || {};
+    for (const s of PARTY.spots) {
+      if (!taken[s.id]) marks.push({ x: s.x, y: s.y, color: 'rgba(240,200,40,.9)' });
+    }
+  }
+  {
+    const m = seekLiveMark(lastSeek, SEEK_JOIN.x, SEEK_JOIN.y);
+    if (m) marks.push(m);
+  }
+  for (const [snap, join] of boardingJoins()) {
+    const m = countdownMark(snap, join.x, join.y);
+    if (m) marks.push(m);
+  }
+  return marks.length ? marks : null;
+}
+function interactHint(t) {
+  if (t.npc) return 'E 對話';
+  const wall = Date.now();
+  if (t.action === 'smash' && lastSmash && lastSmash.status === 'live' && inRound(lastSmash)) {
+    return smashUpFromPublic(lastSmash, wall) ? 'E 砸' : '罐子縮回去了';
+  }
+  if (t.action === 'lightDash' && lastLight && lastLight.status === 'live' && inRound(lastLight)) {
+    return lightFromPublic(lastLight, wall) === 'red' ? '紅燈！不要按' : '綠燈 E 踩';
+  }
+  if (t.action === 'light' && lastLight && lastLight.status === 'live') {
+    return lightFromPublic(lastLight, wall) === 'red' ? '紅燈' : '綠燈';
+  }
+  if (t.action === 'hot' && lastHot && lastHot.status === 'live' && inRound(lastHot)) return 'E 搶南瓜';
+  if (t.action === 'haul' && lastHaul && lastHaul.status === 'live' && inRound(lastHaul)) return 'E 扛起';
+  if (t.action === 'haulDrop' && lastHaul && lastHaul.status === 'live') return 'E 放下寶物';
+  if (t.action === 'hill' && lastHill && lastHill.status === 'live' && inRound(lastHill)) return 'E 占席';
+  if (t.action === 'vase' && lastVase && lastVase.status === 'live' && inRound(lastVase)) return 'E 搶瓶';
+  if (t.action === 'partyGrab' && lastParty && lastParty.status === 'live' && inRound(lastParty)) {
+    return t.spot && lastParty.taken && lastParty.taken[t.spot] ? '已經被拿走了' : 'E 搶寶';
+  }
+  if (t.action === 'seek' && lastSeek && lastSeek.status === 'live' && inRound(lastSeek)) {
+    const me = (lastSeek.players || []).find((p) => p.id === myId);
+    return me && me.seeker ? '你是尋人，去檢查藏點' : '去藏進圓木、樹或石頭';
+  }
+  if (t.action === 'seekSpot' && lastSeek && lastSeek.status === 'live') {
+    return seekSpotHint(lastSeek, myId, t.spot) || t.hint || 'E 藏或檢查';
+  }
+  const occ = joinHint(t.hint || 'E 查看', joinSnap(t.action), myId);
+  if (occ) return occ;
+  return t.hint || 'E 查看';
+}
 function animateLandmarks(now) {
   if (!map || map.id !== 'plaza') return;
   const reggie = map.objects.find((o) => o.reggie);
@@ -407,7 +860,12 @@ async function landFish(ok) {
     if (!r.caught) { hud.toast(`${fish.name}溜走了…`); audio.tool('nope'); return; }
     if (fish.junk) { hud.toast('釣到一隻舊靴子……'); audio.tool('nope'); return; }
     audio.tool('harvest'); hud.toast(`釣到 ${fish.name}（${r.size} 公分）！`, 2500);
-    if (r.contest) { sys(`🎣 你釣到了 ${fish.name}（${r.size} 公分）`); if (net) net.send({ k: 'f', f: fish.id, s: r.size }); }
+    if (r.board) lastContest = r.board;
+    if (r.contest && r.board) {
+      const you = (r.board.players || []).find((p) => p.id === r.board.you);
+      sys(`🎣 大賽 ${fish.name} ${r.size} 公分${you ? `，目前 ${you.score} 分` : ''}`);
+      if (r.payout) hud.toast(`釣魚大賽結束，你拿到 ${r.payout} G`, 2500);
+    }
   } catch (_e) { /* 已提示 */ }
 }
 function updateFishing(now, dt) {
@@ -571,6 +1029,16 @@ function onGame(m) {
   } else if (m.op === 'me') {
     applyMine(farm, m); if (Number.isFinite(m.likes)) social.likes = m.likes; refreshHud();
   } else if (m.op === 'home' && m.owner) refreshVisit(m.owner);
+  else if (m.op === 'party' && m.party) lastParty = m.party;
+  else if (m.op === 'contest' && m.contest) lastContest = m.contest;
+  else if (m.op === 'seek' && m.seek) lastSeek = m.seek;
+  else if (m.op === 'hot' && m.hot) lastHot = m.hot;
+  else if (m.op === 'tug' && m.tug) lastTug = m.tug;
+  else if (m.op === 'haul' && m.haul) lastHaul = m.haul;
+  else if (m.op === 'light' && m.light) lastLight = m.light;
+  else if (m.op === 'hill' && m.hill) lastHill = m.hill;
+  else if (m.op === 'smash' && m.smash) lastSmash = m.smash;
+  else if (m.op === 'vase' && m.vase) lastVase = m.vase;
 }
 
 // ---------- 連線 ----------
@@ -628,10 +1096,7 @@ async function connect() {
         if (d.k === 'm') { if (Number.isInteger(d.e) && EMOTES[d.e]) p.emote = { n: EMOTES[d.e], until: performance.now() + 2600 }; return; }
         if (d.k === 'r') { if (map && map.id === 'plaza' && p.area === 'plaza') { reggieReact = performance.now() + 2400; audio.voice('reggie'); } return; }
         if (d.k === 'l') { const l = sanitizeLook(d.l); if (l) p.look = l; }
-        else if (d.k === 'f' && isOn('fishing')) {
-          const f = FISH.find((x) => x.id === d.f);
-          if (f && !f.junk && Number.isInteger(d.s) && d.s > 0 && d.s < 300) sys(`🎣 ${p.name} 釣到了 ${f.name}（${d.s} 公分）`);
-        }
+
       },
       status(t) { updateInfo(t || undefined); if (!t && api.server) loadMe().catch(() => {}); },
     });
@@ -674,7 +1139,7 @@ const paintMute = () => { muteBtn.textContent = audio.muted ? '音效：關' : '
 muteBtn.addEventListener('click', () => { audio.unlock(); audio.setMuted(!audio.muted); paintMute(); });
 paintMute();
 $('btn-look').addEventListener('click', () => { if (scene && !creatorOpen()) openLook(false); });
-$('btn-events').addEventListener('click', () => openEventBoard(Date.now()));
+$('btn-events').addEventListener('click', () => openEventBoard(Date.now(), null, partySnaps()));
 $('btn-visit').addEventListener('click', openVisits);
 $('btn-mail').addEventListener('click', openMail);
 $('btn-emote').addEventListener('click', () => openEmotes(emote));
@@ -795,6 +1260,7 @@ function frame(now) {
     updateNpcs(dt, now);
     updateFishing(now, dt);
     animateLandmarks(now);
+    pulsePartyVisuals();
     const list = [{ ...me, name: myName, self: true }];
     for (const p of people.values()) {
       const k = 1 - Math.exp(-dt * 12); p.x += (p.tx - p.x) * k; p.y += (p.ty - p.y) * k;
@@ -818,9 +1284,11 @@ function frame(now) {
     }
     if (!dialog.open && !edit && !fishing) {
       const t = map.interactAt(me);
-      if (t) opts.hint = { x: t.x, y: t.y - (t.npc ? 22 : t.hintY || 18), text: t.npc ? 'E 對話' : t.hint || 'E 查看' };
+      if (t) opts.hint = { x: t.x, y: t.y - (t.npc ? 22 : t.hintY || 18), text: interactHint(t) };
       else { const w = map.warps.find((x) => Math.hypot((x.x0 + x.x1) / 2 - me.x, (x.y0 + x.y1) / 2 - me.y) < 26 && x.label); if (w) opts.hint = { x: (w.x0 + w.x1) / 2, y: w.y0 - 2, text: w.label }; }
     }
+    const marks = partyMarks();
+    if (marks) opts.marks = marks;
     if (fishing && fishing.phase === 'bite') opts.hint = { x: me.x, y: me.y - 26, text: '空白鍵 提竿！' };
     if (!canvas.width) fit();
     drawWorld(ctx, scene, map, list, cameraFor(me.x, me.y, map.pw, map.ph), now, BUBBLE_MS, opts);
@@ -838,7 +1306,7 @@ async function start() {
   checkEvents(true);
   loadArea('plaza', 'center');
   sys('歡迎來到派派鎮！WASD 或點地面走路，E 對話，Enter 聊天，左下角可以拜訪、逛市場、捏臉、看活動。');
-  sys('西橋通往你的農場（1–8 選工具、空白鍵使用、Q 換種子），東橋是商店街。廣場中央有菲比女神噴水池，東南角是瑞吉海獅秀。');
+  sys('西橋通往你的農場（1–8 選工具、空白鍵使用、Q 換種子），東橋是商店街。廣場隨時可以湊人搶寶、捉迷藏、傳南瓜、拔河、搬寶、紅綠燈、占席、砸罐、搶瓶。中央有菲比女神噴水池，東南角是瑞吉海獅秀。');
   fit();
   ready = true;
   requestAnimationFrame(frame);
@@ -849,7 +1317,7 @@ start();
 window.__plaza = {
   get area() { return area; }, get me() { return me; }, get farm() { return farm; }, get decor() { return decor; }, get map() { return map; },
   get fishing() { return fishing; }, get events() { return events; }, get social() { return social; }, get mails() { return mails; }, get server() { return api.server; },
-  get ready() { return ready; }, people, visits,
+  get ready() { return ready; }, get party() { return lastParty; }, get contest() { return lastContest; }, get seek() { return lastSeek; }, get hot() { return lastHot; }, get tug() { return lastTug; }, get haul() { return lastHaul; }, get light() { return lastLight; }, get hill() { return lastHill; }, get smash() { return lastSmash; }, get vase() { return lastVase; }, marks: () => partyMarks(), people, visits,
   warp: (to, entry) => loadArea(to === 'farm' || to === 'house' ? personal(to) : to, entry),
   setEvents: (ids) => { events = ids; applyEvents(map); },
   setLook: (l) => { const s = sanitizeLook(l); if (!s) return false; me.look = s; sendLook(); return true; },
