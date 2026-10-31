@@ -60,7 +60,16 @@ function paintDaily(page, data) {
 }
 
 function paintStamps(page, data) {
-  if (data.titles.length) page.append(el('p', 'note', `稱號：${data.titles.join('、')}`));
+  if (data.titles.length) {
+    page.append(el('h3', null, '🏅 稱號（戴上後別人會在你的名牌看到）'));
+    const row = el('div', 'menu-btns');
+    for (const t of data.titles) {
+      const b = el('button', data.wearing === t ? 'on' : null, data.wearing === t ? `✓ ${t}` : t); b.type = 'button';
+      b.addEventListener('click', async () => { if (data.wear) { await data.wear(data.wearing === t ? null : t); data.wearing = data.wearing === t ? null : t; page.replaceChildren(); paintStamps(page, data); } });
+      row.append(b);
+    }
+    page.append(row);
+  }
   page.append(el('p', 'note', `每集到一枚章就有金幣；集滿一整類再給 ${data.catBonus} G 和稱號（玩家名片上看得到）。`));
   for (const c of data.cats) {
     const list = data.stamps.filter((s) => s.cat === c.id);

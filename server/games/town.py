@@ -16,10 +16,14 @@ PROJECTS: list[dict[str, Any]] = [
     {"id": "fireworks", "name": "煙火台", "effect": "每晚 21:00 在廣場放煙火，看煙火的人都有小禮物",
      "need": {"fiber": 80, "pumpkin": 20, "strawberry": 20, "gold": 3000}},
 ]
+# 三棟都蓋好後：每週一期的「週末嘉年華」，本週完成就全鎮受益到週日，下週重新籌備
+CARNIVAL = {"id": "carnival", "name": "週末嘉年華", "effect": "本週全鎮派對獎金 +25%、出貨 +10%",
+            "need": {"wheat": 40, "pie": 10, "fish": 15, "fiber": 30, "gold": 2500}}
 PROJECT_BY = {p["id"]: p for p in PROJECTS}
-NAMES = {"wood": "木材", "stone": "石頭", "fiber": "纖維", "fish": "任何魚", "gold": "金幣",
+PROJECT_BY["carnival"] = CARNIVAL
+NAMES = {"pie": "任何派", "wood": "木材", "stone": "石頭", "fiber": "纖維", "fish": "任何魚", "gold": "金幣",
          "wheat": "小麥", "carrot": "紅蘿蔔", "beet": "甜菜", "tomato": "番茄", "strawberry": "草莓", "pumpkin": "南瓜"}
-VALUE = {"wood": 6, "stone": 6, "fiber": 4, "fish": 40, "gold": 1}
+VALUE = {"wood": 6, "stone": 6, "fiber": 4, "fish": 40, "pie": 120, "gold": 1}
 REFUND = 0.15            # 完工回饋：貢獻點的 15% 換成金幣
 REFUND_MAX = 400
 LOG_MAX = 20
@@ -33,7 +37,9 @@ def sanitize(raw: Any) -> dict[str, Any]:
     st = new_state()
     if not isinstance(raw, dict):
         return st
-    st["done"] = [d for d in raw.get("done") or [] if d in PROJECT_BY]
+    st["done"] = [d for d in raw.get("done") or [] if d in PROJECT_BY and d != "carnival"]
+    st["week"] = raw.get("week")
+    st["carnivalDone"] = raw.get("carnivalDone")
     cur = raw.get("cur")
     st["cur"] = cur if cur in PROJECT_BY and cur not in st["done"] else next((p["id"] for p in PROJECTS if p["id"] not in st["done"]), None)
     if st["cur"] == cur:
@@ -48,6 +54,23 @@ def built(st: dict[str, Any], pid: str) -> bool:
     return pid in st.get("done", [])
 
 
+def roll(st: dict[str, Any], week: str) -> bool:
+    """三棟都蓋好後，每週開一期嘉年華（換週就重來）。有改變回傳 True（要存檔）。"""
+    if any(p["id"] not in st["done"] for p in PROJECTS):
+        return False
+    if st.get("week") != week:
+        st.update(week=week, cur="carnival" if st.get("carnivalDone") != week else None, got={}, points={}, names={}, log=[])
+        return True
+    if st.get("carnivalDone") == week and st.get("cur") is not None:
+        st["cur"] = None
+        return True
+    return False
+
+
+def carnival_on(st: dict[str, Any], week: str) -> bool:
+    return st.get("carnivalDone") == week
+
+
 def item_value(item: str, sell: dict[str, int]) -> int:
     if item in VALUE:
         return VALUE[item]
@@ -56,7 +79,7 @@ def item_value(item: str, sell: dict[str, int]) -> int:
 
 def need_key(item: str) -> str:
     """背包裡的東西對到工程需求的哪一格（魚都算 fish）。"""
-    return "fish" if item.startswith("fish_") else item
+    return "fish" if item.startswith("fish_") else "pie" if item.startswith("pie_") else item
 
 
 def donate(st: dict[str, Any], rec: dict[str, Any], uid: str, name: str, item: str, n: int, sell: dict[str, int], now: int) -> dict[str, Any]:
@@ -82,7 +105,7 @@ def donate(st: dict[str, Any], rec: dict[str, Any], uid: str, name: str, item: s
         if not rec["inv"][item]:
             del rec["inv"][item]
     st["got"][key] = st["got"].get(key, 0) + take
-    pts = take * item_value(item if item != "gold" else "gold", sell) if key != "fish" else take * VALUE["fish"]
+    pts = take * (VALUE[key] if key in ("fish", "pie") else item_value(item, sell))
     st["points"][uid] = st["points"].get(uid, 0) + pts
     st["names"][uid] = str(name)[:20]
     st["log"] = (st["log"] + [[st["names"][uid], key, take, now]])[-LOG_MAX:]
@@ -100,9 +123,13 @@ def finish(st: dict[str, Any], now: int) -> dict[str, Any]:
     top = max(pts.items(), key=lambda kv: kv[1])[0] if pts else None
     rewards = [{"id": u, "name": st["names"].get(u, "鎮民"), "points": p, "gold": min(REFUND_MAX, int(p * REFUND)), "top": u == top}
                for u, p in sorted(pts.items(), key=lambda kv: -kv[1])]
-    st["done"].append(pid)
-    nxt = next((p["id"] for p in PROJECTS if p["id"] not in st["done"]), None)
-    st.update(cur=nxt, got={}, points={}, names={}, log=[])
+    if pid == "carnival":
+        st["carnivalDone"] = st.get("week")
+        st.update(cur=None, got={}, points={}, names={}, log=[])
+    else:
+        st["done"].append(pid)
+        nxt = next((p["id"] for p in PROJECTS if p["id"] not in st["done"]), None)
+        st.update(cur=nxt, got={}, points={}, names={}, log=[])
     return {"id": pid, "name": proj["name"], "effect": proj["effect"], "rewards": rewards, "at": now}
 
 
@@ -116,7 +143,10 @@ def view(st: dict[str, Any], uid: str) -> dict[str, Any]:
                "need": [{"k": k, "name": NAMES.get(k, k), "need": v, "got": min(v, st["got"].get(k, 0))} for k, v in proj["need"].items()],
                "top": [[st["names"].get(u, "鎮民"), p] for u, p in ranking[:10]],
                "mine": st["points"].get(uid, 0), "log": st["log"][-8:]}
-    return {"done": [{"id": d, "name": PROJECT_BY[d]["name"], "effect": PROJECT_BY[d]["effect"]} for d in st["done"]],
+    done = [{"id": d, "name": PROJECT_BY[d]["name"], "effect": PROJECT_BY[d]["effect"]} for d in st["done"]]
+    if st.get("carnivalDone") and st.get("carnivalDone") == st.get("week"):
+        done.append({"id": "carnival", "name": f"本週{CARNIVAL['name']}", "effect": CARNIVAL["effect"]})
+    return {"done": done, "weekly": all(p["id"] in st["done"] for p in PROJECTS),
             "cur": cur, "next": [{"id": p["id"], "name": p["name"]} for p in PROJECTS if p["id"] not in st["done"] and p["id"] != pid]}
 
 

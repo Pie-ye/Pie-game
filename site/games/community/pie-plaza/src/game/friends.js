@@ -47,3 +47,7 @@ export const REACTION = {
   like: (n) => `謝謝，我很喜歡。（${n}笑了）`,
   ok: (n) => `喔，謝謝你。（${n}收下了）`,
 };
+
+/** 可以掛在名牌上的稱號（收到別人的外觀訊息時只接受這些）。 */
+export const TITLES = new Set(['農場主', '釣魚達人', '派對王', '好鄰居', '派派通', ...Object.values(FRIENDS).map((f) => `${f.name}的好朋友`)]);
+export const cleanTitle = (t) => (typeof t === 'string' && TITLES.has(t) ? t : null);

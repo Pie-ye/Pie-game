@@ -1670,6 +1670,10 @@ async def test_weekly_boards_settle_and_friend_bonus(aiohttp_client, tmp_path) -
     await call(alice, "social", friend="bob", name="Bob", on=True)
     plaza.players["alice"]["inv"]["wheat"] = 10
     r = await call(alice, "ship")
+    assert r["bonus"] == 0, "bob 在線但一直沒動：不算"
+    plaza._pose_at["bob"] = plaza.now_ms()
+    plaza.players["alice"]["inv"]["wheat"] = 10
+    r = await call(alice, "ship")
     assert r["total"] == 10 * L.SELL["wheat"] and r["bonus"] == r["total"] // 10
     for ws in (alice, bob):
         await ws.close()
@@ -1742,4 +1746,17 @@ async def test_npc_buys_old_fair_listing_and_daily_orders(aiohttp_client, tmp_pa
     r = await call(alice, "orders", act="fill", i=o["i"])
     assert r["ok"] and r["reward"] == o["n"] * o["unit"] and plaza.players["alice"]["gold"] == g1 + r["reward"]
     assert (await call(alice, "orders", act="fill", i=o["i"]))["code"] == "done"
+    await alice.close()
+
+
+@pytest.mark.asyncio
+async def test_title_wear_only_owned(aiohttp_client, tmp_path) -> None:
+    client, plaza, _, _ = await make(aiohttp_client, tmp_path)
+    alice = await connect_and_auth(client, "alice", G)
+    await call(alice, "load")
+    assert (await call(alice, "title", title="派對王"))["code"] == "bad_title"
+    plaza.players["alice"]["titles"] = ["派對王"]
+    assert (await call(alice, "title", title="派對王"))["title"] == "派對王"
+    assert (await call(alice, "load"))["me"]["title"] == "派對王"
+    assert (await call(alice, "title", title=None))["title"] is None
     await alice.close()

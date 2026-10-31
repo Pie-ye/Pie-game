@@ -37,7 +37,7 @@ import { openPets } from './ui/pets.js';
 import { cleanPet, followStep } from './game/pets.js';
 import { huntHere } from './game/hunt.js';
 import { openNpcMenu, openBake, openSmith } from './ui/npc.js';
-import { BY_NAME, tierLine, REACTION, FRIENDS } from './game/friends.js';
+import { BY_NAME, tierLine, REACTION, FRIENDS, cleanTitle } from './game/friends.js';
 import { obj } from './engine/world.js';
 import { throwDir, ARENA } from './game/arena.js';
 import { openVisitPanel, openVisitorMenu, openMailbox, openPlayerCard, openEmotes } from './ui/social.js';
@@ -131,6 +131,11 @@ new ResizeObserver(fit).observe(document.querySelector('.stage'));
 // ---------- 定時活動 ----------
 const isOn = (id) => events.includes(id);
 let hunt = null;               // 限時尋寶（伺服器 view）
+function carnivalDecor(m) {
+  if (!townPub.carnival || !['plaza', 'frontier'].includes(m.id)) return [];
+  const xs = m.id === 'plaza' ? [[100, 120], [380, 120], [100, 200], [380, 200]] : [[120, 140], [220, 140], [340, 140], [460, 140]];
+  return xs.map(([x, y], i) => obj(i % 2 ? 'lanternString' : 'banner2', x, y, { foot: null, overhead: i % 2 === 1, light: i % 2 ? 26 : 0 }));
+}
 function applyHunt(m) {
   m.signs = m.signs.filter((t) => t.action !== 'hunt');
   const here = huntHere(hunt, m.id);
@@ -138,7 +143,7 @@ function applyHunt(m) {
   return here.map((h) => obj('jackLantern', h.x, h.y, { foot: null, light: 24, flicker: true }));
 }
 function applyEvents(m) {
-  const objs = [...eventObjects(m.id, events), ...applyHunt(m)];
+  const objs = [...eventObjects(m.id, events), ...applyHunt(m), ...carnivalDecor(m)];
   m.eventObjects = objs;
   if (!m.farm) m.dynamic = objs.filter((o) => o.foot).map((o) => ({ x0: o.x - o.foot[0] / 2, x1: o.x + o.foot[0] / 2, y0: o.y - o.foot[1], y1: o.y }));
 }
@@ -848,6 +853,7 @@ function setTown(t) {
   const changed = JSON.stringify(t) !== JSON.stringify(townPub);
   townPub = t;
   if (changed && map && map.id === 'frontier') rebuildHere();
+  else if (changed && map) applyEvents(map);
 }
 async function openTownPanel() {
   if (!api.server) { dialog.show({ name: '工頭阿土' }, ['全鎮工程要登入才能參加：捐的東西和貢獻都記在伺服器。']); return; }
@@ -870,7 +876,7 @@ async function openBookPanel(tab) {
   if (!api.server) { openBook(null); return; }
   try {
     const [r, rank] = await Promise.all([call('quests'), call('rank', {}, { quiet: true }).catch(() => null)]);
-    openBook({ ...r.quests, rank }, tab);
+    openBook({ ...r.quests, rank, wearing: me.title, wear: async (t) => { await call('title', { title: t }); me.title = cleanTitle(t); sendLook(); hud.toast(t ? `戴上稱號「${t}」` : '取下稱號'); } }, tab);
   } catch (_e) { /* 已提示 */ }
 }
 const guideEl = document.createElement('button');
@@ -1354,7 +1360,7 @@ function person(id, name) {
   if (!people.has(id)) people.set(id, { id, name: name || (net && net.nameOf(id)) || '訪客', look: null, x: 0, y: 0, tx: 0, ty: 0, area: '', dir: 0, moving: false, movedAt: 0, bubble: '', bubbleAt: 0, seen: false, lastStep: 0 });
   return people.get(id);
 }
-const sendLook = (to) => { if (net && me.look) net.send({ k: 'l', l: me.look, pt: me.pet || 0 }, to); };
+const sendLook = (to) => { if (net && me.look) net.send({ k: 'l', l: me.look, pt: me.pet || 0, tt: me.title || 0 }, to); };
 /** 從伺服器載入自己的全部資料（登入、重連時）。 */
 async function loadMe() {
   const r = await api.call('load');
@@ -1363,6 +1369,7 @@ async function loadMe() {
   decor = sanitizeDecor({ v: 1, ...m.decor });
   me.look = sanitizeLook(m.look);
   if (m.pet !== undefined) me.pet = cleanPet(m.pet);
+  if (m.title !== undefined) me.title = cleanTitle(m.title);
   social = m.social;
   refreshHud();
   if (ownerOf(area)) loadArea(area, null, { rebuild: true });
@@ -1396,7 +1403,7 @@ async function connect() {
         const p = person(id);
         if (d.k === 'm') { if (Number.isInteger(d.e) && EMOTES[d.e]) p.emote = { n: EMOTES[d.e], until: performance.now() + 2600 }; return; }
         if (d.k === 'r') { if (map && map.id === 'plaza' && p.area === 'plaza') { reggieReact = performance.now() + 2400; audio.voice('reggie'); } return; }
-        if (d.k === 'l') { const l = sanitizeLook(d.l); if (l) p.look = l; p.pet = cleanPet(d.pt); }
+        if (d.k === 'l') { const l = sanitizeLook(d.l); if (l) p.look = l; p.pet = cleanPet(d.pt); p.title = cleanTitle(d.tt); }
 
       },
       status(t) { updateInfo(t || undefined); if (!t && api.server) loadMe().catch(() => {}); },
@@ -1412,6 +1419,7 @@ async function connect() {
       refreshGuide();
       refreshHunt(true);
       refreshFriends();
+      call('town', { act: 'view' }, { quiet: true }).then((r) => setTown(r.town)).catch(() => {});
     } else {
       sys('伺服器還沒準備好遊戲存檔，先用試玩模式（進度不會留下來）。');
       serverStatus('試玩模式');
@@ -1594,7 +1602,7 @@ function frame(now) {
       if (p.area !== area) continue;
       if (inShow && inShow.has(p.id)) continue;
       if (p.moving && now - p.lastStep > 300) { p.lastStep = now; audio.step(now, Math.hypot(p.x - me.x, p.y - me.y), (p.x - me.x) / HEAR_DIST); }
-      list.push(p);
+      list.push(p.title ? { ...p, name: `${p.name}〔${p.title}〕` } : p);
     }
     for (const n of map.npcs) { n.near = Math.hypot(n.x - me.x, n.y - me.y) < 56; list.push(n); }
     if (!(inArena && arena.inShow())) list.push(...petsInView(dt, inShow));

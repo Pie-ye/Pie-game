@@ -126,6 +126,7 @@ class PlazaService:
         self._bot_next: dict[tuple[str, str], int] = {}
         self._bot_memo: dict[tuple[str, str], dict[str, Any]] = {}
         self._party_called: dict[str, Any] = {}
+        self._pose_at: dict[str, int] = {}
         self._spotlight = PB.spotlight_at
         self._bots_at = 0
         self._fw_sec = 0
@@ -333,7 +334,7 @@ class PlazaService:
         s = rec["social"]
         return {"name": rec["name"], "farm": L.pack_farm(rec["farm"]), "inv": rec["inv"], "seeds": rec["seeds"], "seedSel": rec["seedSel"],
                 "gold": rec["gold"], "shares": L.shares_of(rec), "decor": rec["decor"], "look": rec["look"], "pet": PT.state(rec)["on"],
-                "tools": rec.get("tools") or {},
+                "tools": rec.get("tools") or {}, "title": rec.get("titleOn") if rec.get("titleOn") in (rec.get("titles") or []) else None,
                 "social": {"open": s["open"], "friends": s["friends"], "coop": s["coop"], "likes": s["likes"], "liked": s["liked"]},
                 "now": self.now_ms()}
 
@@ -503,8 +504,10 @@ class PlazaService:
         bonus = 0
         if r["total"]:
             online = {str(c.user_id) for c in relay.connections if c.game_id == GAME_ID}
-            friends = sum(1 for f in rec["social"]["friends"] if f["id"] in online and f["id"] != me)
-            pct = min(30, 10 * friends)                     # 好友在線加成：每位 +10%，最多 +30%
+            now = self.now_ms()
+            active = {u for u in online if now - self._pose_at.get(u, 0) < 300_000}   # 最近 5 分鐘有走動（掛著不動的小號不算）
+            friends = sum(1 for f in rec["social"]["friends"] if f["id"] in active and f["id"] != me)
+            pct = min(30, 10 * friends) + (10 if self._carnival() else 0)   # 好友在線每位 +10%（最多 +30%），嘉年華週再 +10%
             bonus = r["total"] * pct // 100
             rec["gold"] += bonus
             await self._progress(relay, me, rec, [("ship_gold", r["total"] + bonus)])
@@ -883,8 +886,8 @@ class PlazaService:
                 await self._push_me(relay, uid, partyCap=PARTY_DAILY_PAID)
         else:
             pp["n"] += 1
-            if n and self._spotlight(self.now_ms()) == kind:   # 焦點派對獎金 ×1.5
-                extra = int(n * PB.SPOTLIGHT_BONUS)
+            if n and (self._spotlight(self.now_ms()) == kind or self._carnival()):   # 焦點派對 ×1.5、嘉年華週 ×1.25
+                extra = int(n * ((PB.SPOTLIGHT_BONUS if self._spotlight(self.now_ms()) == kind else 0) + (0.25 if self._carnival() else 0)))
                 rec["gold"] += extra
                 await self._push_me(relay, uid, spotlightBonus=extra)
         rec["partyPay"] = pp
@@ -1387,6 +1390,7 @@ class PlazaService:
         """relay 轉來的位置訊息：記住所在區域；在競技場的人交給模擬。"""
         a = data.get("a")
         conn.area = a if isinstance(a, str) and len(a) <= 48 else None
+        self._pose_at[str(conn.user_id)] = self.now_ms()
         pos = data.get("p")
         if conn.area == "arena" and isinstance(pos, list) and len(pos) == 2:
             self.arena.pose(str(conn.user_id), pos[0], pos[1], self.now_ms())
@@ -1636,6 +1640,8 @@ class PlazaService:
             gold = int(r.get("gold") or 0) if st["paid"] < AR.DAILY_PAID else 0
             if gold and L.event_active("partynight", self.now_ms()):
                 gold *= 2                                   # 派對之夜：獎金加倍
+            if gold and self._carnival():
+                gold = int(gold * 1.25)                     # 嘉年華週
             if gold:
                 st["paid"] += 1
                 rec["gold"] += gold
@@ -1658,6 +1664,7 @@ class PlazaService:
                 ev.append(("arena_floor_survive", 1))
             if r.get("humans", 0) >= 3:
                 ev.append(("arena_humans3", 1))
+            ev.append(("arena_crowd_pts", 10 if r.get("humans", 0) >= 3 else 1))   # 人少時累積 10 場也算
             await self._progress(relay, r["id"], rec, ev)
             await self._party_rain(relay, r["id"], rec)
 
@@ -1694,11 +1701,21 @@ class PlazaService:
     def _apply_town_effects(self) -> None:
         L.GROW_SPEED = 1.25 if TW.built(self.town, "greenhouse") else 1.0
 
+    def _week(self) -> str:
+        return Q.week_of(L.taipei_day(self.now_ms()))
+
+    def _carnival(self) -> bool:
+        return TW.carnival_on(self.town, self._week())
+
     def _town_public(self) -> dict[str, Any]:
-        return {"done": list(self.town["done"]), "cur": self.town["cur"], "p": round(TW.progress(self.town), 3)}
+        if TW.roll(self.town, self._week()):
+            self.town_dirty = True
+        return {"done": list(self.town["done"]), "cur": self.town["cur"], "p": round(TW.progress(self.town), 3), "carnival": self._carnival()}
 
     async def op_town(self, relay, conn, me, rec, p):
         act = p.get("act")
+        if TW.roll(self.town, self._week()):
+            self.town_dirty = True
         if act == "donate":
             item = p.get("item")
             n = self._int(p.get("n"), 1, 99999)
@@ -1743,6 +1760,14 @@ class PlazaService:
                                      "top": done["rewards"][0]["name"] if done["rewards"] else ""})
 
     # ---------- 烘焙與鎮民好感 ----------
+    async def op_title(self, relay, conn, me, rec, p):
+        t = p.get("title")
+        if t is not None and t not in (rec.get("titles") or []):
+            raise GameError("bad_title", "還沒有這個稱號")
+        rec["titleOn"] = t
+        self.dirty.add(me)
+        return {"title": t}
+
     async def op_upgrade(self, relay, conn, me, rec, p):
         if p.get("act") == "view":
             lv = (rec.get("tools") or {}).get("can", 0)

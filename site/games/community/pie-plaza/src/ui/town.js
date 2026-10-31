@@ -8,6 +8,7 @@ const btn = (text, fn) => { const b = el('button', null, text); b.type = 'button
 /** 背包裡能拿去捐某一格需求的東西：[{ item, have }]。fish 這一格吃任何魚。 */
 export function donatable(key, inv, gold) {
   if (key === 'gold') return gold > 0 ? [{ item: 'gold', have: gold }] : [];
+  if (key === 'pie') return Object.entries(inv || {}).filter(([k, n]) => k.startsWith('pie_') && n > 0).map(([item, have]) => ({ item, have }));
   if (key === 'fish') return Object.entries(inv || {}).filter(([k, n]) => k.startsWith('fish_') && n > 0).map(([item, have]) => ({ item, have }));
   return (inv || {})[key] > 0 ? [{ item: key, have: inv[key] }] : [];
 }
@@ -22,7 +23,8 @@ export function openTown(data, api) {
       body.append(el('h3', null, '🏗️ 已完成'));
       for (const p of v.done) body.append(el('p', 'note', `✅ ${p.name}：${p.effect}`));
     }
-    if (!v.cur) { body.append(el('p', null, '所有工程都蓋好了！下一期敬請期待。')); return; }
+    if (!v.cur) { body.append(el('p', null, v.weekly ? '本週的嘉年華已經辦起來了！派對獎金 +25%、出貨 +10% 到週日。下週一再一起籌備。' : '所有工程都蓋好了！下一期敬請期待。')); return; }
+    if (v.weekly) body.append(el('p', 'note', '每週一期：這週籌備好，全鎮到週日都有派對獎金 +25%、出貨 +10%。'));
     const c = v.cur;
     body.append(el('h3', null, `🚧 施工中：${c.name}`), el('p', 'note', `蓋好以後：${c.effect}。完工時每位出過力的人拿回饋金（貢獻點的 15%）。`));
     const msg = el('p', 'note');

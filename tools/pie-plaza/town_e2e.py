@@ -41,7 +41,8 @@ def main() -> int:
         check("派派新區建設" in A.inner_text("#panel-title") and "派派溫室" in A.inner_text("#panel-body"), "看板打開工程面板：這一期是派派溫室")
         gold0 = A.evaluate(f"{P}.farm.gold")
         A.locator("#panel-body button", has_text="捐 金幣 ×10").first.click(); A.wait_for_timeout(700)
-        check(A.evaluate(f"{P}.farm.gold") == gold0 - 10, "捐 10 G：金幣扣掉")
+        mine = A.evaluate(f"{P}.call('town', {{ act: 'view' }})")["view"]["cur"]["mine"]
+        check(mine == 10, f"捐 10 G：伺服器記下 10 點貢獻（金幣 {gold0} → {A.evaluate(f'{P}.farm.gold')}，引導與委託可能另有獎金）")
         check("1510 / 1500" not in A.inner_text("#panel-body") and "10 / 1500" in A.inner_text("#panel-body"), "面板進度更新成 10 / 1500")
         check("貢獻" in A.inner_text("#panel-body") and "阿派" in A.inner_text("#panel-body"), "貢獻排行出現阿派")
         A.locator(".frame").screenshot(path=str(OUT / "02_panel.png"))

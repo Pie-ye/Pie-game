@@ -202,3 +202,19 @@ def test_watering_can_upgrade_keeps_crops_wet_two_stages():
     assert L.upgrade(rec, "can")["level"] == 2
     assert L.upgrade(rec, "can")["code"] == "max"
     assert L.upgrade({"gold": 0, "inv": {}}, "can")["code"] == "no_item"
+
+
+def test_weekly_carnival_after_all_built():
+    st = TW.sanitize({"done": ["greenhouse", "pier", "fireworks"], "cur": None})
+    TW.roll(st, "2027-W02")
+    assert st["cur"] == "carnival" and not TW.carnival_on(st, "2027-W02")
+    a = {"gold": 10_000, "inv": {"wheat": 40, "pie_tomato": 4, "pie_beet": 6, "fish_carp": 15, "fiber": 30}}
+    for item, n in (("wheat", 40), ("pie_tomato", 4), ("pie_beet", 6), ("fish_carp", 15), ("fiber", 30)):
+        assert TW.donate(st, a, "u1", "a", item, n, L.SELL, 1)["ok"]
+    r = TW.donate(st, a, "u1", "a", "gold", 2500, L.SELL, 2)
+    assert r["done"]["id"] == "carnival" and TW.carnival_on(st, "2027-W02") and st["cur"] is None
+    TW.roll(st, "2027-W02")
+    assert st["cur"] is None
+    TW.roll(st, "2027-W03")
+    assert st["cur"] == "carnival" and not TW.carnival_on(st, "2027-W03") and st["got"] == {}
+    assert TW.sanitize(st)["week"] == "2027-W03"
