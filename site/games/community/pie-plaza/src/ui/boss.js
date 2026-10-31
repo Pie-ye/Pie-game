@@ -4,10 +4,14 @@ import { drawText } from '../engine/render.js';
 import { ATLAS } from '../engine/atlas.js';
 
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
-const SHEETS = { idle: ['ninja/boss/frog_idle.png', 5], jump: ['ninja/boss/frog_jump.png', 6], charge: ['ninja/boss/frog_charge.png', 7],
-  attack: ['ninja/boss/frog_attack.png', 3], hit: ['ninja/boss/frog_hit.png', 3] };
-export const BOSS_IMAGES = Object.values(SHEETS).map((s) => s[0]);
-const SCALE = 2, FW = 40;
+const KINDS = {
+  frog: { name: '大胃王蛙', icon: '🐸', fw: 40, scale: 2, sheets: { idle: ['ninja/boss/frog_idle.png', 5], jump: ['ninja/boss/frog_jump.png', 6], charge: ['ninja/boss/frog_charge.png', 7],
+    attack: ['ninja/boss/frog_attack.png', 3], hit: ['ninja/boss/frog_hit.png', 3] } },
+  raccoon: { name: '貪吃浣熊', icon: '🦝', fw: 60, scale: 1, sheets: { idle: ['ninja/boss/raccoon_idle.png', 6], jump: ['ninja/boss/raccoon_jump.png', 5],
+    charge: ['ninja/boss/raccoon_charge.png', 2], attack: ['ninja/boss/raccoon_attack.png', 4], hit: ['ninja/boss/raccoon_charge.png', 2] } },
+};
+export const BOSS_IMAGES = Object.values(KINDS).flatMap((k) => Object.values(k.sheets).map((s) => s[0]));
+const K = (s) => KINDS[(s && s.kind) || 'frog'] || KINDS.frog;
 
 function spr(ctx, scene, k, x, y) {
   const a = ATLAS[k];
@@ -41,7 +45,7 @@ export function createBoss({ myId, audio, hud, sys, onCall, special }) {
     const now = performance.now(), id = myId();
     if (e.k === 'eat') {
       hitFlash = now + 160;
-      fx.push({ k: 'text', x: e.x, y: e.y - 6, t0: now, text: e.v > 1 ? `好吃！+${e.v}` : `+${e.v}`, color: e.v > 1 ? '#ffd23f' : '#fff3d6' });
+      fx.push({ k: 'text', x: e.x + (Math.random() * 24 - 12), y: e.y - 6 - Math.random() * 10, t0: now, text: e.v > 1 ? `好吃！+${e.v}` : `+${e.v}`, color: e.v > 1 ? '#ffd23f' : '#fff3d6' });
       if (String(e.by) === id) audio.tool(e.v > 1 ? 'bigcoin' : 'coin');
     } else if (e.k === 'splat') fx.push({ k: 'decal', x: e.x, y: e.y + 8, t0: now });
     else if (e.k === 'mouth') audio.tool('talk');
@@ -51,9 +55,11 @@ export function createBoss({ myId, audio, hud, sys, onCall, special }) {
       audio.tool(e.k === 'croak' ? 'fall' : 'splat');
       fx.push({ k: 'ring', x: e.x, y: e.y, r: e.r, t0: now });
       if ((e.ids || []).map(String).includes(id)) { shake = now + 350; hud.toast(e.k === 'croak' ? '呱！被震暈了' : '被壓扁了！', 1500); }
-    } else if (e.k === 'full') { audio.tool('fanfare'); sys('🐸 大胃王蛙吃飽睡著了！丟中的人都有獎勵。'); }
-    else if (e.k === 'escape') sys('🐸 大胃王蛙抱著剩下的派逃走了……下次再來！');
-    else if (e.k === 'arrive') sys('🐸 大胃王蛙闖進廣場偷吃派！把派丟進牠嘴裡（空白鍵或點畫面）。');
+    } else if (e.k === 'full') { audio.tool('fanfare'); sys(`${K(snap).icon} ${K(snap).name}吃飽睡著了！丟中的人都有獎勵。`); }
+    else if (e.k === 'escape') sys(`${K(snap).icon} ${K(snap).name}抱著剩下的派逃走了……下次再來！`);
+    else if (e.k === 'arrive') sys(K(snap).name === '貪吃浣熊' ? '🦝 貪吃浣熊闖進廣場偷派！牠會到處亂跑，停下來挑釁時打中 ×3，小心牠丟派反擊。' : '🐸 大胃王蛙闖進廣場偷吃派！把派丟進牠嘴裡（空白鍵或點畫面）。');
+    else if (e.k === 'throw') audio.tool('throw');
+    else if (e.k === 'hitBack') { fx.push({ k: 'decal', x: e.x, y: e.y + 8, t0: now }); if ((e.ids || []).map(String).includes(id)) { audio.tool('splat'); shake = now + 300; hud.toast('被浣熊丟回來的派打中了！', 1200); } }
   }
 
   function apply(s, pushed) {
@@ -62,7 +68,8 @@ export function createBoss({ myId, audio, hud, sys, onCall, special }) {
     offset = !snap || Math.abs(o - offset) > 1500 ? o : offset + (o - offset) * 0.2;
     if (pushed && s.ev) for (const e of s.ev) onEvent(e);
     snap = s; recvAt = performance.now();
-    pies = (s.K || []).map((k) => ({ x: k[1], y: k[2], vx: k[3], vy: k[4], kind: k[5], at: recvAt }));
+    pies = (s.K || []).map((k) => ({ x: k[1], y: k[2], vx: k[3], vy: k[4], kind: k[5], at: recvAt }))
+      .concat((s.BK || []).map((k) => ({ x: k[1], y: k[2], vx: k[3], vy: k[4], kind: 'pie_beet', at: recvAt, back: true })));
     const seen = new Set();
     for (const [id, name, x, y, dir, sprite] of s.H || []) {
       seen.add(id);
@@ -83,21 +90,28 @@ export function createBoss({ myId, audio, hud, sys, onCall, special }) {
     barEl.hidden = !show;
     const call = !visible && callUntil > Date.now();
     callEl.hidden = !call;
-    if (call) callEl.textContent = '🐸 大胃王蛙在廣場偷吃派！點這裡過去幫忙餵牠';
+    if (call) callEl.textContent = `${K(snap).icon} ${K(snap).name}在廣場偷派！點這裡過去幫忙`;
     if (!show) return;
     const left = Math.max(0, Math.ceil((snap.until - serverNow()) / 1000));
     const mm = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
-    const ph = snap.ph === 'mouth' ? '　張嘴了！丟進去 ×3' : snap.ph === 'sleep' ? '　吃飽睡著了 💤' : snap.ph === 'leave' ? '　逃走了' : '';
+    const ph = snap.ph === 'mouth' ? (snap.kind === 'raccoon' ? '　停下來挑釁了！打中 ×3' : '　張嘴了！丟進去 ×3') : snap.ph === 'throwWarn' ? '　牠要丟派了，快閃！' : snap.ph === 'sleep' ? '　吃飽睡著了 💤' : snap.ph === 'leave' ? '　逃走了' : '';
     const sp = special ? special() : '';
-    bar.textContent = `🐸 大胃王蛙　肚子 ${Math.min(snap.fed, snap.need)}/${snap.need}　剩 ${mm}　🥧×${ammo}${sp ? `　${sp}` : ''}${ph}`;
+    bar.textContent = `${K(snap).icon} ${K(snap).name}　肚子 ${Math.min(snap.fed, snap.need)}/${snap.need}　剩 ${mm}　🥧×${ammo}${sp ? `　${sp}` : ''}${ph}`;
   }
 
   // ---------- 繪圖 ----------
+  let smooth = { x: 240, y: 104, at: 0 };
   function frogPos(now) {
     if (!snap) return { x: 0, y: 0, lift: 0 };
     if (snap.ph === 'jump' && from && snap.tx != null) {
       const t = Math.min(1, Math.max(0, 1 - (snap.end - serverNow()) / 500));
       return { x: from.x + (snap.tx - from.x) * t, y: from.y + (snap.ty - from.y) * t, lift: Math.sin(t * Math.PI) * 40 };
+    }
+    if (snap.kind === 'raccoon' && smooth) {
+      const k = Math.min(1, (now - smooth.at) / 100); smooth.at = now;
+      smooth.x += (snap.x - smooth.x) * k * 0.5; smooth.y += (snap.y - smooth.y) * k * 0.5;
+      if (Math.hypot(snap.x - smooth.x, snap.y - smooth.y) > 60) { smooth.x = snap.x; smooth.y = snap.y; }
+      return { x: smooth.x, y: smooth.y, lift: snap.ph === 'run' ? Math.abs(Math.sin(now / 90)) * 3 : 0 };
     }
     if (snap.ph === 'leave') { const t = Math.min(1, (now - recvAt) / 2500); return { x: snap.x, y: snap.y, lift: t * 80, fade: 1 - t }; }
     return { x: snap.x, y: snap.y, lift: 0 };
@@ -126,13 +140,16 @@ export function createBoss({ myId, audio, hud, sys, onCall, special }) {
   function drawOver(ctx, now, scene) {
     if (!on() && !(snap && snap.ph === 'leave')) return;
     const p = frogPos(now);
-    let sheet = 'idle', f = Math.floor(now / 160) % 5;
+    const kd = K(snap), FW = kd.fw, SCALE = kd.scale;
+    let sheet = 'idle';
+    let f = Math.floor(now / 160) % kd.sheets.idle[1];
     if (now < hitFlash) { sheet = 'hit'; f = 1; }
-    else if (snap.ph === 'mouth') { sheet = 'attack'; f = 1 + (Math.floor(now / 200) % 2); }
-    else if (snap.ph === 'jumpWarn' || snap.ph === 'croakWarn') { sheet = 'charge'; f = Math.min(6, Math.floor((now - recvAt) / 200) + 2); }
+    else if (snap.ph === 'mouth') { sheet = 'attack'; f = 1 + (Math.floor(now / 200) % (kd.sheets.attack[1] - 1)); }
+    else if (['jumpWarn', 'croakWarn', 'throwWarn'].includes(snap.ph)) { sheet = 'charge'; f = Math.min(kd.sheets.charge[1] - 1, Math.floor((now - recvAt) / 200) + 1); }
     else if (snap.ph === 'jump') { sheet = 'jump'; f = 2; }
+    else if (snap.ph === 'run') { sheet = 'jump'; f = Math.floor(now / 110) % kd.sheets.jump[1]; }
     else if (snap.ph === 'sleep') { sheet = 'idle'; f = 0; }
-    const [src] = SHEETS[sheet];
+    const [src] = kd.sheets[sheet];
     const img = scene.imgs[src];
     if (img) {
       ctx.globalAlpha = p.fade ?? 1;
@@ -183,9 +200,10 @@ export function createBoss({ myId, audio, hud, sys, onCall, special }) {
     get ammo() { return ammo; },
     canThrow() { return on() && !['sleep', 'leave'].includes(snap.ph) && !stunned(); },
     call(m) {
-      if (m.k === 'warn') { sys(`🐸 ${hhmmTaipei(m.at)} 大胃王蛙要來廣場偷吃派了！準備好派餅。`); hud.toast('🐸 五分鐘後大胃王蛙要來廣場！', 3000); return; }
+      const kd = KINDS[m.boss] || KINDS.frog;
+      if (m.k === 'warn') { sys(`${kd.icon} ${hhmmTaipei(m.at)} ${kd.name}要來廣場偷派了！準備好派餅。`); hud.toast(`${kd.icon} 五分鐘後${kd.name}要來廣場！`, 3000); return; }
       callUntil = m.until ? Date.now() + (m.until - m.now) : Date.now() + 60_000;
-      if (!visible) { hud.toast('🐸 大胃王蛙闖進廣場了！', 3000); sys('🐸 大胃王蛙闖進廣場偷吃派！快回廣場一起餵牠。'); }
+      if (!visible) { hud.toast(`${kd.icon} ${kd.name}闖進廣場了！`, 3000); sys(`${kd.icon} ${kd.name}闖進廣場偷派！快回廣場一起對付牠。`); }
       paint(true);
     },
     people(now, dt) {

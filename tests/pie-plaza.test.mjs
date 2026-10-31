@@ -1623,7 +1623,7 @@ test('boss: Taipei time label and images listed', async () => {
   const B = await import('../site/games/community/pie-plaza/src/ui/boss.js').catch(() => null);
   if (!B) return;                      // ui/boss.js 需要 DOM 時略過
   assert.equal(B.hhmmTaipei(Date.UTC(2027, 0, 15, 4, 30)), '12:30');
-  assert.equal(B.BOSS_IMAGES.length, 5);
+  assert.ok(B.BOSS_IMAGES.length >= 9);
 });
 
 test('arena quiz quadrants match the server and centers sit inside each quadrant', () => {

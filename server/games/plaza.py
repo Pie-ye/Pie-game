@@ -1488,12 +1488,12 @@ class PlazaService:
         if not bs.active and start <= now < until and self._boss_started != start:
             self._boss_started = start
             humans = len({str(c.user_id) for c in relay.connections if c.game_id == GAME_ID and c.area == "plaza"})
-            bs.start(now, until, humans)
-            await self._game_all(relay, {"type": "game", "op": "bossCall", "k": "arrive", "at": start, "until": until, "now": now})
+            bs.start(now, until, humans, BS.kind_at(start))
+            await self._game_all(relay, {"type": "game", "op": "bossCall", "k": "arrive", "at": start, "until": until, "now": now, "boss": bs.kind})
         nxt = BS.next_start(now)
         if not bs.active and nxt - BS.WARN_MS <= now < nxt and self._boss_warned != nxt:
             self._boss_warned = nxt
-            await self._game_all(relay, {"type": "game", "op": "bossCall", "k": "warn", "at": nxt, "now": now})
+            await self._game_all(relay, {"type": "game", "op": "bossCall", "k": "warn", "at": nxt, "now": now, "boss": BS.kind_at(nxt)})
         if not bs.active and not bs.events:
             return
         if bs.active:

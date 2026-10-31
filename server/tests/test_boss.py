@@ -97,3 +97,23 @@ def test_special_pies_strawberry_double_tomato_triple_beet_opens_mouth():
     for i in range(10):
         b.tick(now + 2000 + (i + 1) * 100, 0.1)
     assert b.phase == "mouth"
+
+
+def test_raccoon_runs_taunts_and_throws_back():
+    assert {B.kind_at(taipei_ms(12, B.MINUTE)), B.kind_at(taipei_ms(13, B.MINUTE))} == {"frog", "raccoon"}
+    b = B.Boss(random.Random(4))
+    now = 7_000_000
+    b.start(now, now + B.STAY_MS, 1, "raccoon")
+    b.pose("u1", "a", 240, 250, now)
+    seen, pos, hits = set(), set(), 0
+    for i in range(900):
+        now += 100
+        b.pose("u1", "a", 240, 250, now)
+        b.tick(now, 0.1)
+        seen.add(b.phase)
+        pos.add((round(b.x), round(b.y)))
+        hits += sum(1 for e in b.events if e["k"] == "hitBack")
+        b.take_events()
+    assert {"run", "mouth", "throwWarn"} <= seen and len(pos) > 20
+    assert hits >= 1, "浣熊會丟派打中站著不動的人"
+    assert b.fed > 0, "鎮民會幫忙丟中跑來跑去的浣熊"

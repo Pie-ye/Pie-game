@@ -33,6 +33,9 @@ CROAK_R = 72
 PHASES = {"idle": 2200, "mouth": 3000, "jumpWarn": 1400, "jump": 500, "croakWarn": 1600, "croak": 400, "sleep": 7000, "leave": 2500}
 HELPERS = [("npc:sam", "山姆", "villager3"), ("npc:mary", "瑪莉", "woman"), ("npc:kid", "小傑", "child")]
 HELPER_SPOTS = [(150, 200), (330, 200), (240, 250)]
+RUN_SPEED = 46            # 浣熊跑步速度（px/s）
+THROW_STUN_MS = 1200
+NAMES = {"frog": "大胃王蛙", "raccoon": "貪吃浣熊"}
 GOLD_BASE = 20
 GOLD_PER_HIT = 1
 GOLD_MAX_HITS = 40
@@ -50,6 +53,11 @@ def window(now_ms: int) -> tuple[int, int]:
     hour0 = t - t % 3_600_000
     start = hour0 + MINUTE * 60_000 - TZ
     return start, start + STAY_MS
+
+
+def kind_at(start_ms: int) -> str:
+    """偶數小時是大胃王蛙，奇數小時是貪吃浣熊（台北時間）。"""
+    return "frog" if ((start_ms + TZ) // 3_600_000) % 2 == 0 else "raccoon"
 
 
 def next_start(now_ms: int) -> int:
@@ -79,6 +87,8 @@ class Boss:
         self.seq = 0
         self.result: str | None = None
         self.start_at = 0
+        self.kind = "frog"
+        self.bpies: list[dict[str, Any]] = []      # 浣熊丟回來的派
 
     def _ev(self, **e: Any) -> None:
         self.events.append(e)
@@ -87,8 +97,9 @@ class Boss:
         self.events = []
 
     # ---------- 生命週期 ----------
-    def start(self, now: int, until: int, humans: int) -> None:
+    def start(self, now: int, until: int, humans: int, kind: str = "frog") -> None:
         self.reset()
+        self.kind = kind if kind in NAMES else "frog"
         self.active = True
         self.start_at = now
         self.until = until
@@ -183,6 +194,9 @@ class Boss:
                 pl["ammo"] += 1
                 pl["regen"] = now + PIE["regen"]
         self._pies(now, dt)
+        if self.kind == "raccoon":
+            self._raccoon_move(now, dt)
+            self._bpies(now, dt)
         if self.phase not in ("sleep", "leave"):
             self._helpers(now, dt)
             if self.fed >= self.need:
@@ -202,6 +216,9 @@ class Boss:
         if now < self.phase_end:
             return
         ph = self.phase
+        if self.kind == "raccoon" and ph not in ("sleep", "leave"):
+            self._raccoon_next(now, ph)
+            return
         if ph == "idle":
             r = self.rng.random()
             if r < 0.45:
@@ -232,6 +249,65 @@ class Boss:
             self.active = False
             self.phase = "gone"
             self._ev(k="gone")
+
+    # ---------- 貪吃浣熊：邊跑邊偷、停下挑釁（×3）、丟派反擊 ----------
+    def _raccoon_next(self, now: int, ph: str) -> None:
+        if ph in ("idle", "run"):
+            if ph == "run" and self.target and math.hypot(self.target[0] - self.x, self.target[1] - self.y) > 3:
+                self.phase_end = now + 300                 # 還沒跑到
+                return
+            r = self.rng.random()
+            if ph == "run" and r < 0.55:
+                self._phase("mouth", now)                  # 停下來挑釁：這時打中 ×3
+                self._ev(k="mouth")
+            elif ph == "run" and r < 0.85:
+                self._phase("throwWarn", now)
+                self._ev(k="throwWarn")
+            else:
+                self.target = self.rng.choice([s for s in SPOTS if math.hypot(s[0] - self.x, s[1] - self.y) > 40])
+                self._phase("run", now)
+                self.phase_end = now + 300
+        elif ph == "mouth":
+            self.target = self.rng.choice([s for s in SPOTS if math.hypot(s[0] - self.x, s[1] - self.y) > 40])
+            self._phase("run", now)
+            self.phase_end = now + 300
+        elif ph == "throwWarn":
+            humans = [(u, pl) for u, pl in self.p.items() if not pl["bot"]] or list(self.p.items())
+            humans.sort(key=lambda up: math.hypot(up[1]["x"] - self.x, up[1]["y"] - self.y))
+            for _u, pl in humans[:3]:
+                dx, dy = pl["x"] - self.x, pl["y"] - 6 - (self.y - 20)
+                n = math.hypot(dx, dy) or 1
+                self.seq += 1
+                self.bpies.append({"id": self.seq, "x": self.x, "y": self.y - 20, "vx": dx / n * 120, "vy": dy / n * 120, "until": now + 1600})
+            self._phase("idle", now)
+            self.phase_end = now + 900
+            self._ev(k="throw")
+        else:
+            self._phase("run", now)
+
+    def _raccoon_move(self, now: int, dt: float) -> None:
+        if self.phase != "run" or not self.target:
+            return
+        dx, dy = self.target[0] - self.x, self.target[1] - self.y
+        d = math.hypot(dx, dy)
+        if d > 1:
+            step = min(d, RUN_SPEED * dt)
+            self.x += dx / d * step
+            self.y += dy / d * step
+
+    def _bpies(self, now: int, dt: float) -> None:
+        keep = []
+        for pie in self.bpies:
+            pie["x"] += pie["vx"] * dt
+            pie["y"] += pie["vy"] * dt
+            hit = next((u for u, pl in self.p.items() if now >= pl["stun"] and math.hypot(pl["x"] - pie["x"], pl["y"] - 6 - pie["y"]) <= 10), None)
+            if hit:
+                self.p[hit]["stun"] = now + THROW_STUN_MS
+                self._ev(k="hitBack", ids=[hit], x=round(pie["x"]), y=round(pie["y"]))
+                continue
+            if now < pie["until"]:
+                keep.append(pie)
+        self.bpies = keep
 
     def _stun_near(self, x: float, y: float, r: float, now: int, kind: str) -> None:
         hit = []
@@ -321,7 +397,7 @@ class Boss:
 
     # ---------- 給前端 ----------
     def snapshot(self, now: int) -> dict[str, Any]:
-        out: dict[str, Any] = {"on": self.active, "ph": self.phase, "end": self.phase_end, "until": self.until, "now": now,
+        out: dict[str, Any] = {"kind": self.kind, "on": self.active, "ph": self.phase, "end": self.phase_end, "until": self.until, "now": now,
                                "x": round(self.x), "y": round(self.y), "need": self.need, "fed": self.fed, "result": self.result}
         if self.active:
             if self.target and self.phase in ("jumpWarn", "jump"):
@@ -330,6 +406,8 @@ class Boss:
                         for uid, pl in self.p.items() if pl["bot"]]
             out["S"] = [uid for uid, pl in self.p.items() if now < pl["stun"]]
             out["K"] = [[p["id"], round(p["x"], 1), round(p["y"], 1), round(p["vx"]), round(p["vy"]), p.get("kind")] for p in self.pies]
+            if self.bpies:
+                out["BK"] = [[p["id"], round(p["x"], 1), round(p["y"], 1), round(p["vx"]), round(p["vy"])] for p in self.bpies]
             out["top"] = sorted(([f["name"], f["fed"]] for f in self.fans.values()), key=lambda r: -r[1])[:5]
         if self.events:
             out["ev"] = self.events

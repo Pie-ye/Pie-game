@@ -20,6 +20,7 @@ export const npcFace = (n) => `${NPC_DIR[n] || 'ninja/npc'}/${n}_face.png`;
 const EXTRA = ['sprout/grass.png', 'sprout/water.png', 'sprout/dirt.png', 'sprout/tilled.png', 'ninja/dialog.png', 'ninja/interior_floor.png',
   'ninja/fx/coin.png', 'ninja/fx/goldcup.png', 'ninja/fx/smoke.png', 'ninja/fx/spark.png', 'ninja/fx/stamp.png',
   'ninja/boss/frog_idle.png', 'ninja/boss/frog_jump.png', 'ninja/boss/frog_charge.png', 'ninja/boss/frog_attack.png', 'ninja/boss/frog_hit.png',
+  'ninja/boss/raccoon_idle.png', 'ninja/boss/raccoon_jump.png', 'ninja/boss/raccoon_charge.png', 'ninja/boss/raccoon_attack.png',
   ...NPC_SPRITES.map(npcSheet), ...PET_IMAGES];
 
 export async function loadImages() {
