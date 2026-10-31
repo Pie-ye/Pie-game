@@ -19,6 +19,8 @@ from typing import Any, Callable
 from ..saves import SaveStore
 from . import plaza_logic as L
 from . import arena as AR
+from . import quests as Q
+from . import party_bots as PB
 
 GAME_ID = "pie-plaza"
 USER_RE = re.compile(r"^[A-Za-z0-9_.@:-]{1,64}$")
@@ -97,6 +99,10 @@ class PlazaService:
         self._arena_seen = 0
         self._arena_last = 0
         self._arena_called = False
+        self._bot_wait: dict[str, int] = {}
+        self._bot_next: dict[tuple[str, str], int] = {}
+        self._bot_memo: dict[tuple[str, str], dict[str, Any]] = {}
+        self._bots_at = 0
         with store._lock:
             for statement in SCHEMA:
                 store._db.execute(statement)
@@ -271,7 +277,8 @@ class PlazaService:
     def _card(self, rec: dict[str, Any]) -> dict[str, Any]:
         d = rec["decor"]
         return {"name": rec["name"], "look": rec["look"], "style": d["style"], "roof": d["ext"]["roof"], "wall": d["ext"]["wall"],
-                "likes": rec["social"]["likes"], "crops": len(rec["farm"]["crops"]), "debris": len(rec["farm"]["debris"])}
+                "likes": rec["social"]["likes"], "crops": len(rec["farm"]["crops"]), "debris": len(rec["farm"]["debris"]),
+                "title": (rec.get("titles") or [""])[-1], "crowns": int((rec.get("arena") or {}).get("wins", 0)), "stamps": len(rec.get("stamps") or {})}
 
     def private_view(self, rec: dict[str, Any]) -> dict[str, Any]:
         s = rec["social"]
@@ -315,6 +322,17 @@ class PlazaService:
         await asyncio.to_thread(self.store.mail_send_sync, GAME_ID, frm, frm_name, to, kind, data)
         for c in self._conns_of(relay, to):
             await self._send(c, {"type": "mail", "from": frm, "kind": kind})
+
+    async def _progress(self, relay, uid: str, rec: dict[str, Any] | None, events: list[tuple[str, Any]]) -> list[dict[str, Any]]:
+        """集章與每日委託的進度；新完成的項目推給本人（獎金已入帳）。"""
+        if rec is None or not events:
+            return []
+        now = self.now_ms()
+        done = Q.note(rec, uid, events, L.taipei_day(now), now)
+        self.dirty.add(uid)
+        if done:
+            await self._push_me(relay, uid, quest=done)
+        return done
 
     # ---------- 入口 ----------
     async def handle(self, relay, conn, payload: dict[str, Any]) -> None:
@@ -386,6 +404,7 @@ class PlazaService:
             s["friends"] = [f for f in s["friends"] if f["id"] != fid]
             if on and len(s["friends"]) < 100:
                 s["friends"].append({"id": fid, "name": str(p.get("name") or "鎮民")[:20]})
+                await self._progress(relay, me, rec, [("friends_best", len(s["friends"]))])
         if "coop" in p:
             cid = self._user(p["coop"])
             if cid == me:
@@ -429,6 +448,8 @@ class PlazaService:
         if r["sold"]:
             self.ex_dirty = True
         self.dirty.add(me)
+        if r["total"]:
+            await self._progress(relay, me, rec, [("ship_gold", r["total"])])
         return {"total": r["total"], "sold": r["sold"], **self._mine(rec)}
 
     # ---------- 農場與拜訪 ----------
@@ -458,6 +479,8 @@ class PlazaService:
         conn.viewing = owner
         if L.grow(orec["farm"], self.now_ms()):
             self.dirty.add(owner)
+        if owner != me:
+            await self._progress(relay, me, rec, [(f"uniq:visit={owner}", 0)])
         online = bool(self._conns_of(relay, owner))
         return {"home": self.public_view(owner, orec, me, online), "role": role}
 
@@ -484,6 +507,17 @@ class PlazaService:
             await self._broadcast_patch(relay, owner, [k], by=None if owner == me else rec["name"], kind=tool)
             if owner != me and (r.get("cleared") or r.get("harvest")):
                 await self._push_me(relay, owner)             # 掉落物進了主人的背包
+            ev: list[tuple[str, Any]] = []
+            if owner == me:
+                if r.get("harvest"):
+                    ev += [("harvest", 1), (f"uniq:crop={r['harvest']}", 0)]
+                if r.get("cleared"):
+                    ev.append(("clear", 1))
+            else:
+                ev.append(("coop_help", 1))
+                if r.get("water"):
+                    ev.append(("water_other", 1))
+            await self._progress(relay, me, rec, ev)
         return out
 
     async def op_like(self, relay, conn, me, rec, p):
@@ -499,6 +533,8 @@ class PlazaService:
         self.dirty.update({owner, me})
         await self._notify(relay, owner, me, rec["name"], "syslike", {})
         await self._push_me(relay, owner)
+        await self._progress(relay, me, rec, [("like", 1)])
+        await self._progress(relay, owner, orec, [("liked_best", orec["social"]["likes"])])
         return {"likes": orec["social"]["likes"]}
 
     async def op_gift(self, relay, conn, me, rec, p):
@@ -513,6 +549,7 @@ class PlazaService:
             del rec["inv"][item]
         self.dirty.add(me)
         await self._notify(relay, to, me, rec["name"], "sysgift", {"item": item, "n": 1})
+        await self._progress(relay, me, rec, [("gift", 1)])
         return self._mine(rec)
 
     async def op_claim(self, relay, conn, me, rec, p):
@@ -598,6 +635,8 @@ class PlazaService:
         await self._notify(relay, listing["seller"], me, rec["name"], "syssold",
                            {"item": listing["item"], "n": listing["n"], "price": listing["price"]})
         await self._push_me(relay, listing["seller"])
+        await self._progress(relay, me, rec, [("buy", 1)])
+        await self._progress(relay, listing["seller"], seller, [("sell", 1)])
         return {"bought": listing, **self._mine(rec)}
 
     async def op_unlist(self, relay, conn, me, rec, p):
@@ -639,6 +678,7 @@ class PlazaService:
         if not fish.get("junk"):
             k = f"fish_{fish['id']}"
             rec["inv"][k] = rec["inv"].get(k, 0) + 1
+            await self._progress(relay, me, rec, [("fish", 1), (f"fish:{fish['id']}", 1), (f"uniq:fish={fish['id']}", 0)])
             L.note_act(self.ex, "FISH", 1)
             self.ex_dirty = True
             self.dirty.add(me)
@@ -677,6 +717,7 @@ class PlazaService:
         L.note_act(self.ex, "WISH", 1)
         self.ex_dirty = True
         self.dirty.add(me)
+        await self._progress(relay, me, rec, [("wish", 1)])
         return {"reward": reward, **self._mine(rec)}
 
     async def op_feed(self, relay, conn, me, rec, p):
@@ -693,6 +734,7 @@ class PlazaService:
         L.note_act(self.ex, "SHOW", 1)
         self.ex_dirty = True
         self.dirty.add(me)
+        await self._progress(relay, me, rec, [("feed", 1)])
         return {"reward": {"kind": "seed", "item": crop, "n": n}, **self._mine(rec)}
 
     # ---------- 派派鎮民交易所 ----------
@@ -741,8 +783,15 @@ class PlazaService:
             if n:
                 self.dirty.add(uid)
                 paid[uid] = n
+                await self._party_progress(relay, "party", uid, rec, n)
                 await self._push_me(relay, uid)
         return paid
+
+    async def _party_progress(self, relay, kind: str, uid: str, rec: dict[str, Any], n: int) -> None:
+        ev: list[tuple[str, Any]] = [("party_play", 1), (f"uniq:party={kind}", 0)]
+        if n >= 40:                                   # 第一名（或贏的隊伍）拿 40 G
+            ev.append(("party_win", 1))
+        await self._progress(relay, uid, rec, ev)
 
     async def _broadcast_party(self, relay) -> None:
         view = L.party_public(self.party, self.now_ms())
@@ -766,6 +815,8 @@ class PlazaService:
             if n:
                 self.dirty.add(uid)
                 paid[uid] = n
+                if n >= 10:
+                    await self._progress(relay, uid, rec, [("contest_top3", 1)])
                 await self._push_me(relay, uid)
         return paid
 
@@ -800,6 +851,7 @@ class PlazaService:
             if n:
                 self.dirty.add(uid)
                 paid[uid] = n
+                await self._party_progress(relay, "seek", uid, rec, n)
                 await self._push_me(relay, uid)
         return paid
 
@@ -853,6 +905,7 @@ class PlazaService:
             if n:
                 self.dirty.add(uid)
                 paid[uid] = n
+                await self._party_progress(relay, "hot", uid, rec, n)
                 await self._push_me(relay, uid)
         return paid
 
@@ -904,6 +957,7 @@ class PlazaService:
             if n:
                 self.dirty.add(uid)
                 paid[uid] = n
+                await self._party_progress(relay, "tug", uid, rec, n)
                 await self._push_me(relay, uid)
         return paid
 
@@ -955,6 +1009,7 @@ class PlazaService:
             if n:
                 self.dirty.add(uid)
                 paid[uid] = n
+                await self._party_progress(relay, "haul", uid, rec, n)
                 await self._push_me(relay, uid)
         return paid
 
@@ -1008,6 +1063,7 @@ class PlazaService:
             if n:
                 self.dirty.add(uid)
                 paid[uid] = n
+                await self._party_progress(relay, "light", uid, rec, n)
                 await self._push_me(relay, uid)
         return paid
 
@@ -1059,6 +1115,7 @@ class PlazaService:
             if n:
                 self.dirty.add(uid)
                 paid[uid] = n
+                await self._party_progress(relay, "hill", uid, rec, n)
                 await self._push_me(relay, uid)
         return paid
 
@@ -1110,6 +1167,7 @@ class PlazaService:
             if n:
                 self.dirty.add(uid)
                 paid[uid] = n
+                await self._party_progress(relay, "smash", uid, rec, n)
                 await self._push_me(relay, uid)
         return paid
 
@@ -1161,6 +1219,7 @@ class PlazaService:
             if n:
                 self.dirty.add(uid)
                 paid[uid] = n
+                await self._party_progress(relay, "vase", uid, rec, n)
                 await self._push_me(relay, uid)
         return paid
 
@@ -1241,8 +1300,43 @@ class PlazaService:
             with contextlib.suppress(Exception):
                 await self._arena_step(relay)
 
+    async def _party_bots(self, relay) -> None:
+        """九個廣場派對：等太久就讓鎮民來湊人數，開場後鎮民照規則行動。"""
+        now = self.now_ms()
+        for kind in PB.KINDS:
+            rnd = getattr(self, kind)
+            if not rnd:
+                continue
+            changed = False
+            if rnd.get("status") == "open" and PB.humans(rnd):
+                since = self._bot_wait.setdefault(kind, now)
+                if now - since >= PB.FILL_MS:
+                    rnd = PB.fill(kind, rnd, now)
+                    setattr(self, kind, rnd)
+                    self._bot_wait.pop(kind, None)
+                    changed = True
+            else:
+                self._bot_wait.pop(kind, None)
+            if rnd.get("status") == "live" and PB.humans(rnd):
+                for b in [u for u in rnd.get("order") or [] if PB.is_bot(u)]:
+                    key = (kind, b)
+                    if now < self._bot_next.get(key, 0):
+                        continue
+                    self._bot_next[key] = now + self.rng.randint(*PB.STEP_MS)
+                    if PB.act(kind, rnd, b, now, self.rng, self._bot_memo.setdefault(key, {})):
+                        changed = True
+            elif rnd.get("status") != "live":
+                for key in [k for k in self._bot_next if k[0] == kind]:
+                    self._bot_next.pop(key, None)
+                    self._bot_memo.pop(key, None)
+            if changed:
+                await getattr(self, f"_broadcast_{kind}")(relay)
+
     async def _arena_step(self, relay) -> None:
         ar, now = self.arena, self.now_ms()
+        if now - self._bots_at >= 400:
+            self._bots_at = now
+            await self._party_bots(relay)
         dt = min(0.25, max(0.0, (now - self._arena_last) / 1000)) if self._arena_last else ARENA_SECONDS
         self._arena_last = now
         if ar.phase != "idle":
@@ -1295,6 +1389,15 @@ class PlazaService:
             r["gold"] = gold
             self.dirty.add(r["id"])
             await self._push_me(relay, r["id"], arenaGold=gold, arenaRank=r["rank"])
+            stats = r.get("stats") or {}
+            ev: list[tuple[str, Any]] = [("arena_play", 1), ("arena_coin_best", stats.get("coin", 0)), ("arena_hit_best", stats.get("hit", 0))]
+            if r["rank"] == 1:
+                ev.append(("arena_win", 1))
+            if stats.get("survive"):
+                ev.append(("arena_floor_survive", 1))
+            if r.get("humans", 0) >= 3:
+                ev.append(("arena_humans3", 1))
+            await self._progress(relay, r["id"], rec, ev)
 
     async def op_arena(self, relay, conn, me, rec, p):
         act = p.get("act")
@@ -1323,6 +1426,9 @@ class PlazaService:
         return {"arena": ar.snapshot(now), "stats": {"shows": st.get("shows", 0), "wins": st.get("wins", 0),
                 "paidLeft": AR.DAILY_PAID - (st.get("paid", 0) if st.get("day") == day else 0)}}
 
+    async def op_quests(self, relay, conn, me, rec, p):
+        return {"quests": Q.view(rec, me, L.taipei_day(self.now_ms()))}
+
     async def op_quote(self, relay, conn, me, rec, p):
         await self._run_exchange(relay)
         div = self._pay_div_for(me, rec)
@@ -1339,4 +1445,5 @@ class PlazaService:
         if not r["ok"]:
             raise GameError(r["code"], r["msg"])
         self.dirty.add(me)
+        await self._progress(relay, me, rec, [("trade", 1)])
         return {**r, **L.quote_view(self.ex, rec, self.now_ms()), **self._mine(rec)}

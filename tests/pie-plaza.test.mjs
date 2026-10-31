@@ -743,34 +743,34 @@ test('timeout end pays remaining hiders first, even if next op is join', () => {
 });
 
 // ---------- 傳南瓜 ----------
-test('plaza hot potato: three join, first holds, take, holder ranks last', () => {
+test('plaza hot potato: holder passes to the next, short holders rank first, holder ranks last', () => {
   let rnd = HOT.newHot();
   rnd = HOT.hotJoin(rnd, 'a', '阿派', 0).round;
   rnd = HOT.hotJoin(rnd, 'b', '小菲', 1).round;
   const third = HOT.hotJoin(rnd, 'c', '皮皮', 2);
   assert.equal(third.ok, true); rnd = third.round;
   assert.equal(rnd.status, 'countdown');
-  const early = HOT.hotTake(rnd, 'b', HOT.HOT_JOIN.x, HOT.HOT_JOIN.y, 3);
-  assert.equal(early.code, 'not_live');
-  const boarded = HOT.hotJoin(rnd, 'd', '路人', 4);
-  assert.equal(boarded.ok, true); rnd = boarded.round;
-  HOT.maybeExpireHot(rnd, rnd.startedAt + HOT.HOT.countdownMs);
+  assert.equal(HOT.hotTake(rnd, 'a', HOT.HOT_JOIN.x, HOT.HOT_JOIN.y, 3).code, 'not_live');
+  rnd = HOT.hotJoin(rnd, 'd', '路人', 4).round;
+  const live = rnd.startedAt + HOT.HOT.countdownMs;
+  HOT.maybeExpireHot(rnd, live);
   assert.equal(rnd.status, 'live');
   assert.equal(rnd.holder, 'a');
-  assert.equal(HOT.hotJoin(rnd, 'e', '晚到', HOT.HOT.countdownMs + 1).code, 'hot_live');
-  assert.equal(HOT.hotJoin(rnd, 'a', '阿派', HOT.HOT.countdownMs + 2).code, 'already_in');
-  assert.equal(HOT.hotTake(rnd, 'a', HOT.HOT_JOIN.x, HOT.HOT_JOIN.y, HOT.HOT.countdownMs + 10).code, 'already_holding');
-  assert.equal(HOT.hotTake(rnd, 'b', 0, 0, HOT.HOT.countdownMs + 11).code, 'too_far');
-  const took = HOT.hotTake(rnd, 'b', HOT.HOT_JOIN.x, HOT.HOT_JOIN.y, HOT.HOT.countdownMs + 12);
-  assert.equal(took.ok, true);
-  assert.equal(rnd.holder, 'b');
+  assert.equal(HOT.hotJoin(rnd, 'e', '晚到', live + 1).code, 'hot_live');
+  assert.equal(HOT.hotTake(rnd, 'b', HOT.HOT_JOIN.x, HOT.HOT_JOIN.y, live + 10).code, 'not_holder');
+  assert.equal(HOT.hotTake(rnd, 'a', HOT.HOT_JOIN.x, HOT.HOT_JOIN.y, live + 500).code, 'too_soon');
+  assert.equal(HOT.hotTake(rnd, 'a', 0, 0, live + 1300).code, 'too_far');
+  const p1 = HOT.hotTake(rnd, 'a', HOT.HOT_JOIN.x, HOT.HOT_JOIN.y, live + 1300);
+  assert.equal(p1.ok, true); assert.equal(p1.holder, 'b');
+  const p2 = HOT.hotTake(rnd, 'b', HOT.HOT_JOIN.x, HOT.HOT_JOIN.y, live + 2500);
+  assert.equal(p2.ok, true); assert.equal(rnd.holder, 'c');
   HOT.maybeExpireHot(rnd, rnd.startedAt + HOT.HOT.roundMs);
   assert.equal(rnd.status, 'over');
-  assert.deepEqual(rnd.payouts, { a: 40, c: 20, d: 10, b: 5 });
+  assert.deepEqual(rnd.payouts, { d: 40, b: 20, a: 10, c: 5 });
   const rec = { gold: 100 };
-  assert.equal(HOT.applyHotGold(rec, 'a', rnd), 40);
+  assert.equal(HOT.applyHotGold(rec, 'd', rnd), 40);
   assert.equal(rec.gold, 140);
-  assert.equal(HOT.applyHotGold(rec, 'a', rnd), 0);
+  assert.equal(HOT.applyHotGold(rec, 'd', rnd), 0);
   assert.equal(HOT.hotTake(rnd, 'c', HOT.HOT_JOIN.x, HOT.HOT_JOIN.y, 99).code, 'hot_over');
 });
 test('plaza hot potato countdown: leave below min reopens, full board goes live', () => {
@@ -794,15 +794,18 @@ test('plaza map exposes the hot-potato pumpkin and sprite is in ATLAS', () => {
   const pumpkin = maps.plaza.objects.find((o) => o.k === HOT.HOT_JOIN.k && o.x === sign.x && o.y === sign.y);
   assert.ok(pumpkin && ATLAS[pumpkin.k], 'pumpkin sprite missing from ATLAS');
 });
-test('guest sandbox hot potato fills bots, a bot holds, timeout pays guest first', async () => {
+test('guest sandbox hot potato fills bots, guest passes, bots pass back, timeout pays', async () => {
   const t0 = 1000, later = t0 + HOT.HOT.roundMs;
   const api = createLocalApi();
   const joined = await api.call('hot', { act: 'join', now: t0 });
   assert.equal(joined.hot.status, 'live');
   assert.ok(joined.hot.players.length >= 3);
-  assert.equal(joined.hot.holder !== 'guest', true);
-  const took = await api.call('hot', { act: 'take', x: HOT.HOT_JOIN.x, y: HOT.HOT_JOIN.y, now: t0 + 10 });
-  assert.equal(took.hot.holder, 'guest');
+  assert.equal(joined.hot.holder, 'guest');
+  await assert.rejects(() => api.call('hot', { act: 'take', x: HOT.HOT_JOIN.x, y: HOT.HOT_JOIN.y, now: t0 + 10 }), /等一下|too_soon/);
+  const took = await api.call('hot', { act: 'take', x: HOT.HOT_JOIN.x, y: HOT.HOT_JOIN.y, now: t0 + 1300 });
+  assert.notEqual(took.hot.holder, 'guest');
+  const back = await api.call('hot', { act: 'view', now: t0 + 1300 + HOT.HOT.passMs + 900 });
+  assert.notEqual(back.hot.holder, took.hot.holder, 'bot passed it on');
   const done = await api.call('hot', { act: 'view', now: later });
   assert.equal(done.hot.status, 'over');
   assert.ok(done.gold > 100);
@@ -819,20 +822,20 @@ test('hot potato timeout pays holder last, even if next op is join', () => {
   rnd = HOT.hotJoin(rnd, 'b', 'B', t0).round;
   rnd = HOT.hotJoin(rnd, 'c', 'C', t0).round;
   HOT.maybeExpireHot(rnd, t0 + HOT.HOT.countdownMs);
-  assert.equal(HOT.hotTake(rnd, 'b', HOT.HOT_JOIN.x, HOT.HOT_JOIN.y, t0 + HOT.HOT.countdownMs + 1).ok, true);
+  assert.equal(HOT.hotTake(rnd, 'a', HOT.HOT_JOIN.x, HOT.HOT_JOIN.y, t0 + HOT.HOT.countdownMs + 1300).ok, true);
   const recs = { a: { gold: 100 }, b: { gold: 100 }, c: { gold: 100 } };
   const end = t0 + HOT.HOT.countdownMs + HOT.HOT.roundMs;
   HOT.maybeExpireHot(rnd, end);
   assert.equal(rnd.status, 'over');
-  assert.deepEqual(rnd.payouts, { a: 40, c: 20, b: 10 });
-  assert.equal(HOT.applyHotGold(recs.a, 'a', rnd), 40);
-  assert.equal(HOT.applyHotGold(recs.c, 'c', rnd), 20);
+  assert.deepEqual(rnd.payouts, { c: 40, a: 20, b: 10 });
+  assert.equal(HOT.applyHotGold(recs.c, 'c', rnd), 40);
+  assert.equal(HOT.applyHotGold(recs.a, 'a', rnd), 20);
   assert.equal(HOT.applyHotGold(recs.b, 'b', rnd), 10);
   const nxt = HOT.hotJoin(rnd, 'd', 'D', end);
   assert.equal(nxt.ok, true);
   assert.equal(nxt.round.status, 'open');
-  assert.equal(HOT.applyHotGold(recs.a, 'a', nxt.round), 0);
-  assert.equal(recs.a.gold, 140);
+  assert.equal(HOT.applyHotGold(recs.c, 'c', nxt.round), 0);
+  assert.equal(recs.c.gold, 140);
 });
 
 // ---------- 廣場拔河 ----------
@@ -1589,8 +1592,8 @@ test('hill hot vase public expose heldAt while live', () => {
   for (const [id, name] of [['a', 'A'], ['b', 'B'], ['c', 'C']]) hot = HOT.hotJoin(hot, id, name, 0).round;
   HOT.maybeExpireHot(hot, HOT.HOT.countdownMs);
   assert.equal(HOT.hotPublic(hot, HOT.HOT.countdownMs).heldAt, HOT.HOT.countdownMs);
-  HOT.hotTake(hot, 'b', HOT.HOT_JOIN.x, HOT.HOT_JOIN.y, HOT.HOT.countdownMs + 20);
-  assert.equal(HOT.hotPublic(hot, HOT.HOT.countdownMs + 20).heldAt, HOT.HOT.countdownMs + 20);
+  HOT.hotTake(hot, 'a', HOT.HOT_JOIN.x, HOT.HOT_JOIN.y, HOT.HOT.countdownMs + 1300);
+  assert.equal(HOT.hotPublic(hot, HOT.HOT.countdownMs + 1300).heldAt, HOT.HOT.countdownMs + 1300);
   let vase = VA.newVase();
   for (const [id, name] of [['a', 'A'], ['b', 'B'], ['c', 'C']]) vase = VA.vaseJoin(vase, id, name, 0).round;
   VA.maybeExpireVase(vase, VA.VASE.countdownMs);

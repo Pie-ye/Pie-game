@@ -1,4 +1,5 @@
-// 傳南瓜：純函式。第三人倒數、最多八人；開場第一人拿著，走近南瓜按 E 搶過來。時間到手上有南瓜的人最後一名。
+// 傳南瓜：純函式。第三人倒數、最多八人；開場第一人拿著。拿著的人在雞舍旁按 E 傳給下一位（剛接到要等 passMs 才能再傳）。
+// 時間到手上有南瓜的人最後一名，其他人依拿在手上的總時間越短越前面。
 import { BOTS } from './party.js';
 
 export const HOT_JOIN = { x: 128, y: 100, k: 'pumpkinItem' };
@@ -9,6 +10,7 @@ export const HOT = {
   reach: 20,
   countdownMs: 9000,
   roundMs: 45000,
+  passMs: 1200,
   payout: [40, 20, 10],
   restPay: 5,
 };
@@ -16,12 +18,14 @@ export const HOT = {
 const fail = (code, msg) => ({ ok: false, code, msg });
 
 export function newHot() {
-  return { status: 'open', players: {}, order: [], holder: null, heldAt: null, startedAt: null, endedAt: null, payouts: null, paid: {}, rank: [] };
+  return { status: 'open', players: {}, order: [], holder: null, heldAt: null, hold: {}, startedAt: null, endedAt: null, payouts: null, paid: {}, rank: [] };
 }
 
 function settle(round, now) {
   const holder = round.holder;
-  const rest = round.order.filter((id) => id !== holder);
+  const hold = round.hold || (round.hold = {});
+  if (holder && round.heldAt != null) hold[holder] = (hold[holder] | 0) + Math.max(0, now - round.heldAt);
+  const rest = round.order.filter((id) => id !== holder).sort((a, b) => (hold[a] | 0) - (hold[b] | 0) || round.order.indexOf(a) - round.order.indexOf(b));
   const ranking = holder && round.order.includes(holder) ? [...rest, holder] : [...round.order];
   const payouts = {};
   ranking.forEach((uid, i) => { payouts[uid] = i < HOT.payout.length ? HOT.payout[i] : HOT.restPay; });
@@ -36,6 +40,7 @@ function goLive(rnd, now) {
   rnd.startedAt = now;
   rnd.holder = rnd.order[0] || null;
   rnd.heldAt = rnd.holder ? now : null;
+  rnd.hold = {};
 }
 
 export function maybeExpireHot(round, now) {
@@ -101,12 +106,16 @@ export function hotTake(round, uid, x, y, now) {
   if (round.status === 'over') return { ...fail('hot_over', '這一輪已經結束'), round };
   if (round.status !== 'live') return { ...fail('not_live', '還沒開始，先去雞舍旁邊報名'), round };
   if (!round.players[uid]) return { ...fail('not_in_hot', '你不在這一輪'), round };
-  if (round.holder === uid) return { ...fail('already_holding', '南瓜已經在你手上'), round };
+  if (round.holder !== uid) return { ...fail('not_holder', '南瓜不在你手上，看好下一個是誰'), round };
+  if (now - (round.heldAt || 0) < HOT.passMs) return { ...fail('too_soon', '剛接到，等一下再傳'), round };
   const bad = nearJoin(x, y);
   if (bad) return { ...bad, round };
-  round.holder = uid;
+  const hold = round.hold || (round.hold = {});
+  hold[uid] = (hold[uid] | 0) + Math.max(0, now - round.heldAt);
+  const next = round.order[(round.order.indexOf(uid) + 1) % round.order.length];
+  round.holder = next;
   round.heldAt = now;
-  return { ok: true, round, holder: uid };
+  return { ok: true, round, holder: next, passed: uid };
 }
 
 export function hotLeave(round, uid, now) {
@@ -141,12 +150,14 @@ export function fillHotBots(round, now) {
     if (r.ok) rnd = r.round;
   }
   if (rnd && rnd.status === 'countdown') goLive(rnd, now);
-  if (rnd && rnd.status === 'live') {
-    const bot = BOTS.find((b) => rnd.players[b.id] && rnd.holder !== b.id);
-    if (bot) {
-      const r = hotTake(rnd, bot.id, HOT_JOIN.x, HOT_JOIN.y, now);
-      if (r.ok) rnd = r.round;
-    }
-  }
   return rnd;
+}
+
+/** 訪客沙盒：南瓜在機器人手上超過一下子就傳出去（每次呼叫最多傳一次）。 */
+export function botsPassHot(round, now) {
+  if (!round || round.status !== 'live' || !round.holder) return round;
+  if (!BOTS.some((b) => b.id === round.holder)) return round;
+  if (now - (round.heldAt || 0) < HOT.passMs + 800) return round;
+  const r = hotTake(round, round.holder, HOT_JOIN.x, HOT_JOIN.y, now);
+  return r.round || round;
 }

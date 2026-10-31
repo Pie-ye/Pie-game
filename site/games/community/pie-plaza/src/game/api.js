@@ -8,7 +8,7 @@ import { guestQuotes } from './exchange.js';
 import { newParty, partyJoin, partyGrab, partyLeave, partyView, applyPartyGold, fillBots, botsGrabRest, maybeExpire } from './party.js';
 import { fishingSlot, contestCatch, contestView, applyContestGold, maybeExpireContest } from './contest.js';
 import { newSeek, seekJoin, seekHide, seekCheck, seekLeave, seekView, applySeekGold, fillSeekBots, maybeExpireSeek } from './seek.js';
-import { newHot, hotJoin, hotTake, hotLeave, hotView, applyHotGold, fillHotBots, maybeExpireHot } from './hot.js';
+import { newHot, hotJoin, hotTake, hotLeave, hotView, applyHotGold, fillHotBots, botsPassHot, maybeExpireHot } from './hot.js';
 import { newTug, tugJoin, tugPull, tugLeave, tugView, applyTugGold, fillTugBots, maybeExpireTug } from './tug.js';
 import { newHaul, haulJoin, haulTake, haulDrop, haulLeave, haulView, applyHaulGold, fillHaulBots, maybeExpireHaul } from './haul.js';
 import { newLight, lightJoin, lightDash, lightLeave, lightView, applyLightGold, fillLightBots, botsDashOnGreen, maybeExpireLight } from './light.js';
@@ -167,6 +167,7 @@ export function createLocalApi(name = '訪客') {
     hot: ({ act, x, y, now: at } = {}) => {
       const now = Number.isFinite(at) ? at : Date.now();
       maybeExpireHot(potato, now);
+      potato = botsPassHot(potato, now);
       let payout = applyHotGold(rec, uid, potato);
       let r;
       if (act === 'join') {

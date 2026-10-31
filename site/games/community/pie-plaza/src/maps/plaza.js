@@ -72,7 +72,7 @@ export function buildPlaza() {
       { x: 240, y: 182, title: '菲比女神噴水池', lines: ['菲比啾比女神守護著派派鎮。', '據說投一枚硬幣（10 G）許願，女神會回應虔誠的人。'], action: 'wish', reach: 36, hit: 30, hint: 'E 許願（10 G）', hintY: 60 },
       { x: BOARD.x, y: BOARD.y, title: '釣魚大賽', lines: ['每天 12–13、18–19（台北）在海邊釣魚，公分寫上這塊板。', '金色鯉魚分數加倍。時段結束第一名 40 G，第二 20 G，第三 10 G。'], action: 'contest', reach: 20, hint: 'E 看記分板' },
       { x: SEEK_JOIN.x, y: SEEK_JOIN.y, title: '營火捉迷藏', lines: ['三個人湊齊開始倒數，最多八人。', '第一個加入的人當尋人，其他人藏進圓木、樹和石頭。', '沒被抓到的人拿 40／20／10 G。'], action: 'seek', reach: SEEK.reach, hint: 'E 參加捉迷藏' },
-      { x: HOT_JOIN.x, y: HOT_JOIN.y, title: '傳南瓜', lines: ['三個人湊齊開始倒數，最多八人。', '開場有人拿著南瓜，走近按 E 搶過來。', '時間到手上還有南瓜的人最後一名，其他人 40／20／10 G。'], action: 'hot', reach: HOT.reach, hint: 'E 傳南瓜' },
+      { x: HOT_JOIN.x, y: HOT_JOIN.y, title: '傳南瓜', lines: ['三個人湊齊開始倒數，最多八人；只有你一個時，等一下鎮民會來湊。', '開場第一人拿著南瓜。拿著的人在雞舍旁按 E 傳給下一位，剛接到要等一下才能再傳。', '時間到手上有南瓜的人最後一名；其他人拿在手上越短越前面，40／20／10 G。'], action: 'hot', reach: HOT.reach, hint: 'E 傳南瓜' },
       { x: TUG_JOIN.x, y: TUG_JOIN.y, title: '廣場拔河', lines: ['三個人湊齊開始倒數，最多八人。', '單數左岸、雙數右岸，走到乾草樁按 E 拉。', '拉力高的岸 40／20／10 G，輸的岸 5 G。'], action: 'tug', reach: TUG.reach, hint: 'E 參加拔河' },
       ...TUG.spots.map((s) => ({ x: s.x, y: s.y, title: s.name, lines: ['拔河開始後，走近按 E 就能拉。'], action: 'tugPull', side: s.id, reach: TUG.reach, hint: 'E 拉' })),
       { x: LIGHT_JOIN.x, y: LIGHT_JOIN.y, title: '廣場紅綠燈', lines: ['三個人湊齊開始倒數，最多八人。', '綠燈時走到下一樁按 E，紅燈時不要按。', '先到終點的人 40／20／10 G，紅燈亂動會出局。'], action: 'light', reach: LIGHT.reach, hint: 'E 參加紅綠燈' },

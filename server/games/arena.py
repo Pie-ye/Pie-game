@@ -284,6 +284,14 @@ class Arena:
                 scores[u] = 10 ** 9 if out is None else out
         pts = rank_points(scores, active or self.order)
         mult = FINAL_MULT if self.rd == len(self.rounds) - 1 else 1
+        for u in self.order:                     # 集章用：各回合最好成績
+            st = self.p[u].setdefault("stats", {})
+            if self.kind == "coin":
+                st["coin"] = max(st.get("coin", 0), self.p[u]["score"])
+            elif self.kind == "pie":
+                st["hit"] = max(st.get("hit", 0), self.p[u]["score"])
+            elif self.p[u]["out"] is None and not self.p[u]["gone"]:
+                st["survive"] = True
         for u in self.order:
             gain = pts.get(u, 0) * mult if not self.p[u]["gone"] else 0
             self.p[u]["total"] += gain
@@ -298,12 +306,13 @@ class Arena:
         for i, u in enumerate(ranked):
             pl = self.p[u]
             self.results.append({"id": u, "name": pl["name"], "total": pl["total"], "rank": i + 1, "bot": pl["bot"]})
-        self.payable = [u for u in ranked if not self.p[u]["bot"] and not self.p[u]["gone"]]
         humans = len(self.humans())
+        self.payable = [u for u in ranked if not self.p[u]["bot"] and not self.p[u]["gone"]]
         self.mult = min(2.0, 1 + HUMAN_BONUS * max(0, humans - 1))
         for r in self.results:
             r["gold"] = 0 if r["bot"] else int(round(self.gold_for(r["rank"]) * self.mult))
-        self.payout_due = [r for r in self.results if r["id"] in self.payable]
+        self.payout_due = [{**r, "stats": dict(self.p[r["id"]].get("stats", {})), "humans": humans}
+                           for r in self.results if r["id"] in self.payable]
         self.phase, self.phase_end = "final", now + FINAL_MS
         for i, u in enumerate(ranked):           # 前三名站上頒獎台，其他人排在台前
             x, y = PODIUM[i] if i < len(PODIUM) else (304 + (i - 3) % 3 * 24, 196 + (i - 3) // 3 * 18)

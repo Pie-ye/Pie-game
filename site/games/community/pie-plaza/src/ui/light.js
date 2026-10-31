@@ -25,7 +25,7 @@ export function openLight(api) {
   function liveLine(p) {
     const n = (p.players || []).length;
     const me = (p.players || []).find((x) => x.id === p.you);
-    if (p.status === 'open') return `等人中（${n}/${p.min}）。第三人加入開始倒數，最多 ${p.max} 人。`;
+    if (p.status === 'open') return `等人中（${n}/${p.min}）。第三人加入開始倒數，最多 ${p.max} 人。只有你一個？等 12 秒，鎮民會來湊人數。`;
     if (p.status === 'countdown') {
       const left = Math.max(0, Math.ceil(((p.countdownMs || 9000) - (Date.now() - (p.startedAt || 0))) / 1000));
       return `倒數上車（${n}/${p.max}）。${left} 秒後綠燈，還可以加入。`;

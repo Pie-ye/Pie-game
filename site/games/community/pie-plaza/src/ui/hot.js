@@ -1,4 +1,4 @@
-// 傳南瓜面板：報名、搶南瓜。時間到手上有南瓜的人最後一名。
+// 傳南瓜面板：報名、把南瓜傳給下一位。時間到手上有南瓜的人最後一名。
 import { openPanel, attachCountdown, holdSeconds, liveLeftSeconds } from './panels.js';
 import { atlasIcon } from './icon.js';
 import { HOT_JOIN } from '../game/hot.js';
@@ -21,8 +21,8 @@ export function openHot(api) {
     const held = holdSeconds(p, now);
     const left = liveLeftSeconds(p, now);
     const holdBit = p.holder ? `已拿 ${held} 秒。` : '';
-    if (me && me.holder) return `南瓜在你手上！${holdBit}還有 ${left} 秒。讓別人搶走，時間到你就是最後一名。`;
-    return `南瓜在${holder ? holder.name : '別人'}手上。${holdBit}走到雞舍旁邊的南瓜按 E 搶過來。還有 ${left} 秒。`;
+    if (me && me.holder) return `南瓜在你手上！${holdBit}還有 ${left} 秒。快在雞舍旁按 E 傳給下一位！`;
+    return `南瓜在${holder ? holder.name : '別人'}手上。${holdBit}還有 ${left} 秒。拿在手上的時間越短，名次越前面。`;
   };
   const cd = attachCountdown(status, '開始傳南瓜。', hotLive);
   const body = openPanel('傳南瓜', () => cd.stop());
@@ -35,7 +35,7 @@ export function openHot(api) {
     gold.textContent = `你的金幣：${data.gold ?? 0} G`;
     const n = (p.players || []).length;
     const me = (p.players || []).find((x) => x.id === p.you);
-    if (p.status === 'open') status.textContent = `等人中（${n}/${p.min}）。第三人加入開始倒數，最多 ${p.max} 人。`;
+    if (p.status === 'open') status.textContent = `等人中（${n}/${p.min}）。第三人加入開始倒數，最多 ${p.max} 人。只有你一個？等 12 秒，鎮民會來湊人數。`;
     else if (p.status === 'countdown') {
       const left = Math.max(0, Math.ceil(((p.countdownMs || 9000) - (Date.now() - (p.startedAt || 0))) / 1000));
       status.textContent = `倒數上車（${n}/${p.max}）。${left} 秒後開始傳南瓜。`;
@@ -49,13 +49,13 @@ export function openHot(api) {
     const leave = btn('退出', async () => {
       try { paint(await api.leave()); say('你退出了'); } catch (e) { say(e.msg || '現在不能退出', true); }
     });
-    const take = btn('搶南瓜', async () => {
+    const take = btn('傳出去', async () => {
       take.disabled = true;
-      try { paint(await api.take()); say('你搶到南瓜了'); } catch (e) { say(e.msg || '搶不到', true); take.disabled = false; }
+      try { paint(await api.take()); say('傳出去了！'); } catch (e) { say(e.msg || '傳不出去', true); take.disabled = false; }
     });
     join.disabled = p.status === 'live' || !!(p.players || []).some((x) => x.id === p.you);
     leave.disabled = (p.status !== 'open' && p.status !== 'countdown') || !(p.players || []).some((x) => x.id === p.you);
-    take.disabled = p.status !== 'live' || !me || !!(me && me.holder);
+    take.disabled = p.status !== 'live' || !me || !me.holder;
     actions.append(join, leave, take);
     people.textContent = '';
     const h = el('h3', null, '這一輪');

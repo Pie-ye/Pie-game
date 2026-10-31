@@ -18,7 +18,7 @@ export function avatar(scene, look, id, size = 32) {
   return c;
 }
 
-function row(scene, { id, name, look, style, likes, crops, online, friend }, actions) {
+function row(scene, { id, name, look, style, likes, crops, online, friend, title, crowns, stamps }, actions) {
   const r = el('div', 'person-row');
   r.append(avatar(scene, look, id));
   const info = el('div', 'person-info');
@@ -29,6 +29,9 @@ function row(scene, { id, name, look, style, likes, crops, online, friend }, act
   if (style && HOUSE_STYLES[style]) bits.push(HOUSE_STYLES[style]);
   if (likes != null) bits.push(`👍 ${likes}`);
   if (crops != null) bits.push(`🌱 ${crops}`);
+  if (crowns > 0) bits.push(`👑 ${Math.min(9999, crowns | 0)}`);
+  if (stamps > 0) bits.push(`📮 ${Math.min(999, stamps | 0)}`);
+  if (typeof title === 'string' && title) bits.unshift(`🏅 ${title.slice(0, 8)}`);
   sub.textContent = bits.join('　');
   info.append(top, sub);
   r.append(info);

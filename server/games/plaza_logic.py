@@ -1029,13 +1029,14 @@ HOT_COUNTDOWN_MS = int(_H.get("countdownMs", 9000))
 HOT_ROUND_MS = int(_H.get("roundMs", 45000))
 HOT_PAYOUT = list(_H.get("payout") or [40, 20, 10])
 HOT_REST = int(_H.get("restPay", 5))
+HOT_PASS_MS = int(_H.get("passMs", 1200))
 _HJ = _H.get("join") or {}
 HOT_JOIN = {"x": int(_HJ.get("x", 128)), "y": int(_HJ.get("y", 100)), "k": _HJ.get("k") or "pumpkinItem"}
 
 
 def new_hot() -> dict[str, Any]:
     return {
-        "status": "open", "players": {}, "order": [], "holder": None, "heldAt": None,
+        "status": "open", "players": {}, "order": [], "holder": None, "heldAt": None, "hold": {},
         "startedAt": None, "endedAt": None, "payouts": None, "paid": {}, "rank": [],
     }
 
@@ -1052,11 +1053,15 @@ def _hot_go_live(rnd: dict[str, Any], now: int) -> None:
     rnd["startedAt"] = now
     rnd["holder"] = rnd["order"][0] if rnd["order"] else None
     rnd["heldAt"] = now if rnd["holder"] else None
+    rnd["hold"] = {}
 
 
 def settle_hot(rnd: dict[str, Any], now: int) -> None:
     holder = rnd.get("holder")
-    rest = [u for u in rnd["order"] if u != holder]
+    hold = rnd.setdefault("hold", {})
+    if holder and rnd.get("heldAt") is not None:
+        hold[holder] = int(hold.get(holder) or 0) + max(0, now - int(rnd["heldAt"]))
+    rest = sorted((u for u in rnd["order"] if u != holder), key=lambda u: (int(hold.get(u) or 0), rnd["order"].index(u)))
     ranking = rest + ([holder] if holder and holder in rnd["order"] else [])
     payouts = {uid: (HOT_PAYOUT[i] if i < len(HOT_PAYOUT) else HOT_REST) for i, uid in enumerate(ranking)}
     rnd["status"] = "over"
@@ -1139,15 +1144,20 @@ def hot_take(rnd: dict[str, Any] | None, uid: str, x: Any, y: Any, now: int) -> 
         return {**_hot_fail("not_live", "還沒開始，先去雞舍旁邊報名"), "round": rnd}
     if uid not in rnd["players"]:
         return {**_hot_fail("not_in_hot", "你不在這一輪"), "round": rnd}
-    if rnd.get("holder") == uid:
-        return {**_hot_fail("already_holding", "南瓜已經在你手上"), "round": rnd}
+    if rnd.get("holder") != uid:
+        return {**_hot_fail("not_holder", "南瓜不在你手上，看好下一個是誰"), "round": rnd}
+    if now - int(rnd.get("heldAt") or 0) < HOT_PASS_MS:
+        return {**_hot_fail("too_soon", "剛接到，等一下再傳"), "round": rnd}
     bad = _hot_near(x, y)
     if bad:
         bad["round"] = rnd
         return bad
-    rnd["holder"] = uid
+    hold = rnd.setdefault("hold", {})
+    hold[uid] = int(hold.get(uid) or 0) + max(0, now - int(rnd["heldAt"]))
+    nxt = rnd["order"][(rnd["order"].index(uid) + 1) % len(rnd["order"])]
+    rnd["holder"] = nxt
     rnd["heldAt"] = now
-    return {"ok": True, "round": rnd, "holder": uid}
+    return {"ok": True, "round": rnd, "holder": nxt, "passed": uid}
 
 
 def hot_leave(rnd: dict[str, Any] | None, uid: str, now: int) -> dict[str, Any]:

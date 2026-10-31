@@ -33,7 +33,7 @@ export function makeCard({ farm, decor, look, name, likes }) {
 export function readCard(c) {
   if (!c || typeof c !== 'object' || c.v !== 1) return null;
   const n = (v) => Math.max(0, Math.min(1e6, Number.isFinite(v) ? Math.floor(v) : 0));
-  return { name: cleanText(c.name, 20) || '鎮民', look: sanitizeLook(c.look), style: typeof c.style === 'string' ? c.style : 'houseThatch', crops: n(c.crops), debris: n(c.cleared), likes: n(c.likes), at: n(c.at) };
+  return { name: cleanText(c.name, 20) || '鎮民', look: sanitizeLook(c.look), style: typeof c.style === 'string' ? c.style : 'houseThatch', crops: n(c.crops), debris: n(c.cleared), likes: n(c.likes), at: n(c.at), title: cleanText(c.title, 8) || '', crowns: n(c.crowns), stamps: n(c.stamps) };
 }
 
 /** 社交設定（私人鍵 social）：家園是否開放、好友、今天按讚過誰、累積的讚。 */

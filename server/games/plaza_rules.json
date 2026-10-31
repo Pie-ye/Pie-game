@@ -674,6 +674,7 @@
   "reach": 20,
   "countdownMs": 9000,
   "roundMs": 45000,
+  "passMs": 1200,
   "payout": [
    40,
    20,

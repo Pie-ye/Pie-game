@@ -29,6 +29,7 @@ import { openHill } from './ui/hill.js';
 import { openSmash } from './ui/smash.js';
 import { openVase } from './ui/vase.js';
 import { createArena } from './ui/arena.js';
+import { openBook, questLine } from './ui/book.js';
 import { throwDir, ARENA } from './game/arena.js';
 import { openVisitPanel, openVisitorMenu, openMailbox, openPlayerCard, openEmotes } from './ui/social.js';
 import { TOOLS, CROPS, useTool, debrisLeft, CROP_KEYS } from './farm/state.js';
@@ -695,6 +696,17 @@ async function throwPie(dx, dy) {
 }
 const arenaThrowing = () => map && map.id === 'arena' && arena.inShow() && arena.snap.ph === 'live' && arena.snap.kind === 'pie';
 
+// ---------- 鎮民手冊：每日委託與集章 ----------
+async function openBookPanel(tab) {
+  if (!api.server) { openBook(null); return; }
+  try { const r = await call('quests'); openBook(r.quests, tab); } catch (_e) { /* 已提示 */ }
+}
+function onQuest(list) {
+  for (const q of list) { const t = questLine(q); if (t) sys(t); }
+  const top = list.find((q) => q.t === 'title') || list.find((q) => q.t === 'stamp') || list[0];
+  if (top) { hud.toast(questLine(top), 3500); audio.tool(top.t === 'daily' ? 'harvest' : 'fanfare'); }
+}
+
 // ---------- 地標：菲比女神噴水池、瑞吉海獅秀 ----------
 async function wish() {
   try {
@@ -852,7 +864,7 @@ function interactHint(t) {
   if (t.action === 'light' && lastLight && lastLight.status === 'live') {
     return lightFromPublic(lastLight, wall) === 'red' ? '紅燈' : '綠燈';
   }
-  if (t.action === 'hot' && lastHot && lastHot.status === 'live' && inRound(lastHot)) return 'E 搶南瓜';
+  if (t.action === 'hot' && lastHot && lastHot.status === 'live' && inRound(lastHot)) return lastHot.holder === myId ? 'E 傳出去！' : '南瓜在別人手上';
   if (t.action === 'haul' && lastHaul && lastHaul.status === 'live' && inRound(lastHaul)) return 'E 扛起';
   if (t.action === 'haulDrop' && lastHaul && lastHaul.status === 'live') return 'E 放下寶物';
   if (t.action === 'hill' && lastHill && lastHill.status === 'live' && inRound(lastHill)) return 'E 占席';
@@ -1097,6 +1109,7 @@ function onGame(m) {
   else if (m.op === 'vase' && m.vase) lastVase = m.vase;
   else if (m.op === 'arena' && m.arena) arena.apply(m.arena, true);
   else if (m.op === 'arenaCall') arena.call(m);
+  if (m.op === 'me' && Array.isArray(m.quest) && m.quest.length) setTimeout(() => onQuest(m.quest), Number.isFinite(m.arenaRank) ? 3800 : 0);
   if (m.op === 'me' && Number.isFinite(m.arenaRank)) {
     hud.toast(m.arenaGold ? `🎪 第 ${m.arenaRank} 名！獲得 ${m.arenaGold} G` : `🎪 第 ${m.arenaRank} 名！（今天的獎金場次用完了）`, 3500);
   }
@@ -1205,6 +1218,7 @@ $('btn-visit').addEventListener('click', openVisits);
 $('btn-mail').addEventListener('click', openMail);
 $('btn-emote').addEventListener('click', () => openEmotes(emote));
 $('btn-market').addEventListener('click', openFlea);
+$('btn-book').addEventListener('click', () => openBookPanel());
 $('chat-form').addEventListener('submit', (e) => {
   e.preventDefault();
   const input = $('chat-input');

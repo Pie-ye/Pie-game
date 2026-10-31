@@ -67,12 +67,16 @@ def test_decor_sanitize_and_import_old_saves() -> None:
 
 
 # ---------- WebSocket ----------
-async def make(aiohttp_client, tmp_path, clock=None):
+async def make(aiohttp_client, tmp_path, clock=None, quests=False):
     store = SaveStore(tmp_path / "s.sqlite3")
     fake = clock or FakeClock()
     if clock is None:
         fake.value = 1_800_000_000.0
     plaza = PlazaService(store, clock=fake, rng=random.Random(1))
+    if not quests:                       # 其他測試要算準金幣：關掉集章與委託的獎金
+        async def no_progress(*_a, **_k):
+            return []
+        plaza._progress = no_progress
     relay = Relay(ORIGIN, redeem=ticket_redeemer(), saves=store, plaza=plaza, clock=fake, max_messages_per_second=1000)
     app = web.Application()
 
@@ -723,55 +727,38 @@ async def test_seek_timeout_pays_before_next_join(aiohttp_client, tmp_path) -> N
 
 
 def test_hot_rules_match_frontend() -> None:
+    """同一串傳南瓜操作，前端與伺服器結果一致。"""
     script = r"""
     const H = await import('./site/games/community/pie-plaza/src/game/hot.js');
     let rnd = H.newHot();
-    for (const [id, name] of [['a','A'],['b','B'],['c','C']]) rnd = H.hotJoin(rnd, id, name, 0).round;
-    const early = H.hotTake(rnd, 'b', H.HOT_JOIN.x, H.HOT_JOIN.y, 1);
-    const boarded = H.hotJoin(rnd, 'd', 'D', 2);
-    const boardedStatus = boarded.round.status;
-    rnd = boarded.round;
-    H.maybeExpireHot(rnd, (rnd.startedAt || 0) + H.HOT.countdownMs);
-    const fourth = H.hotJoin(rnd, 'e', 'E', (rnd.startedAt || 0) + 1);
-    const already = H.hotJoin(rnd, 'a', 'A', (rnd.startedAt || 0) + 2);
-    const holding = H.hotTake(rnd, 'a', H.HOT_JOIN.x, H.HOT_JOIN.y, H.HOT.countdownMs + 10);
-    const took = H.hotTake(rnd, 'b', H.HOT_JOIN.x, H.HOT_JOIN.y, H.HOT.countdownMs + 12);
+    for (const [id, name] of [['a','A'],['b','B'],['c','C'],['d','D']]) rnd = H.hotJoin(rnd, id, name, 0).round;
+    const live = rnd.startedAt + H.HOT.countdownMs;
+    H.maybeExpireHot(rnd, live);
+    const codes = [];
+    for (const [uid, dt, near] of JSON.parse(process.argv[1])) {
+      const r = H.hotTake(rnd, uid, near ? H.HOT_JOIN.x : 0, near ? H.HOT_JOIN.y : 0, live + dt);
+      codes.push(r.ok ? 'ok:' + r.holder : r.code);
+    }
     H.maybeExpireHot(rnd, rnd.startedAt + H.HOT.roundMs);
-    const rec = { gold: 100 };
-    const pay = H.applyHotGold(rec, 'a', rnd);
-    const over = H.hotTake(rnd, 'c', H.HOT_JOIN.x, H.HOT_JOIN.y, 99);
-    console.log(JSON.stringify({ third: 'countdown', early: early.code, boarded: boardedStatus, fourth: fourth.code, already: already.code, holding: holding.code, took: took.ok, holder: rnd.holder, payouts: rnd.payouts, pay, gold: rec.gold, over: over.code }));
+    console.log(JSON.stringify({ codes, payouts: rnd.payouts, hold: rnd.hold }));
     """
-    js = json.loads(subprocess.run(
-        ["node", "--input-type=module", "-e", script], cwd=REPO, capture_output=True, text=True, check=True,
-    ).stdout)
+    ops = [["b", 10, True], ["a", 500, True], ["a", 1300, False], ["a", 1300, True], ["b", 2000, True], ["b", 2600, True],
+           ["c", 2700, True], ["c", 4000, True], ["d", 5300, True]]
+    js = json.loads(subprocess.run(["node", "--input-type=module", "-e", script, json.dumps(ops)], cwd=REPO,
+                                   capture_output=True, text=True, check=True).stdout)
     rnd = L.new_hot()
-    for uid, name in (("a", "A"), ("b", "B"), ("c", "C")):
+    for uid, name in (("a", "A"), ("b", "B"), ("c", "C"), ("d", "D")):
         rnd = L.hot_join(rnd, uid, name, 0)["round"]
-    assert rnd["status"] == js["third"] == "countdown"
-    early = L.hot_take(rnd, "b", L.HOT_JOIN["x"], L.HOT_JOIN["y"], 1)
-    boarded = L.hot_join(rnd, "d", "D", 2)
-    boarded_status = boarded["round"]["status"]
-    rnd = boarded["round"]
-    L.maybe_expire_hot(rnd, (rnd.get("startedAt") or 0) + L.HOT_COUNTDOWN_MS)
-    fourth = L.hot_join(rnd, "e", "E", (rnd.get("startedAt") or 0) + 1)
-    already = L.hot_join(rnd, "a", "A", (rnd.get("startedAt") or 0) + 2)
-    holding = L.hot_take(rnd, "a", L.HOT_JOIN["x"], L.HOT_JOIN["y"], L.HOT_COUNTDOWN_MS + 10)
-    took = L.hot_take(rnd, "b", L.HOT_JOIN["x"], L.HOT_JOIN["y"], L.HOT_COUNTDOWN_MS + 12)
+    live = rnd["startedAt"] + L.HOT_COUNTDOWN_MS
+    L.maybe_expire_hot(rnd, live)
+    codes = []
+    for uid, dt, near in ops:
+        r = L.hot_take(rnd, uid, L.HOT_JOIN["x"] if near else 0, L.HOT_JOIN["y"] if near else 0, live + dt)
+        codes.append(f"ok:{r['holder']}" if r["ok"] else r["code"])
     L.maybe_expire_hot(rnd, rnd["startedAt"] + L.HOT_ROUND_MS)
-    rec = {"gold": 100}
-    pay = L.apply_hot_gold(rec, "a", rnd)
-    over = L.hot_take(rnd, "c", L.HOT_JOIN["x"], L.HOT_JOIN["y"], 99)
-    assert early["code"] == js["early"] == "not_live"
-    assert boarded_status == js["boarded"] == "countdown"
-    assert fourth["code"] == js["fourth"] == "hot_live"
-    assert already["code"] == js["already"] == "already_in"
-    assert holding["code"] == js["holding"] == "already_holding"
-    assert took["ok"] is True and js["took"] is True
-    assert rnd["holder"] == js["holder"] == "b"
-    assert rnd["payouts"] == js["payouts"]
-    assert pay == js["pay"] == 40 and rec["gold"] == js["gold"] == 140
-    assert over["code"] == js["over"] == "hot_over"
+    assert codes == js["codes"]
+    assert codes[:4] == ["not_holder", "too_soon", "too_far", "ok:b"]
+    assert rnd["payouts"] == js["payouts"] and rnd["hold"] == js["hold"]
 
 
 @pytest.mark.asyncio
@@ -802,21 +789,23 @@ async def test_hot_ops_take_persist_and_reject(aiohttp_client, tmp_path) -> None
     assert (await call(eve, "hot", act="join"))["code"] == "hot_live"
     assert (await call(alice, "hot", act="nope"))["code"] == "bad_message"
     x, y = L.HOT_JOIN["x"], L.HOT_JOIN["y"]
-    assert (await call(alice, "hot", act="take", x=x, y=y))["code"] == "already_holding"
-    took = await call(bob, "hot", act="take", x=x, y=y)
+    assert (await call(bob, "hot", act="take", x=x, y=y))["code"] == "not_holder"
+    assert (await call(alice, "hot", act="take", x=x, y=y))["code"] == "too_soon"
+    _clock.value += 1.3
+    took = await call(alice, "hot", act="take", x=x, y=y)
     assert took["ok"] and took["hot"]["holder"] == "bob"
     _clock.value = plaza.hot["startedAt"] / 1000 + L.HOT_ROUND_MS / 1000 + 0.05
     view = await call(alice, "hot", act="view")
     assert view["hot"]["status"] == "over"
-    assert plaza.players["alice"]["gold"] == g0 + 40
-    assert plaza.players["carol"]["gold"] == g0 + 20
-    assert plaza.players["dave"]["gold"] == g0 + 10
-    assert plaza.players["bob"]["gold"] == g0 + 5
+    assert plaza.players["carol"]["gold"] == g0 + 40          # 沒拿過
+    assert plaza.players["dave"]["gold"] == g0 + 20
+    assert plaza.players["alice"]["gold"] == g0 + 10          # 拿了 1.3 秒
+    assert plaza.players["bob"]["gold"] == g0 + 5             # 時間到還拿著
     assert (await call(carol, "hot", act="take", x=x, y=y))["code"] == "hot_over"
     await plaza.flush()
     again = PlazaService(store, clock=_clock, rng=random.Random(1))
     rec = await again.load("alice", "Alice")
-    assert rec["gold"] == g0 + 40
+    assert rec["gold"] == g0 + 10
     await alice.close()
     await bob.close()
     await carol.close()
@@ -841,25 +830,25 @@ async def test_hot_timeout_pays_before_next_join(aiohttp_client, tmp_path) -> No
     live = await call(carol, "hot", act="join")
     assert live["hot"]["status"] == "countdown"
     started = plaza.hot["startedAt"]
-    clock.value = started / 1000 + L.HOT_COUNTDOWN_MS / 1000 + 0.05
+    clock.value = started / 1000 + L.HOT_COUNTDOWN_MS / 1000 + 1.5
     x, y = L.HOT_JOIN["x"], L.HOT_JOIN["y"]
-    assert (await call(bob, "hot", act="take", x=x, y=y))["ok"]
+    assert (await call(alice, "hot", act="take", x=x, y=y))["ok"]              # 傳給 bob
     clock.value = started / 1000 + L.HOT_COUNTDOWN_MS / 1000 + L.HOT_ROUND_MS / 1000 + 0.05
     err = await call(alice, "hot", act="take", x=x, y=y)
     assert err["code"] == "hot_over"
-    assert plaza.players["alice"]["gold"] == g0 + 40
-    assert plaza.players["carol"]["gold"] == g0 + 20
-    assert plaza.players["bob"]["gold"] == g0 + 10
+    assert plaza.players["carol"]["gold"] == g0 + 40
+    assert plaza.players["alice"]["gold"] == g0 + 20
+    assert plaza.players["bob"]["gold"] == g0 + 10            # 三人局：時間到還拿著的人第三名
     view = await call(alice, "hot", act="view")
-    assert view["ok"] and plaza.players["alice"]["gold"] == g0 + 40
+    assert view["ok"] and plaza.players["alice"]["gold"] == g0 + 20
     nxt = await call(dave, "hot", act="join")
     assert nxt["ok"] and nxt["hot"]["status"] == "open"
-    assert plaza.players["alice"]["gold"] == g0 + 40
+    assert plaza.players["alice"]["gold"] == g0 + 20
     assert plaza.players["dave"]["gold"] == g0
     await plaza.flush()
     again = PlazaService(store, clock=clock, rng=random.Random(1))
     rec = await again.load("alice", "Alice")
-    assert rec["gold"] == g0 + 40
+    assert rec["gold"] == g0 + 20
     await alice.close()
     await bob.close()
     await carol.close()
@@ -1482,3 +1471,123 @@ async def drain_quick(ws):
             out.append(await ws.receive_json(timeout=0.01))
         except asyncio.TimeoutError:
             return out
+
+
+
+# ---------- 集章手冊與每日委託 ----------
+@pytest.mark.asyncio
+async def test_quests_stamps_daily_and_titles(aiohttp_client, tmp_path) -> None:
+    from server.games import quests as Q
+    client, plaza, _, clock = await make(aiohttp_client, tmp_path, quests=True)
+    alice = await connect_and_auth(client, "alice", G)
+    bob = await connect_and_auth(client, "bob", G)
+    await call(alice, "load")
+    await call(bob, "load")
+    v = (await call(alice, "quests"))["quests"]
+    assert len(v["daily"]) == 3 and v["count"] == 0 and v["total"] == len(Q.STAMPS)
+    assert len({Q.DAILY_POOL[i][0] for i in Q.daily_pick("alice", "2027-01-15")}) == 3
+    gold0 = plaza.players["alice"]["gold"]
+    # 許願：第一次許願不給章，但會累計
+    await call(alice, "wish")
+    assert plaza.players["alice"]["prog"]["wish"] == 1
+    # 拜訪與稱讚 → 進度；bob 被稱讚 → liked_best
+    await call(alice, "view", owner="bob")
+    assert plaza.players["alice"]["uniq"]["visit"] == ["bob"]
+    await call(alice, "like", owner="bob")
+    assert plaza.players["bob"]["prog"]["liked_best"] == 1
+    # 收成第一個作物 → 「第一次收成」章（推播 me 帶 quest）
+    rec = plaza.players["alice"]
+    rec["farm"]["tilled"]["22,12"] = {"w": 0}
+    rec["farm"]["crops"]["22,12"] = {"t": "wheat", "s": 3, "w": 0, "at": 0}
+    await drain(alice)
+    await alice.send_json({"type": "game", "op": "tool", "rid": "h1", "tool": "sickle", "x": 22, "y": 12})
+    msgs = []
+    while not msgs or msgs[-1].get("rid") != "h1":
+        msgs.append(await alice.receive_json(timeout=2))
+    assert msgs[-1]["result"].get("harvest") == "wheat"
+    got = [q for m in msgs if m.get("op") == "me" for q in (m.get("quest") or [])]
+    assert any(q["t"] == "stamp" and q["id"] == "farm_first" for q in got)
+    assert "farm_first" in plaza.players["alice"]["stamps"]
+    # 同一個章不會再發
+    before = plaza.players["alice"]["gold"]
+    rec["farm"]["tilled"]["23,12"] = {"w": 0}
+    rec["farm"]["crops"]["23,12"] = {"t": "wheat", "s": 3, "w": 0, "at": 0}
+    await call(alice, "tool", tool="sickle", x=23, y=12)
+    assert plaza.players["alice"]["gold"] == before or any(
+        q["t"] == "daily" for m in await drain(alice) if m.get("op") == "me" for q in (m.get("quest") or []))
+    v = (await call(alice, "quests"))["quests"]
+    st = {x["id"]: x for x in v["stamps"]}
+    assert st["farm_first"]["got"] and st["farm_50"]["have"] == 2 and st["social_visit10"]["have"] == 1
+    assert plaza.players["alice"]["gold"] > gold0 - 10
+    for ws in (alice, bob):
+        await ws.close()
+
+
+def test_quests_category_title_and_daily_bonus() -> None:
+    from server.games import quests as Q
+    rec = {"gold": 0}
+    day = "2027-01-15"
+    pick = Q.daily_pick("u9", day)
+    ev = [(Q.DAILY_POOL[i][1], Q.DAILY_POOL[i][2]) for i in pick]
+    done = Q.note(rec, "u9", ev, day, 1)
+    assert sum(1 for d in done if d["t"] == "daily") == 3 and any(d["t"] == "bonus" for d in done)
+    assert not [d for d in Q.note(rec, "u9", ev, day, 2) if d["t"] in ("daily", "bonus")]
+    # 新的一天重新開始
+    assert rec["daily"]["day"] == day
+    Q.note(rec, "u9", [], "2027-01-16", 3)
+    assert rec["daily"]["day"] == "2027-01-16" and rec["daily"]["done"] == []
+    # 集滿一類 → 稱號＋獎金
+    town = [s for s in Q.STAMPS if s[1] == "town"]
+    out = Q.note(rec, "u9", [(s[4], s[5]) for s in town], "2027-01-16", 4)
+    assert any(d["t"] == "title" and d["name"] == "派派通" for d in out) and "派派通" in rec["titles"]
+    # 最高紀錄取最大值，不累加
+    Q.note(rec, "u9", [("arena_coin_best", 12)], day, 5)
+    Q.note(rec, "u9", [("arena_coin_best", 7)], day, 6)
+    assert rec["prog"]["arena_coin_best"] == 12
+
+
+# ---------- 九個廣場派對的鎮民補位 ----------
+@pytest.mark.asyncio
+async def test_party_bots_fill_and_play_all_nine(tmp_path) -> None:
+    from server.games import party_bots as PB
+
+    class FakeRelay:
+        connections: list = []
+
+    store = SaveStore(tmp_path / "s.sqlite3")
+    clock = FakeClock()
+    clock.value = 1_800_000_000.0
+    plaza = PlazaService(store, clock=clock, rng=random.Random(3))
+    relay = FakeRelay()
+    now = plaza.now_ms()
+    for kind in PB.KINDS:
+        r = PB.JOIN[kind](getattr(plaza, kind), "alice", "Alice", now)
+        assert r["ok"], kind
+        setattr(plaza, kind, r["round"])
+    await plaza._party_bots(relay)
+    assert all(getattr(plaza, k)["status"] == "open" for k in PB.KINDS), "還沒等夠，不補位"
+    clock.advance(PB.FILL_MS / 1000 + 0.1)
+    await plaza._party_bots(relay)
+    for kind in PB.KINDS:
+        rnd = getattr(plaza, kind)
+        assert rnd["status"] in ("countdown", "live"), kind
+        assert [u for u in rnd["order"] if PB.is_bot(u)] == [b for b, _ in PB.BOTS], kind
+    acted = {k: 0 for k in PB.KINDS}
+    for _ in range(700):                                     # 70 秒，每 0.1 秒一步
+        clock.advance(0.1)
+        now = plaza.now_ms()
+        for kind in PB.KINDS:
+            getattr(L, f"maybe_expire_{kind}")(getattr(plaza, kind), now)
+        hot = plaza.hot
+        if hot["status"] == "live" and hot["holder"] == "alice" and now - hot["heldAt"] > 1500:
+            L.hot_take(hot, "alice", L.HOT_JOIN["x"], L.HOT_JOIN["y"], now)    # 真人把南瓜傳出去
+        before = {k: json.dumps(getattr(plaza, k), sort_keys=True, default=str) for k in PB.KINDS}
+        await plaza._party_bots(relay)
+        for k in PB.KINDS:
+            if json.dumps(getattr(plaza, k), sort_keys=True, default=str) != before[k]:
+                acted[k] += 1
+    for kind in PB.KINDS:
+        rnd = getattr(plaza, kind)
+        assert rnd["status"] == "over", kind
+        assert "alice" in (rnd.get("payouts") or {}), kind
+        assert acted[kind] >= 1, f"鎮民在 {kind} 沒有任何動作"
