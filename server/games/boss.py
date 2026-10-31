@@ -137,7 +137,7 @@ class Boss:
         if uid in self.p and not self.p[uid]["bot"]:
             del self.p[uid]
 
-    def throw(self, uid: str, name: str, dx: Any, dy: Any, now: int) -> str | None:
+    def throw(self, uid: str, name: str, dx: Any, dy: Any, now: int, kind: str | None = None) -> str | None:
         if not self.active or self.phase in ("sleep", "leave"):
             return "not_live"
         pl = self.p.get(uid)
@@ -148,14 +148,14 @@ class Boss:
         n = math.hypot(dx, dy)
         if not n or not math.isfinite(n):
             return "bad_message"
-        err = self._throw(uid, pl, dx / n, dy / n, now)
+        err = self._throw(uid, pl, dx / n, dy / n, now, kind)
         if err is None and not pl["bot"]:
             fan = self.fans.setdefault(uid, {"name": str(name)[:16], "hits": 0, "throws": 0, "fed": 0})
             fan["throws"] += 1
             self._scale_need()
         return err
 
-    def _throw(self, uid: str, pl: dict[str, Any], ux: float, uy: float, now: int) -> str | None:
+    def _throw(self, uid: str, pl: dict[str, Any], ux: float, uy: float, now: int, kind: str | None = None) -> str | None:
         if now < pl["stun"]:
             return "stunned"
         if pl["ammo"] <= 0 or now < pl["cool"]:
@@ -164,9 +164,13 @@ class Boss:
         pl["cool"] = now + PIE["cool"]
         if pl["regen"] <= now:
             pl["regen"] = now + PIE["regen"]
-        self.seq += 1
-        self.pies.append({"id": self.seq, "by": uid, "x": pl["x"] + ux * 6, "y": pl["y"] - 6 + uy * 6,
-                          "vx": ux * PIE["speed"], "vy": uy * PIE["speed"], "until": now + PIE["life"]})
+        speed = PIE["speed"] * (1.5 if kind == "pie_carrot" else 1)
+        life = PIE["life"] * (1.3 if kind == "pie_carrot" else 1)
+        for a in ((-0.28, 0.0, 0.28) if kind == "pie_tomato" else (0.0,)):
+            vx, vy = ux * math.cos(a) - uy * math.sin(a), ux * math.sin(a) + uy * math.cos(a)
+            self.seq += 1
+            self.pies.append({"id": self.seq, "by": uid, "x": pl["x"] + vx * 6, "y": pl["y"] - 6 + vy * 6,
+                              "vx": vx * speed, "vy": vy * speed, "until": now + life, "kind": kind})
         pl["dir"] = (3 if ux > 0 else 2) if abs(ux) > abs(uy) else (0 if uy > 0 else 1)
         return None
 
@@ -244,8 +248,13 @@ class Boss:
         for pie in self.pies:
             pie["x"] += pie["vx"] * dt
             pie["y"] += pie["vy"] * dt
-            if not airborne and math.hypot(pie["x"] - cx, pie["y"] - cy) <= BODY_R + 4:
-                gain = MOUTH_BONUS if self.phase == "mouth" else 1
+            kind = pie.get("kind")
+            reach = BODY_R + (18 if kind == "pie_pumpkin" else 4)
+            if not airborne and math.hypot(pie["x"] - cx, pie["y"] - cy) <= reach:
+                gain = (MOUTH_BONUS if self.phase == "mouth" else 1) * (2 if kind == "pie_strawberry" else 1)
+                if kind == "pie_beet" and self.phase in ("idle", "mouth"):   # 甜菜派：牠忍不住張大嘴
+                    self.phase, self.phase_end = "mouth", max(self.phase_end, now + PHASES["mouth"])
+                    self._ev(k="mouth")
                 self.fed += gain
                 fan = self.fans.get(pie["by"])
                 if fan:
@@ -320,7 +329,7 @@ class Boss:
             out["H"] = [[uid, pl["name"], round(pl["x"], 1), round(pl["y"], 1), pl["dir"], pl["sprite"]]
                         for uid, pl in self.p.items() if pl["bot"]]
             out["S"] = [uid for uid, pl in self.p.items() if now < pl["stun"]]
-            out["K"] = [[p["id"], round(p["x"], 1), round(p["y"], 1), round(p["vx"]), round(p["vy"])] for p in self.pies]
+            out["K"] = [[p["id"], round(p["x"], 1), round(p["y"], 1), round(p["vx"]), round(p["vy"]), p.get("kind")] for p in self.pies]
             out["top"] = sorted(([f["name"], f["fed"]] for f in self.fans.values()), key=lambda r: -r[1])[:5]
         if self.events:
             out["ev"] = self.events

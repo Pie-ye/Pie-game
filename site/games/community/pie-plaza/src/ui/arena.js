@@ -14,7 +14,7 @@ function spr(ctx, scene, k, x, y) {
 const RUNNING = new Set(['intro', 'live', 'result', 'final']);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 
-export function createArena({ myId, audio, hud, sys, onCall }) {
+export function createArena({ myId, audio, hud, sys, onCall, special }) {
   let snap = null, offset = 0, recvAt = 0, enabled = false, visible = false, lastHud = 0, lastCount = -1, shake = 0;
   let pies = [], coins = [], floor = '', mine = null, callUntil = 0, callName = '';
   const others = new Map();
@@ -132,7 +132,7 @@ export function createArena({ myId, audio, hud, sys, onCall }) {
     for (const id of [...others.keys()]) if (!seen.has(id)) others.delete(id);
     if (pushed && s.ev) for (const e of s.ev) onEvent(e);
     coins = s.kind === 'coin' ? s.C || [] : [];
-    pies = (s.K || []).map((k) => ({ id: k[0], x: k[1], y: k[2], vx: k[3], vy: k[4], at: recvAt }));
+    pies = (s.K || []).map((k) => ({ id: k[0], x: k[1], y: k[2], vx: k[3], vy: k[4], kind: k[5], at: recvAt }));
     floor = s.F || '';
     const was = prev && prev.id === s.id ? prev.ph : null;
     if (pushed && s.ph !== was) {
@@ -181,7 +181,8 @@ export function createArena({ myId, audio, hud, sys, onCall }) {
     const head = `${r.icon || ''} ${r.name || ''}　第 ${snap.rd + 1}／${(snap.rounds || []).length} 回合`;
     const phase = snap.ph === 'intro' ? `${left} 秒後開始` : snap.ph === 'live' ? `剩 ${left} 秒` : snap.ph === 'result' ? '結算中' : '頒獎';
     const holding = snap.W && String(snap.W[0]) === me();
-    const my = mine ? (snap.kind === 'pie' && snap.ph === 'live' ? `　🥧×${mine.ammo}　得分 ${mine.score}` : snap.kind === 'floor' ? (mine.out ? '　已出局' : '　還站著！')
+    const sp = special ? special() : '';
+    const my = mine ? (snap.kind === 'pie' && snap.ph === 'live' ? `　🥧×${mine.ammo}${sp ? `　${sp}` : ''}　得分 ${mine.score}` : snap.kind === 'floor' ? (mine.out ? '　已出局' : '　還站著！')
       : snap.kind === 'rain' ? `　被砸 ${-mine.score} 次` : snap.kind === 'crown' ? `　${holding ? '👑 皇冠在你頭上！' : ''}得分 ${mine.score}` : `　得分 ${mine.score}`) : '　觀戰中';
     barEl.textContent = `${head}　${phase}${my}`;
     const key = snap.ph === 'live' && snap.kind !== 'floor' ? 'score' : 'total';
@@ -271,7 +272,7 @@ export function createArena({ myId, audio, hud, sys, onCall }) {
       const age = Math.min(0.4, (now - p.at) / 1000);
       const x = p.x + p.vx * age, y = p.y + p.vy * age;
       ctx.fillStyle = 'rgba(40,30,20,.25)'; ctx.fillRect(Math.round(x) - 3, Math.round(y) + 8, 7, 2);
-      spr(ctx, scene, 'arenaPie', x, y + 6);
+      spr(ctx, scene, p.kind ? `${p.kind}Item` : 'arenaPie', x, y + 6);
     }
     const smoke = scene.imgs['ninja/fx/smoke.png'];
     for (const f of fx) {

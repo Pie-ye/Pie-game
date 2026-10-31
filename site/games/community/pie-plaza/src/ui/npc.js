@@ -7,6 +7,7 @@ import { PIES } from '../farm/state.js';
 import { itemIcon } from './market.js';
 
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const EFFECT = { pie_strawberry: '派對裡：餵食值、得分 ×2', pie_pumpkin: '派對裡：命中範圍 ×1.8', pie_tomato: '派對裡：一次扇形丟三個', pie_carrot: '派對裡：飛得更快更遠', pie_beet: '派對裡：蛙會張大嘴；對手暈更久' };
 const btn = (text, fn, cls) => { const b = el('button', cls, text); b.type = 'button'; b.addEventListener('click', fn); return b; };
 
 export const heartsText = (h) => `${'♥'.repeat(h)}${'♡'.repeat(Math.max(0, 10 - h))}`;
@@ -65,6 +66,7 @@ export function openBake(inv, bake) {
       const head = el('b'); head.append(atlasIcon(itemIcon(k), 20), document.createTextNode(` ${p.name}`));
       card.append(head, el('span', 'tag', `賣 ${p.sell} G`));
       card.append(el('p', null, Object.entries(p.need).map(([i, n]) => `${itemName(i)} ${have[i] || 0}/${n}`).join('　')));
+      card.append(el('p', 'note', `${EFFECT[k] || ''}（大胃王蛙、派餅大戰按 Q 選來丟）`));
       if (can) {
         const row = el('div', 'menu-btns');
         for (const n of [...new Set([1, can])]) row.append(btn(n === 1 ? '烤 1 個' : `全部烤（${n}）`, async () => {

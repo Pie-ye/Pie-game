@@ -41,7 +41,7 @@ import { BY_NAME, tierLine, REACTION, FRIENDS } from './game/friends.js';
 import { obj } from './engine/world.js';
 import { throwDir, ARENA } from './game/arena.js';
 import { openVisitPanel, openVisitorMenu, openMailbox, openPlayerCard, openEmotes } from './ui/social.js';
-import { TOOLS, CROPS, useTool, debrisLeft, CROP_KEYS } from './farm/state.js';
+import { TOOLS, CROPS, PIES, useTool, debrisLeft, CROP_KEYS } from './farm/state.js';
 import { furniture, canPlace, placeAt, itemAt, sanitizeDecor } from './house/catalog.js';
 import { defaultLook, sanitizeLook } from './avatar/look.js';
 import { FISH, newMinigame, stepMinigame, fishName } from './fish/fishing.js';
@@ -94,8 +94,10 @@ function addLog(text, who, cls) {
   logEl.scrollTop = logEl.scrollHeight;
 }
 const sys = (t) => addLog(t, '', 'sys');
-const arena = createArena({ myId: () => myId, audio, hud, sys, onCall: () => { if (area !== 'arena') goArea('arena', 'south'); } });
-const boss = createBoss({ myId: () => myId, audio, hud, sys, onCall: () => { if (area !== 'plaza') goArea('plaza', 'center'); } });
+let specialPie = null;      // Q 切換：要丟的特製派（背包裡的派）
+const specialLabel = () => { if (specialPie && !(farm && farm.inv[specialPie] > 0)) specialPie = null; return specialPie ? `特製：${PIES[specialPie].name}×${farm.inv[specialPie]}（Q 換）` : (farm && Object.keys(PIES).some((k) => farm.inv[k] > 0) ? 'Q 換特製派' : ''); };
+const arena = createArena({ myId: () => myId, audio, hud, sys, special: specialLabel, onCall: () => { if (area !== 'arena') goArea('arena', 'south'); } });
+const boss = createBoss({ myId: () => myId, audio, hud, sys, special: specialLabel, onCall: () => { if (area !== 'plaza') goArea('plaza', 'center'); } });
 arena.onTeleport((x, y) => { me.x = x; me.y = y; target = null; keys.clear(); sendPose(undefined, true); });
 function updateInfo(extra) {
   titleEl.textContent = map ? map.title : '派派鎮';
@@ -725,7 +727,7 @@ async function throwPie(dx, dy) {
   const [ux, uy] = throwDir(me.dir, dx, dy);
   me.dir = dirOf(ux, uy, me.dir); me.acting = now + 220;
   audio.tool('throw');
-  try { await api.call('arena', { act: 'throw', dx: Math.round(ux * 100) / 100, dy: Math.round(uy * 100) / 100 }); } catch (_e) { /* 太快或暈了 */ }
+  try { const r = await api.call('arena', { act: 'throw', dx: Math.round(ux * 100) / 100, dy: Math.round(uy * 100) / 100, pie: specialPie }); if (r.pie) { applyMine(farm, r); refreshHud(); } } catch (_e) { /* 太快或暈了 */ }
 }
 let lastBossThrow = 0;
 async function throwAtBoss(dx, dy) {
@@ -738,7 +740,7 @@ async function throwAtBoss(dx, dy) {
   const n = Math.hypot(dx, dy) || 1;
   me.dir = dirOf(dx, dy, me.dir); me.acting = now + 220;
   audio.tool('throw'); boss.spend();
-  try { const r = await api.call('boss', { act: 'throw', dx: Math.round(dx / n * 100) / 100, dy: Math.round(dy / n * 100) / 100 }); boss.setAmmo(r.ammo); } catch (e) { if (e && e.code === 'no_ammo') boss.setAmmo(0); }
+  try { const r = await api.call('boss', { act: 'throw', dx: Math.round(dx / n * 100) / 100, dy: Math.round(dy / n * 100) / 100, pie: specialPie }); boss.setAmmo(r.ammo); if (r.pie) { applyMine(farm, r); refreshHud(); } } catch (e) { if (e && e.code === 'no_ammo') boss.setAmmo(0); }
 }
 const bossThrowing = () => map && map.id === 'plaza' && api.server && boss.canThrow();
 const arenaThrowing = () => map && map.id === 'arena' && arena.inShow() && arena.snap.ph === 'live' && arena.snap.kind === 'pie';
@@ -1459,6 +1461,14 @@ addEventListener('keydown', (e) => {
   }
   if (e.key === 'Enter') { e.preventDefault(); $('chat-input').focus(); return; }
   if (/^[1-8]$/.test(e.key)) { selectTool(Number(e.key) - 1); return; }
+  if (k === 'q' && farm && ((map.id === 'plaza' && boss.on()) || arenaThrowing())) {
+    const owned = Object.keys(PIES).filter((p) => farm.inv[p] > 0);
+    if (!owned.length) { hud.toast('背包裡沒有派。到瑪莉麵包店烤一些吧！'); return; }
+    const list = [null, ...owned];
+    specialPie = list[(list.indexOf(specialPie) + 1) % list.length];
+    hud.toast(specialPie ? `特製派：${PIES[specialPie].name}（剩 ${farm.inv[specialPie]} 個）` : '改丟普通派', 1500);
+    return;
+  }
   if (k === 'q' && farm) {
     const have = CROP_KEYS.filter((c) => farm.seeds[c] > 0);
     if (!have.length) { hud.toast('沒有種子了'); return; }

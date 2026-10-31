@@ -21,7 +21,7 @@ export function hhmmTaipei(ms) {
   return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
 }
 
-export function createBoss({ myId, audio, hud, sys, onCall }) {
+export function createBoss({ myId, audio, hud, sys, onCall, special }) {
   let snap = null, offset = 0, recvAt = 0, visible = false, lastHud = 0, hitFlash = 0, shake = 0, from = null, ammo = 3;
   let pies = [], callUntil = 0;
   const helpers = new Map();
@@ -62,7 +62,7 @@ export function createBoss({ myId, audio, hud, sys, onCall }) {
     offset = !snap || Math.abs(o - offset) > 1500 ? o : offset + (o - offset) * 0.2;
     if (pushed && s.ev) for (const e of s.ev) onEvent(e);
     snap = s; recvAt = performance.now();
-    pies = (s.K || []).map((k) => ({ x: k[1], y: k[2], vx: k[3], vy: k[4], at: recvAt }));
+    pies = (s.K || []).map((k) => ({ x: k[1], y: k[2], vx: k[3], vy: k[4], kind: k[5], at: recvAt }));
     const seen = new Set();
     for (const [id, name, x, y, dir, sprite] of s.H || []) {
       seen.add(id);
@@ -88,7 +88,8 @@ export function createBoss({ myId, audio, hud, sys, onCall }) {
     const left = Math.max(0, Math.ceil((snap.until - serverNow()) / 1000));
     const mm = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
     const ph = snap.ph === 'mouth' ? '　張嘴了！丟進去 ×3' : snap.ph === 'sleep' ? '　吃飽睡著了 💤' : snap.ph === 'leave' ? '　逃走了' : '';
-    bar.textContent = `🐸 大胃王蛙　肚子 ${Math.min(snap.fed, snap.need)}/${snap.need}　剩 ${mm}　🥧×${ammo}${ph}`;
+    const sp = special ? special() : '';
+    bar.textContent = `🐸 大胃王蛙　肚子 ${Math.min(snap.fed, snap.need)}/${snap.need}　剩 ${mm}　🥧×${ammo}${sp ? `　${sp}` : ''}${ph}`;
   }
 
   // ---------- 繪圖 ----------
@@ -146,7 +147,7 @@ export function createBoss({ myId, audio, hud, sys, onCall }) {
       const age = Math.min(0.4, (now - q.at) / 1000);
       const x = q.x + q.vx * age, y = q.y + q.vy * age;
       ctx.fillStyle = 'rgba(40,30,20,.25)'; ctx.fillRect(Math.round(x) - 3, Math.round(y) + 8, 7, 2);
-      spr(ctx, scene, 'arenaPie', x, y + 6);
+      spr(ctx, scene, q.kind ? `${q.kind}Item` : 'arenaPie', x, y + 6);
     }
     const smoke = scene.imgs['ninja/fx/smoke.png'];
     for (const r of fx) {

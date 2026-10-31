@@ -72,3 +72,28 @@ def test_croak_stuns_only_after_warning_and_helpers_feed():
     fed0 = b.fed
     run(b, now + 700, 60000, each=lambda t: b.pose("u1", "a", 60, 260, t))
     assert b.fed > fed0 + 10, "三位鎮民會幫忙餵"
+
+
+def test_special_pies_strawberry_double_tomato_triple_beet_opens_mouth():
+    b = B.Boss(random.Random(9))
+    now = 5_000_000
+    b.start(now, now + B.STAY_MS, 1)
+    for h in [u for u, pl in b.p.items() if pl["bot"]]:
+        del b.p[h]                                   # 不讓鎮民干擾
+    b.pose("u1", "a", b.x, b.y + 60, now)
+    b.phase, b.phase_end = "idle", now + 99999
+    pl = b.p["u1"]
+    aim = (b.x - pl["x"], b.y - 24 - (pl["y"] - 6))
+    assert b.throw("u1", "a", *aim, now, "pie_tomato") is None and len(b.pies) == 3
+    b.pies = []
+    pl["cool"] = 0
+    b.throw("u1", "a", *aim, now, "pie_strawberry")
+    for i in range(10):
+        b.tick(now + (i + 1) * 100, 0.1)
+    assert b.fans["u1"]["fed"] == 2
+    pl["cool"] = 0
+    b.phase, b.phase_end = "idle", now + 99999
+    b.throw("u1", "a", *aim, now + 2000, "pie_beet")
+    for i in range(10):
+        b.tick(now + 2000 + (i + 1) * 100, 0.1)
+    assert b.phase == "mouth"

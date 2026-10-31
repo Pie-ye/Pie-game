@@ -1523,10 +1523,12 @@ class PlazaService:
         if act == "throw":
             if conn.area != "plaza":
                 raise GameError("too_far", "要在廣場才能丟")
-            err = self.boss.throw(me, rec["name"], p.get("dx"), p.get("dy"), now)
+            kind = self._special_pie(rec, p.get("pie"))
+            err = self.boss.throw(me, rec["name"], p.get("dx"), p.get("dy"), now, kind)
             if err:
                 raise GameError(err, {"no_ammo": "派餅補充中", "stunned": "被震暈了", "not_live": "大胃王蛙不在", "too_far": "先走進廣場"}.get(err, err))
-            return {"ammo": self.boss.ammo_of(me)}
+            self._use_pie(me, rec, kind)
+            return {"ammo": self.boss.ammo_of(me), "pie": kind, "left": rec["inv"].get(kind, 0) if kind else 0, **self._mine(rec)}
         if act != "view":
             raise GameError("bad_message", "無效的動作")
         st = rec.get("boss") or {}
@@ -1583,6 +1585,18 @@ class PlazaService:
             await self._broadcast_patch(relay, uid, changed, by=None, kind="rain")
             await self._push_me(relay, uid, rained=len(changed))
 
+    @staticmethod
+    def _special_pie(rec: dict[str, Any], pie: Any) -> str | None:
+        """要丟的特製派：背包裡要真的有。"""
+        return pie if isinstance(pie, str) and pie in L.PIES and rec["inv"].get(pie, 0) > 0 else None
+
+    def _use_pie(self, uid: str, rec: dict[str, Any], kind: str | None) -> None:
+        if kind:
+            rec["inv"][kind] -= 1
+            if not rec["inv"][kind]:
+                del rec["inv"][kind]
+            self.dirty.add(uid)
+
     async def _arena_pay(self, relay, due: list[dict[str, Any]]) -> None:
         day = L.taipei_day(self.now_ms())
         for r in due:
@@ -1634,10 +1648,12 @@ class PlazaService:
         elif act == "leave":
             ar.leave(me, now)
         elif act == "throw":
-            err = ar.throw(me, p.get("dx"), p.get("dy"), now)
+            kind = self._special_pie(rec, p.get("pie"))
+            err = ar.throw(me, p.get("dx"), p.get("dy"), now, kind)
             if err:
                 raise GameError(err, {"no_ammo": "派餅還沒補好", "stunned": "被派打中，暈了", "not_live": "現在不能丟"}.get(err, err))
-            return {}
+            self._use_pie(me, rec, kind)
+            return {"pie": kind, "left": rec["inv"].get(kind, 0) if kind else 0, **self._mine(rec)}
         elif act == "enter":
             conn.area = "arena"
         elif act != "view":

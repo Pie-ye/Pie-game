@@ -227,7 +227,7 @@ class Arena:
             pl["dir"] = (3 if dx > 0 else 2) if abs(dx) > abs(dy) else (0 if dy > 0 else 1)
         pl["x"], pl["y"] = x, y
 
-    def throw(self, uid: str, dx: Any, dy: Any, now: int) -> str | None:
+    def throw(self, uid: str, dx: Any, dy: Any, now: int, kind: str | None = None) -> str | None:
         pl = self.p.get(uid)
         if pl is None or pl["gone"] or pl["out"] is not None or self.phase != "live" or self.kind != "pie":
             return "not_live"
@@ -236,9 +236,9 @@ class Arena:
         n = math.hypot(dx, dy)
         if not n or not math.isfinite(n):
             return "bad_message"
-        return self._throw(uid, pl, dx / n, dy / n, now)
+        return self._throw(uid, pl, dx / n, dy / n, now, kind)
 
-    def _throw(self, uid: str, pl: dict[str, Any], ux: float, uy: float, now: int) -> str | None:
+    def _throw(self, uid: str, pl: dict[str, Any], ux: float, uy: float, now: int, kind: str | None = None) -> str | None:
         if now < pl["stun"]:
             return "stunned"
         if pl["ammo"] <= 0 or now < pl["cool"]:
@@ -247,9 +247,13 @@ class Arena:
         pl["cool"] = now + PIE["cool"]
         if pl["regen"] <= now:
             pl["regen"] = now + PIE["regen"]
-        self.seq += 1
-        self.pies.append({"id": self.seq, "by": uid, "x": pl["x"] + ux * 6, "y": pl["y"] - 6 + uy * 6, "vx": ux * PIE["speed"],
-                          "vy": uy * PIE["speed"], "until": now + PIE["life"]})
+        speed = PIE["speed"] * (1.5 if kind == "pie_carrot" else 1)
+        life = PIE["life"] * (1.3 if kind == "pie_carrot" else 1)
+        for a in ((-0.28, 0.0, 0.28) if kind == "pie_tomato" else (0.0,)):
+            vx, vy = ux * math.cos(a) - uy * math.sin(a), ux * math.sin(a) + uy * math.cos(a)
+            self.seq += 1
+            self.pies.append({"id": self.seq, "by": uid, "x": pl["x"] + vx * 6, "y": pl["y"] - 6 + vy * 6, "vx": vx * speed,
+                              "vy": vy * speed, "until": now + life, "kind": kind})
         pl["dir"] = (3 if ux > 0 else 2) if abs(ux) > abs(uy) else (0 if uy > 0 else 1)
         return None
 
@@ -457,14 +461,15 @@ class Arena:
                 pl = self.p[u]
                 if pl["gone"] or now < pl["shield"]:
                     continue
-                if math.hypot(pl["x"] - pie["x"], pl["y"] - 6 - pie["y"]) <= PIE["hit"]:
+                if math.hypot(pl["x"] - pie["x"], pl["y"] - 6 - pie["y"]) <= PIE["hit"] * (1.8 if pie.get("kind") == "pie_pumpkin" else 1):
                     hit = u
                     break
             if hit:
-                self.p[hit]["stun"] = now + PIE["stun"]
-                self.p[hit]["shield"] = now + PIE["stun"] + PIE["shield"]
+                stun = PIE["stun"] + (1000 if pie.get("kind") == "pie_beet" else 0)
+                self.p[hit]["stun"] = now + stun
+                self.p[hit]["shield"] = now + stun + PIE["shield"]
                 if pie["by"] in self.p and not self.p[pie["by"]]["gone"]:
-                    self.p[pie["by"]]["score"] += 1
+                    self.p[pie["by"]]["score"] += 2 if pie.get("kind") == "pie_strawberry" else 1
                 self._ev(k="hit", id=hit, by=pie["by"], x=round(pie["x"]), y=round(pie["y"]))
                 continue
             if now >= pie["until"] or not (FIELD[0] - 8 <= pie["x"] <= FIELD[2] + 8 and FIELD[1] - 16 <= pie["y"] <= FIELD[3] + 8):
@@ -797,7 +802,7 @@ class Arena:
             if self.kind == "coin":
                 out["C"] = [[cid, c[0], c[1], c[2]] for cid, c in self.coins.items()]
             elif self.kind == "pie":
-                out["K"] = [[p["id"], round(p["x"], 1), round(p["y"], 1), round(p["vx"]), round(p["vy"])] for p in self.pies]
+                out["K"] = [[p["id"], round(p["x"], 1), round(p["y"], 1), round(p["vx"]), round(p["vy"]), p.get("kind")] for p in self.pies]
             else:
                 out["F"] = "".join(str(s) for s in self.floor)
             if self.kind == "crown":

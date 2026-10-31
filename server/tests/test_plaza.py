@@ -1692,3 +1692,24 @@ async def test_wish_daily_limit_and_party_paid_cap(aiohttp_client, tmp_path) -> 
         await plaza._party_progress(relay, "party", "alice", rec, 40)
     assert rec["gold"] == g0 + 40 * PZ.PARTY_DAILY_PAID
     await alice.close()
+
+
+@pytest.mark.asyncio
+async def test_special_pie_throw_consumes_inventory(aiohttp_client, tmp_path) -> None:
+    client, plaza, _, _ = await make(aiohttp_client, tmp_path)
+    alice = await connect_and_auth(client, "alice", G)
+    await alice.send_json({"type": "create", "maxPlayers": 16, "name": "廣場大廳"})
+    await drain(alice)
+    await call(alice, "load")
+    now = plaza.now_ms()
+    plaza.boss.start(now, now + 300_000, 1)
+    await alice.send_json({"type": "send", "data": {"k": "p", "p": [240, 250], "a": "plaza"}})
+    await asyncio.sleep(0.05)
+    plaza.players["alice"]["inv"]["pie_tomato"] = 1
+    r = await call(alice, "boss", act="throw", dx=0, dy=-1, pie="pie_tomato")
+    assert r["ok"] and r["pie"] == "pie_tomato" and "pie_tomato" not in plaza.players["alice"]["inv"]
+    assert len([p for p in plaza.boss.pies if p["by"] == "alice"]) == 3
+    plaza.boss.p["alice"]["cool"] = 0
+    r = await call(alice, "boss", act="throw", dx=0, dy=-1, pie="pie_tomato")   # 沒有了：當普通派
+    assert r["ok"] and r["pie"] is None
+    await alice.close()
