@@ -89,7 +89,10 @@ export function buildGround(scene, map) {
   // 橋：Sprout 木橋取中間 32 px
   for (const b of map.bridges || []) {
     const [, x, y] = ATLAS.bridgeH;
-    L.drawImage(imgs['sprout/bridge.png'], x + 5, y, 32, 32, b.x, b.y, 32, 32);
+    if (b.v) {                                     // 南北向：轉 90 度
+      L.save(); L.translate(b.x + 16, b.y + 16); L.rotate(Math.PI / 2);
+      L.drawImage(imgs['sprout/bridge.png'], x + 5, y, 32, 32, -16, -16, 32, 32); L.restore();
+    } else L.drawImage(imgs['sprout/bridge.png'], x + 5, y, 32, 32, b.x, b.y, 32, 32);
   }
   return { water, land };
 }

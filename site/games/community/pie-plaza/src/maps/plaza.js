@@ -20,6 +20,7 @@ export function buildPlaza() {
   g.rect(14, 2, 15, 15, KIND.DIRT);          // 南北向
   g.rect(2, 8, 27, 9, KIND.DIRT);            // 東西向
   g.rect(0, 8, 1, 9, KIND.BRIDGE); g.rect(28, 8, 29, 9, KIND.BRIDGE);
+  g.rect(14, 0, 15, 1, KIND.BRIDGE);         // 北橋：派對競技場
   const objects = [
     obj('chickenHouse', 90, 104, { foot: [30, 10] }), obj(JOIN.k, JOIN.x, JOIN.y),
     ...PARTY.spots.map((s) => obj(s.k, s.x, s.y)),
@@ -56,10 +57,11 @@ export function buildPlaza() {
     objects, (tx, ty) => g.get(tx, ty - 1) !== KIND.GRASS || objects.some((o) => Math.abs(o.x - (tx * 16 + 8)) < 24 && Math.abs(o.y - (ty * 16 + 13)) < 20));
   return finalizeMap({
     id: 'plaza', title: '廣場', grid: g, base: 'water', objects: [...objects, ...decor.filter((d) => d.k !== 'bush' && d.k !== 'bushBerry' ? true : (d.foot = null, true))],
-    entries: { center: { x: 240, y: 206, dir: 0 }, west: { x: 30, y: 150, dir: 3 }, east: { x: 450, y: 150, dir: 2 } },
+    entries: { center: { x: 240, y: 206, dir: 0 }, west: { x: 30, y: 150, dir: 3 }, east: { x: 450, y: 150, dir: 2 }, north: { x: 240, y: 30, dir: 0 } },
     warps: [
       { x0: -8, y0: 128, x1: 10, y1: 160, to: 'farm', entry: 'east', label: '我的農場' },
       { x0: 470, y0: 128, x1: 488, y1: 160, to: 'town', entry: 'west', label: '商店街' },
+      { x0: 222, y0: -8, x1: 258, y1: 8, to: 'arena', entry: 'south', label: '派對競技場' },
     ],
     signs: [
       { x: 52, y: 126, title: '告示牌', lines: ['← 西邊：我的農場', '每個人都有一塊自己的地，先把雜草和石頭清乾淨吧！', '常駐派對：西邊搬寶、西南捉迷藏、雞舍傳南瓜。北邊搶寶與紅綠燈。'] },
@@ -83,6 +85,6 @@ export function buildPlaza() {
       ...SEEK.spots.map((s) => ({ x: s.x, y: s.y, title: s.name, lines: ['捉迷藏開始後，藏的人按 E 鑽進去，尋人按 E 檢查。'], action: 'seekSpot', spot: s.id, reach: SEEK.reach, hint: 'E 藏或檢查' })),
       { x: 389, y: 250, title: '瑞吉海獅劇場', lines: ['這裡是海獅瑞吉的劇場！', '表演時間：每天 10 點、15 點、19 點各一場。', '帶條魚來餵瑞吉，牠會送你種子當回禮。'], action: 'show', reach: 40, hit: 30, hint: 'E 餵瑞吉', hintY: 40 },
     ],
-    bridges: [{ x: 0, y: 128 }, { x: 448, y: 128 }],
+    bridges: [{ x: 0, y: 128 }, { x: 448, y: 128 }, { x: 224, y: 0, v: true }],
   });
 }

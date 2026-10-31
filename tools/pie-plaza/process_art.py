@@ -2,7 +2,7 @@
 """把 grok 產生的放大像素圖（每個像素是 32×32 方塊、洋紅底）縮回原生大小並去背。
 
 用法：python3 -I tools/pie-plaza/process_art.py
-讀 tools/pie-plaza/art/{fish,cropsA,cropsB}/*.png，輸出 site/games/community/pie-plaza/assets/gen/<同名>.png。
+讀 tools/pie-plaza/art/{fish,cropsA,cropsB,show,arena}/*.png（可只給資料夾名，例如 arena），輸出 site/games/community/pie-plaza/assets/gen/<同名>.png。
 """
 from pathlib import Path
 from PIL import Image
@@ -49,9 +49,11 @@ def process(src: Path) -> Path:
 
 
 def main() -> None:
+    import sys
     OUT.mkdir(parents=True, exist_ok=True)
     n = 0
-    for lane in ("fish", "cropsA", "cropsB", "show"):
+    lanes = sys.argv[1:] or ("fish", "cropsA", "cropsB", "show", "arena")
+    for lane in lanes:
         for f in sorted((SRC / lane).glob("*.png")):
             n += 1 if process(f) else 0
     print(f"{n} 張 → {OUT}")

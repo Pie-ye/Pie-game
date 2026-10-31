@@ -1440,3 +1440,45 @@ async def test_vase_ops_take_persist_and_reject(aiohttp_client, tmp_path) -> Non
     await bob.close()
     await carol.close()
     await jade.close()
+
+
+# ---------- 派派大作戰 ----------
+@pytest.mark.asyncio
+async def test_arena_show_with_bots_pays_human(aiohttp_client, tmp_path, monkeypatch) -> None:
+    from server.games import arena as AR
+    monkeypatch.setattr("server.games.plaza.ARENA_SECONDS", 0.01)
+    client, plaza, _, clock = await make(aiohttp_client, tmp_path)
+    alice = await connect_and_auth(client, "alice", G)
+    await alice.send_json({"type": "create", "maxPlayers": 16, "name": "廣場大廳"})
+    await drain(alice)
+    gold0 = (await call(alice, "load"))["me"]["gold"]
+    # 太遠不能報名；走到報名台（位置訊息）後可以
+    assert (await call(alice, "arena", act="join", x=10, y=10))["code"] == "too_far"
+    await alice.send_json({"type": "send", "data": {"k": "p", "p": list(AR.DESK), "a": "arena"}})
+    r = await call(alice, "arena", act="join", x=AR.DESK[0], y=AR.DESK[1])
+    assert r["arena"]["ph"] == "queue" and r["arena"]["q"][0][0] == "alice"
+    # 倒數結束：NPC 補到 4 人，三回合跑完
+    seen = set()
+    for _ in range(400):
+        clock.advance(1.0)
+        await asyncio.sleep(0.02)
+        await alice.send_json({"type": "send", "data": {"k": "p", "p": [240, 160], "a": "arena"}})
+        for m in await drain_quick(alice):
+            if m.get("op") == "arena":
+                seen.add(m["arena"]["ph"])
+        if plaza.arena.phase == "idle" and "final" in seen:
+            break
+    assert {"intro", "live", "result", "final"} <= seen
+    st = plaza.players["alice"]["arena"]
+    assert st["shows"] == 1 and st["paid"] == 1
+    assert plaza.players["alice"]["gold"] > gold0
+    await alice.close()
+
+
+async def drain_quick(ws):
+    out = []
+    while True:
+        try:
+            out.append(await ws.receive_json(timeout=0.01))
+        except asyncio.TimeoutError:
+            return out

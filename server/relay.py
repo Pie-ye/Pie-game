@@ -62,6 +62,7 @@ class Connection:
     # 伺服器端遊戲（派派鎮）：正在看誰的農場、目前這一竿
     viewing: str | None = None
     cast: dict[str, Any] | None = None
+    area: str | None = None
     heartbeat_task: asyncio.Task[None] | None = None
 
     @property
@@ -568,6 +569,9 @@ class Relay:
         message = {"type": "message", "from": connection.user_id, "data": payload["data"]}
         if target_id is None:
             await self._broadcast(room.players, message)
+            data = payload["data"]
+            if self.plaza is not None and connection.game_id == self.plaza.GAME_ID and isinstance(data, dict) and data.get("k") == "p":
+                self.plaza.on_pose(connection, data)
             return
 
         target = next((player for player in room.players if player.user_id == target_id), None)

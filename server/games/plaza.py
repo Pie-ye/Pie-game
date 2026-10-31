@@ -18,11 +18,13 @@ from typing import Any, Callable
 
 from ..saves import SaveStore
 from . import plaza_logic as L
+from . import arena as AR
 
 GAME_ID = "pie-plaza"
 USER_RE = re.compile(r"^[A-Za-z0-9_.@:-]{1,64}$")
 FLUSH_SECONDS = 2.0
 TICK_SECONDS = 5.0
+ARENA_SECONDS = 0.1
 MAX_LISTINGS_PER_USER = 10
 MAX_COOP = 20
 WISH_COST = 10
@@ -91,6 +93,10 @@ class PlazaService:
         self.hill: dict[str, Any] = L.new_hill()
         self.smash: dict[str, Any] = L.new_smash()
         self.vase: dict[str, Any] = L.new_vase()
+        self.arena = AR.Arena(self.rng)
+        self._arena_seen = 0
+        self._arena_last = 0
+        self._arena_called = False
         with store._lock:
             for statement in SCHEMA:
                 store._db.execute(statement)
@@ -104,7 +110,8 @@ class PlazaService:
 
     # ---------- 生命週期 ----------
     def start(self, relay) -> None:
-        self._tasks = [asyncio.create_task(self._flush_loop()), asyncio.create_task(self._tick_loop(relay))]
+        self._tasks = [asyncio.create_task(self._flush_loop()), asyncio.create_task(self._tick_loop(relay)),
+                       asyncio.create_task(self._arena_loop(relay))]
 
     async def close(self) -> None:
         for task in self._tasks:
@@ -1215,6 +1222,106 @@ class PlazaService:
         await self._broadcast_party(relay)
         view = L.party_view(self.party, me, now)
         return {"party": view, "payout": view.get("payout") or 0, **self._mine(rec)}
+
+    # ---------- 派派大作戰（派對競技場） ----------
+    def on_pose(self, conn, data: dict[str, Any]) -> None:
+        """relay 轉來的位置訊息：記住所在區域；在競技場的人交給模擬。"""
+        a = data.get("a")
+        conn.area = a if isinstance(a, str) and len(a) <= 48 else None
+        pos = data.get("p")
+        if conn.area == "arena" and isinstance(pos, list) and len(pos) == 2:
+            self.arena.pose(str(conn.user_id), pos[0], pos[1], self.now_ms())
+
+    def _arena_conns(self, relay) -> list:
+        return [c for c in list(relay.connections) if c.game_id == GAME_ID and c.area == "arena"]
+
+    async def _arena_loop(self, relay) -> None:
+        while True:
+            await asyncio.sleep(ARENA_SECONDS)
+            with contextlib.suppress(Exception):
+                await self._arena_step(relay)
+
+    async def _arena_step(self, relay) -> None:
+        ar, now = self.arena, self.now_ms()
+        dt = min(0.25, max(0.0, (now - self._arena_last) / 1000)) if self._arena_last else ARENA_SECONDS
+        self._arena_last = now
+        if ar.phase != "idle":
+            # 斷線或離開競技場超過 4 秒：退出
+            if now - self._arena_seen > 1000:
+                self._arena_seen = now
+                here = {str(c.user_id) for c in self._arena_conns(relay)}
+                for uid in list(ar.queue if ar.phase == "queue" else ar.humans()):
+                    pl = ar.p.get(uid)
+                    if pl and uid not in here and now - (pl["seen"] or 0) > 4000:
+                        ar.leave(uid, now)
+        before = ar.phase
+        ar.tick(now, dt)
+        if ar.payout_due:
+            due, ar.payout_due = ar.payout_due, None
+            await self._arena_pay(relay, due)
+        if ar.phase != "queue":
+            self._arena_called = False
+        elif ar.queue and not self._arena_called:
+            self._arena_called = True
+            first = ar.p[ar.queue[0]]["name"]  # 全鎮廣播：有人報名了
+            call = {"type": "game", "op": "arenaCall", "name": first, "end": ar.phase_end, "now": now}
+            for c in list(relay.connections):
+                if c.game_id == GAME_ID and c.area != "arena":
+                    await self._send(c, call)
+        if ar.running or ar.events or before != ar.phase:
+            snap = ar.snapshot(now)
+            ar.take_events()
+            payload = {"type": "game", "op": "arena", "arena": snap}
+            for c in self._arena_conns(relay):
+                await self._send(c, payload)
+
+    async def _arena_pay(self, relay, due: list[dict[str, Any]]) -> None:
+        day = L.taipei_day(self.now_ms())
+        for r in due:
+            rec = await self.load(r["id"], create=False)
+            if rec is None:
+                continue
+            st = rec.setdefault("arena", {"day": "", "paid": 0, "shows": 0, "wins": 0, "best": 0})
+            if st.get("day") != day:
+                st["day"], st["paid"] = day, 0
+            gold = int(r.get("gold") or 0) if st["paid"] < AR.DAILY_PAID else 0
+            if gold:
+                st["paid"] += 1
+                rec["gold"] += gold
+            st["shows"] = st.get("shows", 0) + 1
+            if r["rank"] == 1:
+                st["wins"] = st.get("wins", 0) + 1
+            st["best"] = max(st.get("best", 0), r["total"])
+            r["gold"] = gold
+            self.dirty.add(r["id"])
+            await self._push_me(relay, r["id"], arenaGold=gold, arenaRank=r["rank"])
+
+    async def op_arena(self, relay, conn, me, rec, p):
+        act = p.get("act")
+        now = self.now_ms()
+        ar = self.arena
+        if act == "join":
+            err = ar.join(me, rec["name"], rec.get("look"), p.get("x"), p.get("y"), now) if all(
+                isinstance(p.get(k), (int, float)) for k in ("x", "y")) else "bad_message"
+            if err:
+                raise GameError(err, {"arena_busy": "比賽進行中，下一場再報名", "already_in": "你已經報名了", "too_far": "走近報名台再按 E",
+                                      "arena_full": "這場人滿了", "bad_message": "位置不對"}.get(err, err))
+            conn.area = "arena"
+        elif act == "leave":
+            ar.leave(me, now)
+        elif act == "throw":
+            err = ar.throw(me, p.get("dx"), p.get("dy"), now)
+            if err:
+                raise GameError(err, {"no_ammo": "派餅還沒補好", "stunned": "被派打中，暈了", "not_live": "現在不能丟"}.get(err, err))
+            return {}
+        elif act == "enter":
+            conn.area = "arena"
+        elif act != "view":
+            raise GameError("bad_message", "無效的競技場動作")
+        st = rec.get("arena") or {}
+        day = L.taipei_day(now)
+        return {"arena": ar.snapshot(now), "stats": {"shows": st.get("shows", 0), "wins": st.get("wins", 0),
+                "paidLeft": AR.DAILY_PAID - (st.get("paid", 0) if st.get("day") == day else 0)}}
 
     async def op_quote(self, relay, conn, me, rec, p):
         await self._run_exchange(relay)

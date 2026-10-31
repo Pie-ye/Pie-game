@@ -28,6 +28,8 @@ import { openLight } from './ui/light.js';
 import { openHill } from './ui/hill.js';
 import { openSmash } from './ui/smash.js';
 import { openVase } from './ui/vase.js';
+import { createArena } from './ui/arena.js';
+import { throwDir, ARENA } from './game/arena.js';
 import { openVisitPanel, openVisitorMenu, openMailbox, openPlayerCard, openEmotes } from './ui/social.js';
 import { TOOLS, CROPS, useTool, debrisLeft, CROP_KEYS } from './farm/state.js';
 import { furniture, canPlace, placeAt, itemAt, sanitizeDecor } from './house/catalog.js';
@@ -79,6 +81,8 @@ function addLog(text, who, cls) {
   logEl.scrollTop = logEl.scrollHeight;
 }
 const sys = (t) => addLog(t, '', 'sys');
+const arena = createArena({ myId: () => myId, audio, hud, sys, onCall: () => { if (area !== 'arena') goArea('arena', 'south'); } });
+arena.onTeleport((x, y) => { me.x = x; me.y = y; target = null; keys.clear(); sendPose(undefined, true); });
 function updateInfo(extra) {
   titleEl.textContent = map ? map.title : '派派鎮';
   infoEl.textContent = extra || (net ? `${net.count} 人在線` : '訪客試玩（登入後才會存檔、看得到別人）');
@@ -152,6 +156,7 @@ function toolAllowed(t) {
     return t === 'wateringcan' || t === 'rod';
   }
   if (map.id === 'plaza') return t === 'rod';
+  if (map.id === 'arena') return false;
   return map.id === personal('house') && t === 'hammer';
 }
 /** opts.rebuild：同一區重建（不算換區）；opts.viewed：已經向伺服器 view 過了。 */
@@ -169,7 +174,7 @@ function loadArea(a, entry, opts = {}) {
   }
   prepNpcs(m);
   applyEvents(m);
-  const moved = !opts.rebuild && a !== area, wasOwner = ownerOf(area);
+  const moved = !opts.rebuild && a !== area, wasOwner = ownerOf(area), wasArena = area === 'arena';
   map = m; area = a;
   const e = (entry && m.entries[entry]) || Object.values(m.entries)[0];
   me.x = e.x; me.y = e.y; me.dir = e.dir; me.moving = false;
@@ -179,6 +184,9 @@ function loadArea(a, entry, opts = {}) {
   hud.enable(toolAllowed);
   updateInfo();
   sendPose(undefined, true);
+  arena.setVisible(a === 'arena');
+  if (moved && a === 'arena') enterArena();
+  else if (moved && wasArena) leaveArena();
   // 伺服器推播只送給「正在看」這塊地的人
   if (api.server && moved && !opts.viewed) {
     if (owner) { if (owner !== wasOwner) call('view', { owner }, { quiet: true }).then((r) => onView(owner, r)).catch(() => {}); }
@@ -273,6 +281,7 @@ function interact() {
   audio.tool('talk');
   const ev = t.eventAction && events.find((id) => t.eventAction[id]);
   const action = ev ? t.eventAction[ev] : t.action;
+  if (action === 'arenaDesk') { arenaDesk(); return true; }
   if (action === 'partyGrab') { grabSpot(t.spot); return true; }
   if (action === 'seekSpot') { useSeekSpot(t.spot); return true; }
   if (action === 'tugPull') { pullTug(t.side); return true; }
@@ -334,6 +343,8 @@ function doAction(action) {
   else if (action === 'hill') openHillPanel();
   else if (action === 'smash') openSmashPanel();
   else if (action === 'vase') openVasePanel();
+  else if (action === 'arenaDesk') arenaDesk();
+  else if (action === 'arenaBoard') arenaBoard();
 }
 async function ship() {
   try {
@@ -638,6 +649,51 @@ function openXchg() {
     },
   }, { guest: !api.server });
 }
+
+// ---------- 派派大作戰（派對競技場） ----------
+async function enterArena() {
+  arena.setEnabled(!!api.server);
+  if (!api.server) { sys('🎪 派派大作戰要登入後才能參加（伺服器比賽），現在可以先逛逛。'); return; }
+  try { const r = await call('arena', { act: 'enter' }, { quiet: true }); arena.apply(r.arena, false); } catch (_e) { /* 下一次推播再說 */ }
+}
+function leaveArena() {
+  const s = arena.snap;
+  if (api.server && s && (s.ph === 'queue' ? (s.q || []).some((x) => String(x[0]) === myId) : arena.inShow())) call('arena', { act: 'leave' }, { quiet: true }).catch(() => {});
+}
+async function arenaDesk() {
+  if (!api.server) { hud.toast('登入後才能參加派派大作戰'); return; }
+  const s = arena.snap;
+  if (arena.running()) { hud.toast('比賽進行中，下一場再報名'); return; }
+  try {
+    if (s && s.ph === 'queue' && (s.q || []).some((x) => String(x[0]) === myId)) {
+      const r = await call('arena', { act: 'leave' }); arena.apply(r.arena, false); hud.toast('已取消報名');
+    } else {
+      const r = await call('arena', { act: 'join', x: Math.round(me.x), y: Math.round(me.y) });
+      arena.apply(r.arena, false); audio.tool('harvest');
+      hud.toast(`報名成功！今天還有 ${Math.max(0, r.stats.paidLeft)} 場有金幣獎勵`, 2500);
+    }
+  } catch (_e) { /* 已提示 */ }
+}
+async function arenaBoard() {
+  if (!api.server) { dialog.show({ name: '記分板' }, ['登入後就會記下你的派派大作戰戰績。']); return; }
+  try {
+    const r = await call('arena', { act: 'view' });
+    const st = r.stats;
+    dialog.show({ name: '記分板' }, [`你參加了 ${st.shows} 場派派大作戰，奪冠 ${st.wins} 次。`, `今天還有 ${Math.max(0, st.paidLeft)} 場有金幣獎勵（第一名 ${ARENA.gold[0]} G）。`]);
+  } catch (_e) { /* 已提示 */ }
+}
+let lastThrow = 0;
+async function throwPie(dx, dy) {
+  const now = performance.now();
+  if (now - lastThrow < 250) return;
+  lastThrow = now;
+  if (!arena.canThrow()) { if (arena.inShow() && arena.mine && arena.mine.ammo <= 0) hud.toast('派餅補充中…', 800); return; }
+  const [ux, uy] = throwDir(me.dir, dx, dy);
+  me.dir = dirOf(ux, uy, me.dir); me.acting = now + 220;
+  audio.tool('throw');
+  try { await api.call('arena', { act: 'throw', dx: Math.round(ux * 100) / 100, dy: Math.round(uy * 100) / 100 }); } catch (_e) { /* 太快或暈了 */ }
+}
+const arenaThrowing = () => map && map.id === 'arena' && arena.inShow() && arena.snap.ph === 'live' && arena.snap.kind === 'pie';
 
 // ---------- 地標：菲比女神噴水池、瑞吉海獅秀 ----------
 async function wish() {
@@ -1039,6 +1095,11 @@ function onGame(m) {
   else if (m.op === 'hill' && m.hill) lastHill = m.hill;
   else if (m.op === 'smash' && m.smash) lastSmash = m.smash;
   else if (m.op === 'vase' && m.vase) lastVase = m.vase;
+  else if (m.op === 'arena' && m.arena) arena.apply(m.arena, true);
+  else if (m.op === 'arenaCall') arena.call(m);
+  if (m.op === 'me' && Number.isFinite(m.arenaRank)) {
+    hud.toast(m.arenaGold ? `🎪 第 ${m.arenaRank} 名！獲得 ${m.arenaGold} G` : `🎪 第 ${m.arenaRank} 名！（今天的獎金場次用完了）`, 3500);
+  }
 }
 
 // ---------- 連線 ----------
@@ -1162,6 +1223,7 @@ addEventListener('keydown', (e) => {
     e.preventDefault();
     if (e.repeat) return;
     holding = true;
+    if (arenaThrowing()) { throwPie((keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0), (keys.has('s') || keys.has('arrowdown') ? 1 : 0) - (keys.has('w') || keys.has('arrowup') ? 1 : 0)); return; }
     if (fishingPress()) return;
     if (!interact()) { const f = facingTile(me); act(f.tx, f.ty); }
     return;
@@ -1199,6 +1261,7 @@ canvas.addEventListener('pointerdown', (e) => {
   if (fishing) { holding = true; fishingPress(); return; }
   const w = worldAt(e), t = tileOf(w.x, w.y);
   if (edit) { editClick(t.tx, t.ty); return; }
+  if (arenaThrowing()) { throwPie(w.x - me.x, w.y - 6 - me.y); return; }
   // 點到同一區的其他玩家：名片（拜訪、打招呼、好友、共耕）
   const other = [...people.values()].find((p) => p.area === area && Math.hypot(p.x - w.x, p.y - 8 - w.y) < 10);
   if (other) {
@@ -1248,12 +1311,15 @@ let prev = performance.now(), lastClock = 0, lastEvents = 0;
 function frame(now) {
   const dt = Math.min(0.05, (now - prev) / 1000); prev = now;
   if (map && scene && farm) {
-    const lock = dialog.open || warping || creatorOpen() || (fishing && fishing.phase !== 'wait' && fishing.phase !== 'casting');
+    const inArena = map.id === 'arena';
+    const lock = dialog.open || warping || creatorOpen() || (fishing && fishing.phase !== 'wait' && fishing.phase !== 'casting') || (inArena && arena.frozen());
+    const blocked = inArena ? arena.blocker(map.blocked) : map.blocked;
+    if (inArena && arena.rescue(me)) sendPose(undefined, true);
     const dx = lock ? 0 : (keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0);
     const dy = lock ? 0 : (keys.has('s') || keys.has('arrowdown') ? 1 : 0) - (keys.has('w') || keys.has('arrowup') ? 1 : 0);
     const bx = me.x, by = me.y;
-    if (dx || dy) { Object.assign(me, stepMove(me, dx, dy, dt, map.blocked)); me.dir = dirOf(dx, dy, me.dir); }
-    else if (target && !lock) { const s = stepToward(me, target.x, target.y, dt, map.blocked); me.x = s.x; me.y = s.y; if (s.arrived) target = null; if (Math.hypot(me.x - bx, me.y - by) > 0.01) me.dir = dirOf(me.x - bx, me.y - by, me.dir); }
+    if (dx || dy) { Object.assign(me, stepMove(me, dx, dy, dt, blocked)); me.dir = dirOf(dx, dy, me.dir); }
+    else if (target && !lock) { const s = stepToward(me, target.x, target.y, dt, blocked); me.x = s.x; me.y = s.y; if (s.arrived) target = null; if (Math.hypot(me.x - bx, me.y - by) > 0.01) me.dir = dirOf(me.x - bx, me.y - by, me.dir); }
     me.moving = Math.hypot(me.x - bx, me.y - by) > 0.01;
     if (me.moving && audio.stepDue(now)) audio.step(now, 0, 0);
     if (now > warpLock && !warping) { const w = map.warpAt(me); if (w) warpTo(w); }
@@ -1261,16 +1327,25 @@ function frame(now) {
     updateFishing(now, dt);
     animateLandmarks(now);
     pulsePartyVisuals();
-    const list = [{ ...me, name: myName, self: true }];
+    const fell = inArena && arena.inShow() && arena.mine.out && arena.snap.kind === 'floor';
+    const list = fell ? [] : [{ ...me, name: myName, self: true }];
+    const inShow = inArena ? arena.participants() : null;
+    if (inArena) { list.push(...arena.people(now, dt)); arena.tick(); }
     for (const p of people.values()) {
       const k = 1 - Math.exp(-dt * 12); p.x += (p.tx - p.x) * k; p.y += (p.ty - p.y) * k;
       p.moving = now - p.movedAt < MOVING_MS;
       if (p.area !== area) continue;
+      if (inShow && inShow.has(p.id)) continue;
       if (p.moving && now - p.lastStep > 300) { p.lastStep = now; audio.step(now, Math.hypot(p.x - me.x, p.y - me.y), (p.x - me.x) / HEAR_DIST); }
       list.push(p);
     }
     for (const n of map.npcs) { n.near = Math.hypot(n.x - me.x, n.y - me.y) < 56; list.push(n); }
     const opts = { light: map.base === 'void' ? null : daylight() };
+    if (inArena) {
+      opts.under = (c, t) => arena.drawUnder(c, t, scene);
+      opts.over = (c, t) => arena.drawOver(c, t, scene, me);
+      opts.top = (c, cam, S, t) => arena.drawTop(c, cam, S, t);
+    }
     if (fishing) opts.fishing = { x: fishing.x, y: fishing.y, fromX: me.x + [0, 0, -6, 6][me.dir], fromY: me.y - 12, bite: fishing.phase === 'bite', px: me.x, py: me.y };
     if (edit && hover && edit.sel !== 'remove') {
       const f = furniture(edit.sel), ox = hover.tx - Math.floor((f.w - 1) / 2), oy = hover.ty - (f.h - 1);
@@ -1291,7 +1366,9 @@ function frame(now) {
     if (marks) opts.marks = marks;
     if (fishing && fishing.phase === 'bite') opts.hint = { x: me.x, y: me.y - 26, text: '空白鍵 提竿！' };
     if (!canvas.width) fit();
-    drawWorld(ctx, scene, map, list, cameraFor(me.x, me.y, map.pw, map.ph), now, BUBBLE_MS, opts);
+    const cam = cameraFor(me.x, me.y, map.pw, map.ph);
+    if (inArena && arena.shaking()) { cam.x += Math.round(Math.random() * 4 - 2); cam.y += Math.round(Math.random() * 4 - 2); }
+    drawWorld(ctx, scene, map, list, cam, now, BUBBLE_MS, opts);
     if (now - lastClock > 10000) { hud.clock(); lastClock = now; }
     if (now - lastEvents > 5000) { checkEvents(false); lastEvents = now; }
   }
@@ -1317,7 +1394,7 @@ start();
 window.__plaza = {
   get area() { return area; }, get me() { return me; }, get farm() { return farm; }, get decor() { return decor; }, get map() { return map; },
   get fishing() { return fishing; }, get events() { return events; }, get social() { return social; }, get mails() { return mails; }, get server() { return api.server; },
-  get ready() { return ready; }, get party() { return lastParty; }, get contest() { return lastContest; }, get seek() { return lastSeek; }, get hot() { return lastHot; }, get tug() { return lastTug; }, get haul() { return lastHaul; }, get light() { return lastLight; }, get hill() { return lastHill; }, get smash() { return lastSmash; }, get vase() { return lastVase; }, marks: () => partyMarks(), people, visits,
+  get ready() { return ready; }, get party() { return lastParty; }, get contest() { return lastContest; }, get seek() { return lastSeek; }, get hot() { return lastHot; }, get tug() { return lastTug; }, get haul() { return lastHaul; }, get light() { return lastLight; }, get hill() { return lastHill; }, get smash() { return lastSmash; }, get vase() { return lastVase; }, arena, marks: () => partyMarks(), people, visits,
   warp: (to, entry) => loadArea(to === 'farm' || to === 'house' ? personal(to) : to, entry),
   setEvents: (ids) => { events = ids; applyEvents(map); },
   setLook: (l) => { const s = sanitizeLook(l); if (!s) return false; me.look = s; sendLook(); return true; },

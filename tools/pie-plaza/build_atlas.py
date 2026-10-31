@@ -118,6 +118,10 @@ SPEC.update({
     "junkBoot": ("gen/junk_boot.png", 0, 0, 16, 16), "rodIcon": ("gen/rod.png", 0, 0, 16, 16),
     "campfire": ("gen/campfire.png", 0, 0, 16, 16), "lampPost": ("gen/lamp_post.png", 0, 0, 16, 32),
     "bulletinBoard": ("gen/bulletin_board.png", 0, 0, 32, 32), "lanternString": ("gen/lantern_string.png", 0, 0, 32, 16),
+    # 派對競技場（antigravity 依 art/arena/BRIEF.md 生成）
+    "arenaPie": ("gen/arena_pie.png", 0, 0, 16, 16), "arenaPieGold": ("gen/arena_pie_gold.png", 0, 0, 16, 16),
+    "arenaSplat": ("gen/arena_splat.png", 0, 0, 16, 16), "arenaCrown": ("gen/arena_crown.png", 0, 0, 16, 16),
+    "arenaPodium": ("gen/arena_podium.png", 0, 0, 48, 32), "arenaDesk": ("gen/arena_desk.png", 0, 0, 48, 32),
 })
 
 

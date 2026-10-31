@@ -93,6 +93,14 @@ export function createAudio() {
     else if (kind === 'nope') tone(220, 180, 0.12, 0.12, 'square');
     else if (kind === 'door') { noise(0.18, 300, 150, 1, 0.5, 'lowpass'); }
     else if (kind === 'talk') tone(880, 880, 0.04, 0.06, 'square');
+    else if (kind === 'coin') { tone(1320, 1760, 0.08, 0.1, 'square'); }
+    else if (kind === 'bigcoin') { tone(880, 1320, 0.1, 0.12, 'square'); tone(1320, 2640, 0.25, 0.08, 'triangle'); }
+    else if (kind === 'throw') noise(0.12, 700, 2400, 0.9, 0.45);
+    else if (kind === 'splat') { noise(0.2, 600, 120, 0.7, 0.9, 'lowpass'); tone(200, 70, 0.16, 0.2); }
+    else if (kind === 'crack') noise(0.1, 3000, 1200, 2.5, 0.35);
+    else if (kind === 'fall') { tone(700, 90, 0.6, 0.16, 'triangle'); }
+    else if (kind === 'whistle') { tone(2200, 2400, 0.35, 0.08, 'sine'); }
+    else if (kind === 'fanfare') { tone(523, 523, 0.18, 0.12, 'square'); tone(659, 659, 0.36, 0.06, 'square'); tone(784, 1046, 0.7, 0.07, 'triangle'); }
   }
 
   /** 角色語音：who 為 'phoebe' 或 'reggie'，隨機挑一句（pie-phoebe 的錄音）。 */

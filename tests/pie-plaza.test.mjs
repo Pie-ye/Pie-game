@@ -81,7 +81,7 @@ test('blobTile follows the Sprout layout', () => {
 
 // ---------- 地圖 ----------
 const decor = C.defaultDecor();
-const AREAS = ['plaza', 'town', ...SHOPS.map((s) => `shop:${s.id}`), 'farm:u1', 'house:u1'];
+const AREAS = ['plaza', 'town', 'arena', ...SHOPS.map((s) => `shop:${s.id}`), 'farm:u1', 'house:u1'];
 const maps = Object.fromEntries(AREAS.map((a) => [a, getMap(a, { decor })]));
 const resolve = (to) => (to === 'farm' ? 'farm:u1' : to);
 
@@ -1596,4 +1596,22 @@ test('hill hot vase public expose heldAt while live', () => {
   VA.maybeExpireVase(vase, VA.VASE.countdownMs);
   VA.vaseTake(vase, 'a', VA.VASE_JOIN.x, VA.VASE_JOIN.y, VA.VASE.countdownMs + 5);
   assert.equal(VA.vasePublic(vase, VA.VASE.countdownMs + 5).heldAt, VA.VASE.countdownMs + 5);
+});
+
+// ---------- 派派大作戰 ----------
+const AR = await import('../site/games/community/pie-plaza/src/game/arena.js');
+test('arena: field is enclosed for spectators, desk reachable, standings share ranks', () => {
+  const m = maps.arena;
+  const [x0, y0, x1, y1] = AR.ARENA.field;
+  assert.equal(AR.cellOf(x0 + 1, y0 + 1), 0);
+  assert.equal(AR.cellOf(x1 - 1, y1 - 1), AR.ARENA.cols * AR.ARENA.rows - 1);
+  assert.ok(AR.inField(240, 150) && !AR.inField(240, 262));
+  const desk = m.signs.find((t) => t.action === 'arenaDesk');
+  assert.ok(desk && AR.nearDesk(desk.x, desk.y));
+  const s = AR.standings([{ id: 'a', total: 5 }, { id: 'b', total: 9 }, { id: 'c', total: 5 }]);
+  assert.deepEqual(s.map((p) => [p.id, p.rank]), [['b', 1], ['a', 2], ['c', 2]]);
+  const p = AR.unpackPlayer(['npc:sam', '山姆', 10, 20, 3, 1 | 2, 4, 9, 2, 'villager3', 7]);
+  assert.ok(p.bot && p.stunned && !p.out && p.sprite === 'villager3' && p.gain === 7);
+  assert.deepEqual(AR.throwDir(3), [1, 0]);
+  const [dx, dy] = AR.throwDir(0, 1, 1); assert.ok(Math.abs(Math.hypot(dx, dy) - 1) < 1e-9);
 });

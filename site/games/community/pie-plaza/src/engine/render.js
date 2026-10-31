@@ -71,7 +71,7 @@ function drawNight(ctx, cam, light, lights, now, S) {
   ctx.restore();
 }
 
-function drawPerson(ctx, scene, p, now) {
+export function drawPerson(ctx, scene, p, now) {
   const sheet = p.npc ? scene.imgs[npcSheet(p.sprite)] : lookSheet(scene, p.look || defaultLook(p.id));
   if (!sheet) return;
   const f = p.acting && now < p.acting ? 4 : walkFrame(p.moving, now);
@@ -79,8 +79,8 @@ function drawPerson(ctx, scene, p, now) {
   ctx.drawImage(sheet, (p.dir || 0) * 16, f * 16, 16, 16, Math.round(p.x - 8), Math.round(p.y - 15), 16, 16);
 }
 
-function textWidth(ctx, text, size) { ctx.font = FONT(size); return ctx.measureText(text).width / SCALE; }
-function drawText(ctx, text, x, y, size, color, align = 'center') {
+export function textWidth(ctx, text, size) { ctx.font = FONT(size); return ctx.measureText(text).width / SCALE; }
+export function drawText(ctx, text, x, y, size, color, align = 'center') {
   ctx.font = FONT(size); ctx.textAlign = align; ctx.fillStyle = color;
   ctx.fillText(text, Math.round(x * SCALE), Math.round(y * SCALE));
 }
@@ -146,6 +146,7 @@ export function drawWorld(ctx, scene, map, people, cam, now, bubbleMs, opts = {}
     if (o.overhead) over.push(o); else if (o.wall || /^(rug|strawMat)/.test(o.k)) flat.push(o); else items.push({ y: o.y + (o.z || 0), o });
   }
   for (const o of flat) sprite(ctx, scene, o.k, o.x, o.y);
+  if (opts.under) { opts.under(ctx, now); ctx.setTransform(S, 0, 0, S, -cam.x * S, -cam.y * S); }
   if (opts.cursor) {
     const { tx, ty, ok } = opts.cursor;
     ctx.strokeStyle = ok ? 'rgba(255,255,255,.85)' : 'rgba(255,90,60,.85)'; ctx.lineWidth = 1;
@@ -158,6 +159,7 @@ export function drawWorld(ctx, scene, map, people, cam, now, bubbleMs, opts = {}
   for (const o of over) sprite(ctx, scene, o.k, o.x, o.y);
   for (const p of people) if (p.emote && now < p.emote.until && inView(p.x, p.y, 16, 16)) sprite(ctx, scene, `emote${p.emote.n}`, p.x + 1, p.y - 16 - Math.round(Math.abs(Math.sin(now / 160)) * 2));
   if (opts.fishing) drawLine(ctx, opts.fishing, now);
+  if (opts.over) { opts.over(ctx, now); ctx.setTransform(S, 0, 0, S, -cam.x * S, -cam.y * S); }
   if (map.base !== 'void') drawNight(ctx, cam, opts.light, lightsOf(all), now, S);
   ctx.setTransform(S, 0, 0, S, -cam.x * S, -cam.y * S);
   if (opts.marks) {
@@ -176,6 +178,7 @@ export function drawWorld(ctx, scene, map, people, cam, now, bubbleMs, opts = {}
   for (const p of people) if (inView(p.x, p.y, 16, 16) && !p.self && (!p.npc || p.near)) nameTag(ctx, p.x, p.y + 2, p.name, p.npc);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   for (const p of people) if (p.bubble && now - p.bubbleAt < bubbleMs) bubble(ctx, scene, p.x - cam.x, p.y - cam.y - 19, p.bubble, vw);
+  if (opts.top) { opts.top(ctx, cam, S, now); ctx.setTransform(1, 0, 0, 1, 0, 0); }
   if (opts.hint) {
     const { x, y, text } = opts.hint, sx = x - cam.x, sy = y - cam.y;
     const w = Math.ceil(textWidth(ctx, text, 12)) + 10;

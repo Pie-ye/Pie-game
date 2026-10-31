@@ -17,6 +17,7 @@ const NPC_DIR = { inspector: 'ninja/body' };
 export const npcSheet = (n) => `${NPC_DIR[n] || 'ninja/npc'}/${n}.png`;
 export const npcFace = (n) => `${NPC_DIR[n] || 'ninja/npc'}/${n}_face.png`;
 const EXTRA = ['sprout/grass.png', 'sprout/water.png', 'sprout/dirt.png', 'sprout/tilled.png', 'ninja/dialog.png', 'ninja/interior_floor.png',
+  'ninja/fx/coin.png', 'ninja/fx/goldcup.png', 'ninja/fx/smoke.png', 'ninja/fx/spark.png', 'ninja/fx/stamp.png',
   ...NPC_SPRITES.map(npcSheet)];
 
 export async function loadImages() {

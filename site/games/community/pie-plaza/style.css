@@ -169,3 +169,18 @@ button:disabled { opacity:.5; cursor:default; }
 .sell-form { display:grid; grid-template-columns:auto 1fr; gap:6px; align-items:center; margin:6px 0; }
 .sell-form select, .sell-form input { min-height:34px; font:inherit; font-size:.9rem; background:#fff8e4; border:2px solid var(--wood); border-radius:4px; color:var(--ink); }
 .person-row button.coop { font-size:.72rem; }
+
+/* ---------- 派派大作戰 ---------- */
+.arena-hud { position:absolute; top:8px; left:50%; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:4px; pointer-events:none; z-index:4; max-width:70%; }
+.arena-bar { padding:3px 10px; font-size:.82rem; line-height:1.5; color:#fff3d6; background:rgba(60,30,12,.86); border:2px solid #c98a3c; border-radius:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
+.arena-board { line-height:1.45; position:absolute; top:12px; left:12px; margin:0; padding:4px 8px; list-style:none; font-size:.72rem; line-height:1.45; color:#fff3d6; background:rgba(40,24,10,.72); border-radius:4px; z-index:4; pointer-events:none; }
+.arena-board:empty, .arena-board[hidden], .arena-hud[hidden], .arena-banner[hidden], .arena-call[hidden] { display:none; }
+.arena-board li.me, .arena-banner li.me { color:#ffd23f; font-weight:bold; }
+.arena-banner { line-height:1.4; position:absolute; top:30%; left:50%; transform:translate(-50%,-50%); min-width:260px; max-width:80%; padding:10px 16px 12px; text-align:center; color:#fff3d6; background:rgba(40,22,10,.9); border:3px solid #e0a040; border-radius:8px; box-shadow:0 4px 0 rgba(0,0,0,.35); z-index:5; pointer-events:none; animation:arena-pop .25s ease-out; }
+.arena-banner b { display:block; font-size:1.25rem; letter-spacing:1px; }
+.arena-banner p { margin:4px 0 0; font-size:.85rem; color:#f5deb3; }
+.arena-banner ol { margin:8px 0 0; padding:0; list-style:none; font-size:.82rem; line-height:1.6; text-align:left; display:inline-block; }
+@keyframes arena-pop { from { transform:translate(-50%,-50%) scale(.85); opacity:0; } to { transform:translate(-50%,-50%) scale(1); opacity:1; } }
+.arena-call { line-height:1.4; position:absolute; bottom:64px; left:50%; transform:translateX(-50%); padding:5px 12px; font:inherit; font-size:.82rem; color:#3a2412; background:#ffd76a; border:2px solid #b8742a; border-radius:6px; cursor:pointer; z-index:6; animation:arena-blink 1s ease-in-out infinite alternate; white-space:nowrap; }
+@keyframes arena-blink { from { box-shadow:0 0 0 rgba(255,210,63,0); } to { box-shadow:0 0 12px rgba(255,210,63,.9); } }
+.in-arena #toolbar, .in-arena #inv { display:none; }
