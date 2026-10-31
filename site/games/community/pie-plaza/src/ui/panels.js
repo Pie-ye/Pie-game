@@ -112,7 +112,7 @@ export function openEventBoard(ms, close, snaps) {
     const card = document.createElement('div'); card.className = `event ${state}`;
     const h = document.createElement('b'); h.textContent = `${e.icon} ${e.name}　${hhmm(from)}–${hhmm(to)}`;
     const tag = document.createElement('span'); tag.className = 'tag'; tag.textContent = state === 'now' ? '進行中' : state === 'past' ? '已結束' : '稍後';
-    const p = document.createElement('p'); p.textContent = `${e.desc}（地點：${e.area === 'town' ? '商店街' : '廣場'}）`;
+    const p = document.createElement('p'); p.textContent = `${e.desc}（地點：${{ town: '商店街', arena: '派對競技場' }[e.area] || '廣場'}）`;
     card.append(h, tag, p); body.append(card);
   }
   const frog = document.createElement('div'); frog.className = 'event';

@@ -528,6 +528,16 @@
    "days": null
   },
   {
+   "id": "partynight",
+   "slots": [
+    [
+     20,
+     21
+    ]
+   ],
+   "days": null
+  },
+  {
    "id": "flower",
    "slots": [
     [

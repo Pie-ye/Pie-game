@@ -91,7 +91,7 @@ export function createArena({ myId, audio, hud, sys, onCall }) {
     audio.tool('fanfare');
     const lines = res.map((r) => ({ text: `${r.rank === 1 ? '👑' : `${r.rank}.`} ${r.name}${r.bot ? '（鎮民）' : ''}　${r.total} 分${r.bot ? '' : `　${r.gold | 0} G`}`, cls: String(r.id) === me() ? 'me' : null }));
     const humans = res.filter((r) => !r.bot).length;
-    setBanner(top ? `👑 ${top.name} 奪冠！` : '比賽結束', humans > 1 ? `${humans} 位鎮民同場，金幣加成 +${Math.min(100, (humans - 1) * 20)}%！` : '找朋友一起報名，每多一人金幣 +20%。', '#ffd23f', 8800, lines);
+    setBanner(top ? `👑 ${top.name} 奪冠！` : '比賽結束', (humans > 1 ? `${humans} 位鎮民同場，金幣加成 +${Math.min(100, (humans - 1) * 20)}%！` : '找朋友一起報名，每多一人金幣 +20%。') + (new Date(Date.now() + 8 * 3600_000).getUTCHours() === 20 ? '　🎉 派對之夜獎金加倍！' : ''), '#ffd23f', 8800, lines);
     if (top && !top.bot) sys(`👑 ${top.name} 在派派大作戰奪冠！`);
   }
 

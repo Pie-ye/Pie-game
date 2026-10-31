@@ -1540,6 +1540,8 @@ class PlazaService:
             if st.get("day") != day:
                 st["day"], st["paid"] = day, 0
             gold = int(r.get("gold") or 0) if st["paid"] < AR.DAILY_PAID else 0
+            if gold and L.event_active("partynight", self.now_ms()):
+                gold *= 2                                   # 派對之夜：獎金加倍
             if gold:
                 st["paid"] += 1
                 rec["gold"] += gold
@@ -1548,6 +1550,9 @@ class PlazaService:
                 st["wins"] = st.get("wins", 0) + 1
             st["best"] = max(st.get("best", 0), r["total"])
             r["gold"] = gold
+            for res in self.arena.results or []:          # 頒獎畫面顯示實際入帳（含派對之夜、每日上限）
+                if res["id"] == r["id"]:
+                    res["gold"] = gold
             self.dirty.add(r["id"])
             await self._push_me(relay, r["id"], arenaGold=gold, arenaRank=r["rank"])
             stats = r.get("stats") or {}

@@ -18,6 +18,8 @@ export const EVENTS = [
     desc: '廣場西南邊的草地點起營火、掛上燈籠。西南圓木隨時可以湊人捉迷藏。' },
   { id: 'reggie', name: '瑞吉海獅秀', area: 'plaza', slots: [[10, 11], [15, 16], [19, 20]], icon: '🦭',
     desc: '廣場東南角的海獅劇場開演！瑞吉會頂球、跳躍，帶條魚去餵牠會收到回禮。' },
+  { id: 'partynight', name: '派對之夜', area: 'arena', slots: [[20, 21]], icon: '🎉',
+    desc: '派派大作戰獎金加倍！晚上 8 點到 9 點，大家一起到廣場北橋的競技場。' },
   { id: 'flower', name: '週末花祭', area: 'town', slots: [[9, 21]], days: [0, 6], icon: '🌸',
     desc: '週末的商店街掛滿彩旗和花，居民都換上節慶的台詞。' },
 ];
