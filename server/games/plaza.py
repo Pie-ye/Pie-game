@@ -1936,8 +1936,17 @@ class PlazaService:
             await self.flush()
             rows = await asyncio.to_thread(self._week_rows, last)
             boards = self._boards(rows, 3)
+        # 本週派對之星：上週派派大作戰冠軍（沒有的話取其他榜第一）站上廣場北邊的頒獎台
+        star = None
+        for key, title in Q.WEEK_BOARDS:
+            if boards.get(key):
+                name, v, uid = boards[key][0]
+                srec = await self.load(uid, create=False)
+                if srec:
+                    star = {"uid": uid, "name": name, "title": title, "v": v, "week": last, "look": srec.get("look"), "pet": PT.state(srec)["on"]}
+                break
         # 先記「已結算」再發獎：就算發到一半當機，重啟也不會重複發
-        self.weekly = {"last": wk, "champs": [[title, boards[key][0][0]] for key, title in Q.WEEK_BOARDS if boards.get(key)]}
+        self.weekly = {"last": wk, "champs": [[title, boards[key][0][0]] for key, title in Q.WEEK_BOARDS if boards.get(key)], "star": star}
         await asyncio.to_thread(self._write_kv, "weekly", json.dumps(self.weekly, ensure_ascii=False))
         for key, title in Q.WEEK_BOARDS:
             for i, (name, v, uid) in enumerate(boards.get(key) or []):
@@ -1954,6 +1963,26 @@ class PlazaService:
                     await self._notify(relay, uid, "sys", "派派鎮公所", "sysrank", {"title": title, "rank": i + 1, "gold": gold, "week": last, "v": v})
                 except Exception:
                     log.exception("weekly reward failed for %s", uid)
+
+    async def op_star(self, relay, conn, me, rec, p):
+        star = self.weekly.get("star")
+        if p.get("act") == "cheer":
+            if not star:
+                raise GameError("no_star", "還沒有本週之星")
+            day = L.taipei_day(self.now_ms())
+            if rec.get("cheer") == day:
+                raise GameError("cheered", "今天已經喝采過了")
+            rec["cheer"] = day
+            rec["gold"] += 5
+            self.dirty.add(me)
+            if star["uid"] != me:
+                srec = await self.load(star["uid"], create=False)
+                if srec:
+                    srec["social"]["likes"] += 1
+                    self.dirty.add(star["uid"])
+                    await self._notify(relay, star["uid"], me, rec["name"], "syslike", {})
+            return {"star": {k: v for k, v in star.items() if k != "uid"}, **self._mine(rec)}
+        return {"star": {k: v for k, v in star.items() if k != "uid"} if star else None}
 
     def _write_kv(self, k: str, v: str) -> None:
         with self.store._lock:

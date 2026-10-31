@@ -155,7 +155,7 @@ export function drawWorld(ctx, scene, map, people, cam, now, bubbleMs, opts = {}
   for (const o of all) {
     if (o.hide) continue;
     if (!inView(o.x, o.y, o.w, o.h)) continue;
-    if (o.overhead) over.push(o); else if (o.wall || /^(rug|strawMat)/.test(o.k)) flat.push(o); else items.push({ y: o.y + (o.z || 0), o });
+    if (o.overhead) over.push(o); else if (o.wall || o.flat || /^(rug|strawMat)/.test(o.k)) flat.push(o); else items.push({ y: o.y + (o.z || 0), o });
   }
   for (const o of flat) sprite(ctx, scene, o.k, o.x, o.y);
   if (opts.under) { opts.under(ctx, now); ctx.setTransform(S, 0, 0, S, -cam.x * S, -cam.y * S); }
@@ -187,7 +187,7 @@ export function drawWorld(ctx, scene, map, people, cam, now, bubbleMs, opts = {}
   }
   // 文字層：原生座標扣掉鏡頭再乘 SCALE
   ctx.setTransform(1, 0, 0, 1, -cam.x * S, -cam.y * S);
-  for (const p of people) if (inView(p.x, p.y, 16, 16) && !p.self && !p.isPet && (!p.npc || p.near)) nameTag(ctx, p.x, p.y + 2, p.name, p.npc);
+  for (const p of people) if (inView(p.x, p.y, 16, 16) && !p.self && !p.isPet && !p.noTag && (!p.npc || p.near)) nameTag(ctx, p.x, p.y + 2, p.name, p.npc);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   for (const p of people) if (p.bubble && now - p.bubbleAt < bubbleMs) bubble(ctx, scene, p.x - cam.x, p.y - cam.y - 19, p.bubble, vw);
   if (opts.top) { opts.top(ctx, cam, S, now); ctx.setTransform(1, 0, 0, 1, 0, 0); }

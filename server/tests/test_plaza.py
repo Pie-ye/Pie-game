@@ -1666,6 +1666,13 @@ async def test_weekly_boards_settle_and_friend_bonus(aiohttp_client, tmp_path) -
     assert "week_champ" in plaza.players["alice"]["stamps"] and "week_champ" in plaza.players["bob"]["stamps"]
     mails = await asyncio.to_thread(store.mail_list_sync, G, "alice")
     assert any(m["kind"] == "sysrank" for m in mails)
+    # 本週派對之星：上週派派大作戰冠軍 alice；bob 喝采一次拿 5 G、alice 收到稱讚
+    star = (await call(bob, "star"))["star"]
+    assert star["name"] == "Alice" and "uid" not in star
+    gb, likes = plaza.players["bob"]["gold"], plaza.players["alice"]["social"]["likes"]
+    assert (await call(bob, "star", act="cheer"))["ok"] and plaza.players["bob"]["gold"] == gb + 5
+    assert plaza.players["alice"]["social"]["likes"] == likes + 1
+    assert (await call(bob, "star", act="cheer"))["code"] == "cheered"
     # 好友在線加成：bob 在線，alice 把 bob 加好友，出貨 +10%
     await call(alice, "social", friend="bob", name="Bob", on=True)
     plaza.players["alice"]["inv"]["wheat"] = 10

@@ -131,6 +131,14 @@ new ResizeObserver(fit).observe(document.querySelector('.stage'));
 // ---------- 定時活動 ----------
 const isOn = (id) => events.includes(id);
 let hunt = null;               // 限時尋寶（伺服器 view）
+let star = null;               // 本週派對之星（伺服器 star view）
+const STAR_AT = { x: 168, y: 46 };
+function starDecor(m) {
+  m.signs = m.signs.filter((t) => t.action !== 'star');
+  if (!star || m.id !== 'plaza') return [];
+  m.signs.push({ x: STAR_AT.x, y: STAR_AT.y + 6, title: '本週派對之星', lines: [`${star.week} ${star.title}：${star.name}（${star.v}）`, '為他喝采吧！（每天一次，你也會拿到 5 G）'], action: 'star', reach: 26, hint: 'E 喝采' });
+  return [obj('arenaPodium', STAR_AT.x, STAR_AT.y, { foot: null, flat: true })];
+}
 function carnivalDecor(m) {
   if (!townPub.carnival || !['plaza', 'frontier'].includes(m.id)) return [];
   const xs = m.id === 'plaza' ? [[100, 120], [380, 120], [100, 200], [380, 200]] : [[120, 140], [220, 140], [340, 140], [460, 140]];
@@ -143,7 +151,7 @@ function applyHunt(m) {
   return here.map((h) => obj('jackLantern', h.x, h.y, { foot: null, light: 24, flicker: true }));
 }
 function applyEvents(m) {
-  const objs = [...eventObjects(m.id, events), ...applyHunt(m), ...carnivalDecor(m)];
+  const objs = [...eventObjects(m.id, events), ...applyHunt(m), ...carnivalDecor(m), ...starDecor(m)];
   m.eventObjects = objs;
   if (!m.farm) m.dynamic = objs.filter((o) => o.foot).map((o) => ({ x0: o.x - o.foot[0] / 2, x1: o.x + o.foot[0] / 2, y0: o.y - o.foot[1], y1: o.y }));
 }
@@ -385,6 +393,7 @@ function doAction(action) {
   else if (action === 'pets') openPetsPanel();
   else if (action === 'bake') openBakePanel();
   else if (action === 'smith') openSmithPanel();
+  else if (action === 'star') cheerStar();
   else if (action === 'arenaBoard') arenaBoard();
 }
 async function ship() {
@@ -775,6 +784,10 @@ async function openNpc(fid, action) {
     audio.tool(r.taste === 'love' || r.up ? 'fanfare' : 'harvest');
     return { ...r, message };
   });
+}
+async function cheerStar() {
+  if (!api.server) return;
+  try { await call('star', { act: 'cheer' }).then((r) => { applyMine(farm, r); refreshHud(); audio.tool('fanfare'); emote(1); hud.toast(`👏 為${r.star.name}喝采！+5 G`); }); } catch (_e) { /* 已提示 */ }
 }
 async function openSmithPanel() {
   if (!api.server) { hud.toast('登入後才能升級工具'); return; }
@@ -1419,6 +1432,7 @@ async function connect() {
       refreshGuide();
       refreshHunt(true);
       refreshFriends();
+      call('star', {}, { quiet: true }).then((r) => { star = r.star; if (map) applyEvents(map); }).catch(() => {});
       call('town', { act: 'view' }, { quiet: true }).then((r) => setTown(r.town)).catch(() => {});
     } else {
       sys('伺服器還沒準備好遊戲存檔，先用試玩模式（進度不會留下來）。');
@@ -1596,6 +1610,7 @@ function frame(now) {
     const inShow = inArena ? arena.participants() : null;
     if (inArena) { list.push(...arena.people(now, dt)); arena.tick(); }
     if (map.id === 'plaza') { list.push(...boss.people(now, dt)); boss.tick(); }
+    if (map.id === 'plaza' && star && star.look) list.push({ id: 'star', name: star.name, noTag: true, look: star.look, x: STAR_AT.x, y: STAR_AT.y - 22, dir: 0, moving: false });
     for (const p of people.values()) {
       const k = 1 - Math.exp(-dt * 12); p.x += (p.tx - p.x) * k; p.y += (p.ty - p.y) * k;
       p.moving = now - p.movedAt < MOVING_MS;
@@ -1675,4 +1690,5 @@ window.__plaza = {
   setLook: (l) => { const s = sanitizeLook(l); if (!s) return false; me.look = s; sendLook(); return true; },
   visit: (id, name) => visit(id, name), emote: (i) => emote(i), call: (op, data) => api.call(op, data), act: (x, y) => act(x, y),
   reload: () => loadMe(),
+  setStar: (s) => { star = s; if (map) applyEvents(map); },
 };
