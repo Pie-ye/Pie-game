@@ -51,8 +51,10 @@ FLOOR = {"ms": 60000, "warn": 1600, "first": 3000, "gapStart": 2600, "gapEnd": 1
 
 PODIUM = [(240, 194), (224, 202), (256, 207)]   # 頒獎台：第一、二、三名站的位置（前端 arenaPodium 底部在 y=222）
 
+CROWN = {"ms": 40000, "reach": 13, "immune": 1500, "slow": 0.88}     # 搶皇冠：拿著的人每秒 +1，被碰到就換人
+RAIN = {"ms": 40000, "warn": 1000, "hit": 13, "stun": 1200, "gapStart": 650, "gapEnd": 260}   # 派餅雨：每顆落點先出現影子
 QUIZ = {"n": 5, "ask": 7000, "reveal": 2500, "judge": 400}   # 揭曉後 0.4 秒才判定站位（抵消延遲）
-ROUND_NAMES = {"coin": "金幣雨", "pie": "派餅大戰", "floor": "落地板", "quiz": "派派問答"}
+ROUND_NAMES = {"coin": "金幣雨", "pie": "派餅大戰", "floor": "落地板", "quiz": "派派問答", "crown": "搶皇冠", "rain": "派餅雨"}
 
 
 def quadrant(i: int) -> int:
@@ -265,7 +267,7 @@ class Arena:
         for uid in list(self.p):
             if uid not in self.order:
                 del self.p[uid]
-        first = ["coin", "pie", "quiz"]
+        first = ["coin", "pie", "quiz", "crown", "rain"]
         self.rng.shuffle(first)
         self.rounds = first[:2] + ["floor"]
         self.rd = -1
@@ -279,6 +281,8 @@ class Arena:
         self.phase, self.phase_end = "intro", now + INTRO_MS
         self.coins, self.pies, self.fall_at, self.grace = {}, [], {}, {}
         self.quiz = None
+        self.crown = {"holder": None, "x": (FIELD[0] + FIELD[2]) / 2, "y": (FIELD[1] + FIELD[3]) / 2 + 4, "at": 0, "immune": 0, "carry": 0}
+        self.drops: list[dict[str, Any]] = []
         self.floor = [0] * (COLS * ROWS)
         spots = spawn_points(len(self.order))
         self.rng.shuffle(spots)
@@ -293,7 +297,7 @@ class Arena:
         self.phase = "live"
         self.started = now
         quiz_ms = QUIZ["n"] * (QUIZ["ask"] + QUIZ["reveal"])
-        self.phase_end = now + {"coin": COIN["ms"], "pie": PIE["ms"], "floor": FLOOR["ms"], "quiz": quiz_ms}[self.kind]
+        self.phase_end = now + {"coin": COIN["ms"], "pie": PIE["ms"], "floor": FLOOR["ms"], "quiz": quiz_ms, "crown": CROWN["ms"], "rain": RAIN["ms"]}[self.kind]
         self.next_at = now + (FLOOR["first"] if self.kind == "floor" else 0)
         if self.kind == "quiz":
             picks = self.rng.sample(range(len(QUESTIONS)), QUIZ["n"])
@@ -380,6 +384,10 @@ class Arena:
                 self._tick_pie(now, dt)
             elif self.kind == "quiz":
                 self._tick_quiz(now)
+            elif self.kind == "crown":
+                self._tick_crown(now, dt)
+            elif self.kind == "rain":
+                self._tick_rain(now)
             else:
                 self._tick_floor(now, dt)
             if now >= self.phase_end or (self.kind == "floor" and self._floor_done()):
@@ -508,6 +516,107 @@ class Arena:
             else:
                 pl["danger"] = 0
 
+    # ---------- 搶皇冠 ----------
+    def _tick_crown(self, now: int, dt: float) -> None:
+        c = self.crown
+        h = c["holder"]
+        if h and (h not in self.p or self.p[h]["gone"]):
+            c["holder"] = h = None
+        if h:
+            pl = self.p[h]
+            c["x"], c["y"] = pl["x"], pl["y"]
+            c["carry"] += dt * 1000
+            while c["carry"] >= 1000:                   # 每拿滿一秒 +1
+                c["carry"] -= 1000
+                pl["score"] += 1
+            if now >= c["immune"]:
+                for u in self.order:
+                    o = self.p[u]
+                    if u == h or o["gone"] or now < o["stun"]:
+                        continue
+                    if math.hypot(o["x"] - pl["x"], o["y"] - pl["y"]) <= CROWN["reach"]:
+                        c.update(holder=u, immune=now + CROWN["immune"], carry=0)
+                        self._ev(k="steal", id=u, by=h)
+                        break
+        else:
+            for u in self.order:
+                o = self.p[u]
+                if o["gone"] or now < o["tp"]:
+                    continue
+                if math.hypot(o["x"] - c["x"], o["y"] - c["y"]) <= CROWN["reach"]:
+                    c.update(holder=u, immune=now + CROWN["immune"], carry=0)
+                    self._ev(k="steal", id=u, by=None)
+                    break
+
+    def _bot_crown(self, uid: str, pl: dict[str, Any], now: int, dt: float) -> None:
+        c = self.crown
+        if c["holder"] == uid:                          # 拿著就跑：往離大家最遠的角落
+            if now >= pl["think"] or pl["goal"] is None:
+                pl["think"] = now + self.rng.randint(700, 1400)
+                corners = [(FIELD[0] + 24, FIELD[1] + 24), (FIELD[2] - 24, FIELD[1] + 24), (FIELD[0] + 24, FIELD[3] - 12), (FIELD[2] - 24, FIELD[3] - 12),
+                           ((FIELD[0] + FIELD[2]) / 2, FIELD[1] + 24), ((FIELD[0] + FIELD[2]) / 2, FIELD[3] - 12)]
+                others = [self.p[u] for u in self.order if u != uid and not self.p[u]["gone"]]
+                best = max(corners, key=lambda q: min((math.hypot(o["x"] - q[0], o["y"] - q[1]) for o in others), default=0) + self.rng.uniform(0, 30))
+                pl["goal"] = (best[0], best[1], "run")
+            self._move_bot(pl, pl["goal"][0], pl["goal"][1], dt * CROWN["slow"])
+        else:                                           # 追皇冠（反應慢一點，不會每次都追到）
+            if now >= pl["think"]:
+                pl["think"] = now + self.rng.randint(350, 900)
+                pl["goal"] = (c["x"] + self.rng.uniform(-10, 10), c["y"] + self.rng.uniform(-6, 6), "chase")
+            if pl["goal"]:
+                self._move_bot(pl, pl["goal"][0], pl["goal"][1], dt * 0.92)
+
+    # ---------- 派餅雨 ----------
+    def _tick_rain(self, now: int) -> None:
+        f = clamp((now - self.started) / RAIN["ms"], 0, 1)
+        if now >= self.next_at:
+            self.next_at = now + int(RAIN["gapStart"] + (RAIN["gapEnd"] - RAIN["gapStart"]) * f)
+            # 一半落在有人站的地方附近，一半隨機
+            alive = [self.p[u] for u in self.order if not self.p[u]["gone"]]
+            if alive and self.rng.random() < 0.5:
+                t = self.rng.choice(alive)
+                x, y = t["x"] + self.rng.uniform(-20, 20), t["y"] + self.rng.uniform(-14, 14)
+            else:
+                x, y = self.rng.uniform(FIELD[0] + 12, FIELD[2] - 12), self.rng.uniform(FIELD[1] + 14, FIELD[3] - 6)
+            x, y = in_field(x, y)
+            self.seq += 1
+            self.drops.append({"id": self.seq, "x": round(x), "y": round(y), "at": now + RAIN["warn"]})
+        keep = []
+        for d in self.drops:
+            if now < d["at"]:
+                keep.append(d)
+                continue
+            hit = []
+            for u in self.order:
+                pl = self.p[u]
+                if pl["gone"] or now < pl["stun"]:
+                    continue
+                if math.hypot(pl["x"] - d["x"], pl["y"] - d["y"]) <= RAIN["hit"]:
+                    pl["stun"] = now + RAIN["stun"]
+                    pl["score"] -= 1                    # 分數是負的被砸次數：越少越好
+                    hit.append(u)
+            self._ev(k="drop", x=d["x"], y=d["y"], ids=hit)
+        self.drops = keep
+
+    def _bot_rain(self, pl: dict[str, Any], now: int, dt: float) -> None:
+        danger = [d for d in self.drops if math.hypot(pl["x"] - d["x"], pl["y"] - d["y"]) < RAIN["hit"] + 8]
+        if danger and now >= pl["react"]:
+            d = danger[0]
+            if pl["goal"] is None or pl["goal"][2] != "dodge":
+                if self.rng.random() < 0.3:                 # 沒注意到
+                    pl["react"] = now + 1500
+                    return
+                pl["react"] = now + self.rng.randint(250, 750)
+                a = math.atan2(pl["y"] - d["y"], pl["x"] - d["x"]) + self.rng.uniform(-0.6, 0.6)
+                pl["goal"] = (pl["x"] + math.cos(a) * 34, pl["y"] + math.sin(a) * 24, "dodge")
+        elif not danger and (pl["goal"] is None or now >= pl["think"]):
+            pl["think"] = now + self.rng.randint(1200, 2600)
+            pl["goal"] = (self.rng.uniform(FIELD[0] + 20, FIELD[2] - 20), self.rng.uniform(FIELD[1] + 20, FIELD[3] - 10), "walk")
+        if pl["goal"]:
+            self._move_bot(pl, pl["goal"][0], pl["goal"][1], dt)
+            if math.hypot(pl["goal"][0] - pl["x"], pl["goal"][1] - pl["y"]) < 2:
+                pl["goal"] = None
+
     # ---------- 派派問答 ----------
     def _tick_quiz(self, now: int) -> None:
         z = self.quiz
@@ -582,6 +691,10 @@ class Arena:
                 self._bot_pie(u, pl, now, dt)
             elif self.kind == "quiz":
                 self._bot_quiz(pl, now, dt)
+            elif self.kind == "crown":
+                self._bot_crown(u, pl, now, dt)
+            elif self.kind == "rain":
+                self._bot_rain(pl, now, dt)
             else:
                 self._bot_floor(pl, now, dt)
 
@@ -681,6 +794,11 @@ class Arena:
                 out["K"] = [[p["id"], round(p["x"], 1), round(p["y"], 1), round(p["vx"]), round(p["vy"])] for p in self.pies]
             else:
                 out["F"] = "".join(str(s) for s in self.floor)
+            if self.kind == "crown":
+                c = self.crown
+                out["W"] = [c["holder"], round(c["x"], 1), round(c["y"], 1), 1 if now < c["immune"] else 0]
+            if self.kind == "rain":
+                out["R"] = [[d["id"], d["x"], d["y"], d["at"]] for d in self.drops]
             if self.kind == "quiz" and self.quiz:
                 z = self.quiz
                 q, opts, ok = QUESTIONS[z["qs"][z["i"]]]

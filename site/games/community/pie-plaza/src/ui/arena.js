@@ -1,6 +1,6 @@
 // 派派大作戰的畫面：套用伺服器快照、內插其他參賽者、畫地板／金幣／派餅／特效，以及計分介面與開賽公告。
 // 規則都在伺服器；這裡只負責「看起來對」與把操作送出去。
-import { ARENA, ROUNDS, QUAD, quadrant, quadrantCenter, unpackPlayer, standings, secondsLeft, cellOf, inField, fieldRect } from '../game/arena.js';
+import { ARENA, ROUNDS, QUAD, scoreText, quadrant, quadrantCenter, unpackPlayer, standings, secondsLeft, cellOf, inField, fieldRect } from '../game/arena.js';
 import { drawText } from '../engine/render.js';
 import { ATLAS } from '../engine/atlas.js';
 
@@ -65,6 +65,14 @@ export function createArena({ myId, audio, hud, sys, onCall }) {
     else if (e.k === 'fall') {
       fx.push({ k: 'smoke', x: e.x, y: e.y, t0: performance.now() });
       if (String(e.id) === id) { audio.tool('fall'); hud.toast(e.quiz ? '答錯了，濕答答……' : '掉下去了！這回合先看大家比', e.quiz ? 1400 : 2500); }
+    } else if (e.k === 'steal') {
+      audio.tool(e.by ? 'pick' : 'bigcoin');
+      if (String(e.id) === id) hud.toast('👑 搶到皇冠！快跑！', 1200);
+      else if (String(e.by) === id) hud.toast('皇冠被搶走了！追回來！', 1200);
+    } else if (e.k === 'drop') {
+      fx.push({ k: 'decal', x: e.x, y: e.y + 4, t0: performance.now() }, { k: 'smoke', x: e.x, y: e.y + 4, t0: performance.now(), small: true });
+      if ((e.ids || []).map(String).includes(id)) { audio.tool('splat'); shake = performance.now() + 300; hud.toast('被派砸到了！', 900); }
+      else if (Math.random() < 0.3) audio.tool('splat');
     } else if (e.k === 'right') {
       if (String(e.id) === id) { audio.tool('harvest'); hud.toast('答對了！+1', 1200); }
     } else if (e.k === 'answer') audio.tool('crack');
@@ -172,11 +180,13 @@ export function createArena({ myId, audio, hud, sys, onCall }) {
     }
     const head = `${r.icon || ''} ${r.name || ''}　第 ${snap.rd + 1}／${(snap.rounds || []).length} 回合`;
     const phase = snap.ph === 'intro' ? `${left} 秒後開始` : snap.ph === 'live' ? `剩 ${left} 秒` : snap.ph === 'result' ? '結算中' : '頒獎';
-    const my = mine ? (snap.kind === 'pie' && snap.ph === 'live' ? `　🥧×${mine.ammo}　得分 ${mine.score}` : snap.kind === 'floor' ? (mine.out ? '　已出局' : '　還站著！') : `　得分 ${mine.score}`) : '　觀戰中';
+    const holding = snap.W && String(snap.W[0]) === me();
+    const my = mine ? (snap.kind === 'pie' && snap.ph === 'live' ? `　🥧×${mine.ammo}　得分 ${mine.score}` : snap.kind === 'floor' ? (mine.out ? '　已出局' : '　還站著！')
+      : snap.kind === 'rain' ? `　被砸 ${-mine.score} 次` : snap.kind === 'crown' ? `　${holding ? '👑 皇冠在你頭上！' : ''}得分 ${mine.score}` : `　得分 ${mine.score}`) : '　觀戰中';
     barEl.textContent = `${head}　${phase}${my}`;
     const key = snap.ph === 'live' && snap.kind !== 'floor' ? 'score' : 'total';
     boardEl.replaceChildren(...standings(allPlayers(), key).map((p) => {
-      const li = el('li', p.id === me() ? 'me' : null, `${p.rank}. ${p.name}${p.bot ? '·鎮民' : ''}　${key === 'score' ? p.score : p.total}${p.out ? ' 💧' : ''}`);
+      const li = el('li', p.id === me() ? 'me' : null, `${p.rank}. ${p.name}${p.bot ? '·鎮民' : ''}　${key === 'score' ? scoreText(snap.kind, p.score) : p.total}${p.out ? ' 💧' : ''}`);
       return li;
     }));
   }
@@ -220,6 +230,17 @@ export function createArena({ myId, audio, hud, sys, onCall }) {
     }
     ctx.globalAlpha = 1;
     if (running() && snap.ph === 'final') spr(ctx, scene, 'arenaPodium', 240, 222);
+    if (running() && snap.kind === 'rain' && snap.R) {
+      const t = Date.now() + offset;
+      for (const [, x, y, at] of snap.R) {
+        const k = Math.max(0, Math.min(1, 1 - (at - t) / 1000));
+        ctx.fillStyle = `rgba(200,40,30,${0.18 + k * 0.35})`;
+        ctx.beginPath(); ctx.ellipse(x, y, 5 + k * 8, 2.5 + k * 4, 0, 0, 7); ctx.fill();
+      }
+    }
+    if (running() && snap.kind === 'crown' && snap.W && !snap.W[0]) {
+      ctx.fillStyle = 'rgba(40,30,20,.25)'; ctx.fillRect(Math.round(snap.W[1]) - 5, Math.round(snap.W[2]), 10, 2);
+    }
     const img = scene.imgs['ninja/fx/coin.png'];
     for (const [, x, y, v] of coins) {
       const f = Math.floor(now / 120 + x) % 4;
@@ -230,6 +251,22 @@ export function createArena({ myId, audio, hud, sys, onCall }) {
   }
 
   function drawOver(ctx, now, scene, selfPos) {
+    if (running() && snap.kind === 'rain' && snap.R) {
+      const t = Date.now() + offset;
+      for (const [, x, y, at] of snap.R) {
+        const left = at - t;
+        if (left > 450) continue;
+        spr(ctx, scene, 'arenaPie', x, y - Math.max(0, left) / 450 * 140 + 6);
+      }
+    }
+    if (running() && snap.kind === 'crown' && snap.W) {
+      const [holder, cx, cy, immune] = snap.W;
+      if (!holder) spr(ctx, scene, 'arenaCrown', cx, cy - 2 - Math.abs(Math.sin(now / 200)) * 3);
+      else {
+        const h = String(holder) === me() && selfPos ? selfPos : (others.get(String(holder)) || { x: cx, y: cy });
+        if (!immune || Math.floor(now / 100) % 2) spr(ctx, scene, 'arenaCrown', h.x, h.y - 16 - Math.abs(Math.sin(now / 250)));
+      }
+    }
     for (const p of pies) {
       const age = Math.min(0.4, (now - p.at) / 1000);
       const x = p.x + p.vx * age, y = p.y + p.vy * age;
@@ -246,7 +283,7 @@ export function createArena({ myId, audio, hud, sys, onCall }) {
     }
     // 暈眩星星、被保護時的泡泡、領先者皇冠
     const list = allPlayers().map((p) => (p.id === me() && selfPos ? { ...p, x: selfPos.x, y: selfPos.y } : p));
-    const lead = running() && snap.ph !== 'intro' ? standings(list, 'total')[0] : null;
+    const lead = running() && snap.ph !== 'intro' && snap.kind !== 'crown' ? standings(list, 'total')[0] : null;
     for (const p of list) {
       if (p.out) continue;
       if (p.stunned) for (let k = 0; k < 3; k++) {

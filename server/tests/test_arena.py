@@ -186,3 +186,45 @@ def test_quadrants_split_field():
     qs = [A.quadrant(i) for i in range(A.COLS * A.ROWS)]
     assert qs.count(-1) == A.ROWS and all(qs.count(q) == (A.COLS // 2) * (A.ROWS // 2) for q in range(4))
     assert A.quadrant(0) == 0 and A.quadrant(A.COLS - 1) == 1 and A.quadrant(A.COLS * (A.ROWS - 1)) == 2
+
+
+def _start_round(kind, seed=21, humans=("u1",)):
+    ar = A.Arena(random.Random(seed))
+    for h in humans:
+        ar.join(h, h, None, A.DESK[0], A.DESK[1], 0)
+    now = run(ar, 0, A.QUEUE_MS + 100)
+    ar.rounds = [kind, "coin", "floor"]; ar.rd = -1; ar._next_round(now)
+    now = run(ar, now, now + A.INTRO_MS + 100)
+    assert ar.kind == kind and ar.phase == "live"
+    return ar, now
+
+
+def test_crown_changes_hands_and_scores_holding_time():
+    ar, now = _start_round("crown")
+    c = ar.crown
+    pl = ar.p["u1"]
+    pl.update(x=c["x"], y=c["y"])
+    ar.tick(now + 100, 0.1)
+    assert c["holder"] == "u1"
+    now = run(ar, now + 100, now + 3100, each=lambda t: ar.pose("u1", pl["x"], pl["y"], t))
+    assert pl["score"] >= 2 or c["holder"] != "u1"
+    seen = set()
+    end = now + 30000
+    while now < end and ar.phase == "live":
+        now += 100
+        ar.tick(now, 0.1)
+        seen.add(c["holder"])
+    assert len(seen - {None}) >= 2, "鎮民會把皇冠搶走"
+
+
+def test_rain_hits_idle_player_more_than_dodging_bots():
+    ar, now = _start_round("rain", seed=5)
+    pl = ar.p["u1"]
+    x, y = pl["x"], pl["y"]
+    while ar.phase == "live":
+        now += 100
+        ar.tick(now, 0.1)
+        ar.pose("u1", x, y, now)
+    bots = [ar.p[u]["score"] for u in ar.order if ar.p[u]["bot"]]
+    assert pl["score"] < 0, "站著不動會被砸"
+    assert pl["score"] <= min(bots), (pl["score"], bots)

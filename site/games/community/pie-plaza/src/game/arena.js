@@ -19,7 +19,12 @@ export const ROUNDS = {
   pie: { name: '派餅大戰', icon: '🥧', how: '空白鍵或點畫面丟派。打中 +1，被打中會暈一下。', color: '#f08a5d' },
   floor: { name: '落地板', icon: '🕳️', how: '地板閃紅就快跑！掉下去就出局，撐到最後的人贏。', color: '#7ec4cf' },
   quiz: { name: '派派問答', icon: '❓', how: '走到答案的色塊上！揭曉時站錯的地方會塌，答對 +1。', color: '#b48ef0' },
+  crown: { name: '搶皇冠', icon: '👑', how: '碰到皇冠就拿走！拿著每秒 +1，被別人碰到就換人。', color: '#ffd23f' },
+  rain: { name: '派餅雨', icon: '🌧️', how: '天上一直掉派！看到地上的紅影就閃開，被砸到越少越好。', color: '#6bc5ff' },
 };
+
+/** 計分板上的分數文字（派餅雨記的是負的被砸次數）。 */
+export const scoreText = (kind, v) => (kind === 'rain' ? `被砸 ${-v}` : `${v}`);
 
 export const QUAD = { labels: ['A', 'B', 'C', 'D'], colors: ['rgba(229,115,115,.42)', 'rgba(100,181,246,.42)', 'rgba(129,199,132,.42)', 'rgba(255,213,79,.48)'] };
 
